@@ -7,6 +7,8 @@ fi
 source "$BASEDIR/launch_env.sh"
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+ONCE_FLAG_FILE="/data/openpilot/.setup_done"
+
 function agnos_init {
   # TODO: move this to agnos
   sudo rm -f /data/etc/NetworkManager/system-connections/*.nmmeta
@@ -18,7 +20,6 @@ function agnos_init {
   # udev does this, but sometimes we startup faster
   sudo chgrp gpu /dev/adsprpc-smd /dev/ion /dev/kgsl-3d0
   sudo chmod 660 /dev/adsprpc-smd /dev/ion /dev/kgsl-3d0
-  sudo chmod 0777 /cache
 
   # Check if AGNOS update is required
   if [ $(< /VERSION) != "$AGNOS_VERSION" ]; then
@@ -28,6 +29,24 @@ function agnos_init {
       sudo reboot
     fi
     $DIR/system/hardware/tici/updater $AGNOS_PY $MANIFEST
+  fi
+}
+
+function one_time_setup {
+  if [ ! -f "$ONCE_FLAG_FILE" ]; then
+    echo "Performing one-time setup tasks..."
+    
+    # Run once:
+    echo "Wiping old params..."
+    rm -rf /data/params/d/* 
+    rm -rf /persist/params/d/*
+    rm -rf /cache/params/d/*
+    rm -rf /data/media/0/realdata/*
+    echo "Old params wiped."
+
+    touch "$ONCE_FLAG_FILE"
+  else
+    echo "One-time setup already completed. Skipping."
   fi
 }
 
@@ -77,6 +96,9 @@ function launch {
   if [ -f /AGNOS ]; then
     agnos_init
   fi
+
+  # Perform one-time setup tasks
+  one_time_setup
 
   # write tmux scrollback to a file
   tmux capture-pane -pq -S-1000 > /tmp/launch_log
