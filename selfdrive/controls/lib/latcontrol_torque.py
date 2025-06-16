@@ -124,9 +124,10 @@ class LatControlTorque(LatControl):
   def update_live_delay(self, lateral_delay):
     self.desired_lat_jerk_time = lateral_delay + 0.3
 
-    nn_time_offset = lateral_delay + 0.2
-    self.nn_future_times = [i + nn_time_offset for i in self.future_times]
-    self.past_future_len = len(self.past_times) + len(self.nn_future_times)
+    if self.use_nnff:
+      nn_time_offset = lateral_delay + 0.2
+      self.nn_future_times = [i + nn_time_offset for i in self.future_times]
+      self.past_future_len = len(self.past_times) + len(self.nn_future_times)
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor

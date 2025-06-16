@@ -9,8 +9,8 @@ EventName = car.CarEvent.EventName
 
 
 class CarInterface(CarInterfaceBase):
-  def __init__(self, CP, CarController, CarState):
-    super().__init__(CP, CarController, CarState)
+  def __init__(self, CP, FPCP, CarController, CarState):
+    super().__init__(CP, FPCP, CarController, CarState)
 
     if CP.networkLocation == NetworkLocation.fwdCamera:
       self.ext_bus = CANBUS.pt
