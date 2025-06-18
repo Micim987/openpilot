@@ -19,7 +19,6 @@ protected:
 
 private:
   void updateMetric(bool metric, bool bootRun);
-  void updateState(const UIState &s, const FrogPilotUIState &fs);
   void updateToggles();
 
   bool customPersonalityOpen;
@@ -30,7 +29,6 @@ private:
   bool isToyota;
   bool isTSK;
   bool slcOpen;
-  bool updatingLimits;
 
   int tuningLevel;
 
@@ -45,14 +43,12 @@ private:
   std::set<QString> relaxedPersonalityKeys = {"RelaxedFollow", "RelaxedJerkAcceleration", "RelaxedJerkDeceleration", "RelaxedJerkDanger", "RelaxedJerkSpeed", "RelaxedJerkSpeedDecrease", "ResetRelaxedPersonality"};
   std::set<QString> speedLimitControllerKeys = {"SLCOffsets", "SLCFallback", "SLCOverride", "SLCPriority", "SLCQOL", "SLCVisuals"};
   std::set<QString> speedLimitControllerOffsetsKeys = {"Offset1", "Offset2", "Offset3", "Offset4", "Offset5", "Offset6", "Offset7"};
-  std::set<QString> speedLimitControllerQOLKeys = {"ForceMPHDashboard", "SetSpeedLimit", "SLCConfirmation", "SLCLookaheadHigher", "SLCLookaheadLower", "SLCMapboxFiller", "SpeedLimitFiller"};
+  std::set<QString> speedLimitControllerQOLKeys = {"ForceMPHDashboard", "SetSpeedLimit", "SLCConfirmation", "SLCLookaheadHigher", "SLCLookaheadLower", "SLCMapboxFiller"};
   std::set<QString> speedLimitControllerVisualKeys = {"ShowSLCOffset", "SpeedLimitSources"};
   std::set<QString> standardPersonalityKeys = {"StandardFollow", "StandardJerkAcceleration", "StandardJerkDeceleration", "StandardJerkDanger", "StandardJerkSpeed", "StandardJerkSpeedDecrease", "ResetStandardPersonality"};
   std::set<QString> trafficPersonalityKeys = {"TrafficFollow", "TrafficJerkAcceleration", "TrafficJerkDeceleration", "TrafficJerkDanger", "TrafficJerkSpeed", "TrafficJerkSpeedDecrease", "ResetTrafficPersonality"};
 
   std::set<QString> parentKeys;
-
-  FrogPilotButtonControl *updateSpeedLimitsToggle;
 
   FrogPilotButtonsControl *curveDetectionToggle;
 

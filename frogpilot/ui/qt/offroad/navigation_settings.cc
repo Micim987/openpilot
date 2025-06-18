@@ -134,6 +134,69 @@ FrogPilotNavigationPanel::FrogPilotNavigationPanel(FrogPilotSettingsWindow *pare
   });
   settingsList->addItem(setupButton);
 
+  std::vector<QString> filterButtonNames{tr("CANCEL"), tr("Update Speed Limits")};
+  updateSpeedLimitsToggle = new FrogPilotButtonControl("SpeedLimitFiller", tr("Speed Limit Filler"),
+                                                    tr("Automatically collect missing speed limits from your dashboard (if supported), <b>Mapbox</b>, and <b>Navigate-on-openpilot</b> while driving.<br><br>"
+                                                       "Tap <b>Update Speed Limits</b> at home (good Wi-Fi, 12V power) to process your recent drives.<br><br>"
+                                                       "Download the data from <b>Fleet Manager</b> → <b>Tools</b> → <b>Download Speed Limits</b>, then upload it to "
+                                                       "<b>SpeedLimitFiller.frogpilot.download</b> to review and submit.<br><br>"
+                                                       "For a full walkthrough, check the <b>#speed-limit-filler</b> channel in the <b>FrogPilot Discord</b>!"),
+                                                       "", filterButtonNames);
+  QObject::connect(updateSpeedLimitsToggle, &FrogPilotButtonControl::buttonClicked, [this](int id) {
+    if (id == 0) {
+      if (FrogPilotConfirmationDialog::yesorno(tr("Are you sure you want to cancel the speed limit update process?"), this)) {
+        updateSpeedLimitsToggle->clearCheckedButtons();
+
+        updateSpeedLimitsToggle->setVisibleButton(0, false);
+        updateSpeedLimitsToggle->setVisibleButton(1, true);
+
+        params_memory.remove("UpdateSpeedLimits");
+      }
+    } else if (id == 1) {
+      QJsonObject overpassRequests = QJsonDocument::fromJson(QString::fromStdString(params.get("OverpassRequests")).toUtf8()).object();
+
+      int totalRequests = overpassRequests.value("total_requests").toInt(0);
+      int maxRequests = overpassRequests.value("max_requests").toInt(10000);
+      int savedDay = overpassRequests.value("day").toInt(QDate::currentDate().day());
+
+      int currentDay = QDate::currentDate().day();
+
+      if (savedDay != currentDay) {
+        totalRequests = 0;
+      }
+
+      if (totalRequests >= maxRequests) {
+        QTime now = QTime::currentTime();
+
+        int secondsUntilMidnight = (24 * 3600) - (now.hour() * 3600 + now.minute() * 60 + now.second());
+        int hours = secondsUntilMidnight / 3600;
+        int minutes = (secondsUntilMidnight % 3600) / 60;
+
+        ConfirmationDialog::alert(QString(tr("You have reached the request limit.\n\nIt will reset in %1 hours and %2 minutes.")).arg(hours).arg(minutes), this);
+
+        updateSpeedLimitsToggle->clearCheckedButtons();
+        return;
+      }
+
+      updateSpeedLimitsToggle->setVisibleButton(0, true);
+      updateSpeedLimitsToggle->setVisibleButton(1, false);
+
+      if (FrogPilotConfirmationDialog::yesorno(tr("This process will take awhile, so it's advised to start when you're done driving with a stable Wi-Fi connection. Do you wish to proceed?"), this)) {
+        updatingLimits = true;
+
+        params_memory.putBool("UpdateSpeedLimits", true);
+        params_memory.put("UpdateSpeedLimitsStatus", "Calculating...");
+      } else {
+        updateSpeedLimitsToggle->setVisibleButton(0, false);
+        updateSpeedLimitsToggle->setVisibleButton(1, true);
+
+        updateSpeedLimitsToggle->clearCheckedButtons();
+      }
+    }
+  });
+  updateSpeedLimitsToggle->setVisibleButton(0, false);
+  settingsList->addItem(updateSpeedLimitsToggle);
+
   ScrollView *settingsPanel = new ScrollView(settingsList, this);
   primelessLayout->addWidget(settingsPanel);
 
@@ -147,7 +210,10 @@ FrogPilotNavigationPanel::FrogPilotNavigationPanel(FrogPilotSettingsWindow *pare
 }
 
 void FrogPilotNavigationPanel::showEvent(QShowEvent *event) {
-  QString ipAddress = frogpilotUIState()->wifi->getIp4Address();
+  FrogPilotUIState &fs = *frogpilotUIState();
+  FrogPilotUIScene &frogpilot_scene = fs.frogpilot_scene;
+
+  QString ipAddress = fs.wifi->getIp4Address();
   ipLabel->setText(ipAddress.isEmpty() ? tr("Device Offline") : QString("%1:8082").arg(ipAddress));
 
   updateButtons();
@@ -160,6 +226,9 @@ void FrogPilotNavigationPanel::showEvent(QShowEvent *event) {
   amapKeyControl2->setVisible(searchInput == 1);
 
   googleKeyControl->setVisible(searchInput == 2);
+
+  updateSpeedLimitsToggle->setEnabledButton(0, frogpilot_scene.online && util::system_time_valid());
+  updateSpeedLimitsToggle->setVisible(parent->tuningLevel >= parent->frogpilotToggleLevels["SpeedLimitFiller"].toDouble());
 }
 
 void FrogPilotNavigationPanel::hideEvent(QHideEvent *event) {
@@ -187,7 +256,7 @@ void FrogPilotNavigationPanel::updateButtons() {
   secretMapboxKeyControl->setText(mapboxSecretKeySet ? tr("REMOVE") : tr("ADD"));
 }
 
-void FrogPilotNavigationPanel::updateState(const UIState &s) {
+void FrogPilotNavigationPanel::updateState(const UIState &s, const FrogPilotUIState &fs) {
   if (!isVisible() || s.sm->frame % (UI_FREQ / 2) != 0) {
     return;
   }
@@ -195,7 +264,22 @@ void FrogPilotNavigationPanel::updateState(const UIState &s) {
   updateButtons();
   updateStep();
 
-  parent->keepScreenOn = primelessLayout->currentIndex() == 1;
+  updateSpeedLimitsToggle->setEnabledButton(0, fs.frogpilot_scene.online);
+
+  if (updatingLimits) {
+    if (params_memory.get("UpdateSpeedLimits").empty()) {
+      updatingLimits = false;
+
+      updateSpeedLimitsToggle->clearCheckedButtons();
+      updateSpeedLimitsToggle->setValue("");
+      updateSpeedLimitsToggle->setVisibleButton(0, false);
+      updateSpeedLimitsToggle->setVisibleButton(1, true);
+    } else {
+      updateSpeedLimitsToggle->setValue(QString::fromStdString(params_memory.get("UpdateSpeedLimitsStatus")));
+    }
+  }
+
+  parent->keepScreenOn = primelessLayout->currentIndex() == 1 || updatingLimits;
 }
 
 void FrogPilotNavigationPanel::updateStep() {
