@@ -204,7 +204,7 @@ def manager_thread() -> None:
     if shutdown:
       break
 
-    # Update FrogPilot parameters
+    # Update FrogPilot variables
     if sm['frogpilotPlan'].togglesUpdated:
       frogpilot_toggles = get_frogpilot_toggles()
 

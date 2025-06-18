@@ -66,6 +66,8 @@ void ExperimentalButton::updateState(const UIState &s, const FrogPilotUIState &f
   // FrogPilot variables
   SubMaster &fpsm = *(fs.sm);
 
+  use_stock_wheel = frogpilot_toggles.value("wheel_image").toString() == "stock";
+
   if (frogpilot_toggles.value("rotating_wheel").toBool() && steering_angle != -fpsm["carState"].getCarState().getSteeringAngleDeg()) {
     steering_angle = -fpsm["carState"].getCarState().getSteeringAngleDeg();
 
@@ -126,13 +128,13 @@ void ExperimentalButton::paintEvent(QPaintEvent *event) {
   clip_path.addEllipse(QPoint(btn_size / 2, btn_size / 2), btn_size / 2, btn_size / 2);
   p.setClipPath(clip_path);
 
-  if (wheel_gif) {
+  if (use_stock_wheel) {
+    QPixmap img = experimental_mode ? experimental_img : engage_img;
+    drawIcon(p, QPoint(btn_size / 2, btn_size / 2), img, background_color, (isDown() || !engageable) ? 0.6 : 1.0, steering_angle);
+  } else if (wheel_gif) {
     drawIcon(p, QPoint(btn_size / 2, btn_size / 2), wheel_gif->currentPixmap(), background_color, (isDown() || !engageable) ? 0.6 : 1.0, steering_angle);
   } else if (!wheel_img.isNull()) {
     drawIcon(p, QPoint(btn_size / 2, btn_size / 2), wheel_img, background_color, (isDown() || !engageable) ? 0.6 : 1.0, steering_angle);
-  } else {
-    QPixmap img = experimental_mode ? experimental_img : engage_img;
-    drawIcon(p, QPoint(btn_size / 2, btn_size / 2), img, background_color, (isDown() || !engageable) ? 0.6 : 1.0, steering_angle);
   }
 
   p.setClipping(false);

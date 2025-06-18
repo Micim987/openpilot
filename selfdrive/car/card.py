@@ -227,7 +227,7 @@ class Car:
       self.step()
       self.rk.monitor_time()
 
-      # Update FrogPilot parameters
+      # Update FrogPilot variables
       if self.sm['frogpilotPlan'].togglesUpdated:
         self.frogpilot_toggles = get_frogpilot_toggles()
 

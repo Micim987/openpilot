@@ -29,6 +29,8 @@ private:
   void updateBackgroundColor();
   void updateTheme();
 
+  bool use_stock_wheel;
+
   int steering_angle;
 
   Params params_memory{"/dev/shm/params"};

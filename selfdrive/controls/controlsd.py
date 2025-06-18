@@ -762,7 +762,7 @@ class Controls:
     if self.frogpilot_toggles.conditional_experimental_mode or self.frogpilot_toggles.slc_fallback_experimental_mode:
       self.experimental_mode = self.sm['frogpilotPlan'].experimentalMode
 
-    # Update FrogPilot parameters
+    # Update FrogPilot variables
     if self.sm['frogpilotPlan'].togglesUpdated:
       self.frogpilot_toggles = get_frogpilot_toggles()
 

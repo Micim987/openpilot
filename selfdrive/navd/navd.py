@@ -90,7 +90,7 @@ class RouteEngine:
     except Exception:
       cloudlog.exception("navd.failed_to_compute")
 
-    # Update FrogPilot parameters
+    # Update FrogPilot variables
     if self.sm['frogpilotPlan'].togglesUpdated:
       self.frogpilot_toggles = get_frogpilot_toggles()
 

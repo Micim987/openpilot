@@ -398,6 +398,6 @@ def main():
       if sm.frame % 1200 == 0: # cache every 60 seconds
         params_reader.put_nonblocking("LiveDelay", lag_msg_dat)
 
-    # Update FrogPilot parameters
+    # Update FrogPilot variables
     if sm['frogpilotPlan'].togglesUpdated:
       frogpilot_toggles = get_frogpilot_toggles()

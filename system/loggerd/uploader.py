@@ -277,7 +277,7 @@ def main(exit_event: threading.Event = None) -> None:
     if allow_sleep:
       time.sleep(backoff + random.uniform(0, backoff))
 
-    # Update FrogPilot parameters
+    # Update FrogPilot variables
     if sm['frogpilotPlan'].togglesUpdated:
       frogpilot_toggles = get_frogpilot_toggles()
 
