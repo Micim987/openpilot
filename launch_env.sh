@@ -12,4 +12,4 @@ fi
 
 export STAGING_ROOT="/data/safe_staging"
 
-eval "$(/data/openpilot/frogpilot/system/sentry)"
+eval "$(/data/openpilot/frogpilot/system/environment_variables)"

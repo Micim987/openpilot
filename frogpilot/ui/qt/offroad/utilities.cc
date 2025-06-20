@@ -55,7 +55,7 @@ FrogPilotUtilitiesPanel::FrogPilotUtilitiesPanel(FrogPilotSettingsWindow *parent
   ButtonControl *reportIssueBtn = new ButtonControl(tr("Report a Bug or an Issue"), tr("REPORT"), tr("Let FrogsGoMoo know about an issue you're facing!"));
   QObject::connect(reportIssueBtn, &ButtonControl::clicked, [this]() {
     QStringList report_messages = {
-      tr("I saw an alert that said <b>openpilot crashed</b>"),
+      tr("I saw an alert that said \"openpilot crashed\""),
       tr("I'm noticing harsh acceleration"),
       tr("I'm noticing harsh braking"),
       tr("I'm noticing unusual steering"),
@@ -83,6 +83,7 @@ FrogPilotUtilitiesPanel::FrogPilotUtilitiesPanel(FrogPilotSettingsWindow *parent
     ConfirmationDialog::alert(tr("Your report has been submitted. Thanks for letting us know!"), this);
   });
   addItem(reportIssueBtn);
+  reportIssueBtn->setVisible(params.get("GitRemote") == "https://github.com/FrogAi/openpilot.git");
 
   ButtonControl *resetTogglesBtn = new ButtonControl(tr("Reset Toggles to Default"), tr("RESET"), tr("Reset all toggles to their default values."));
   QObject::connect(resetTogglesBtn, &ButtonControl::clicked, [this, parent, resetTogglesBtn]() {

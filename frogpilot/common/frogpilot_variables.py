@@ -844,7 +844,7 @@ class FrogPilotVariables:
     toggle.slc_fallback_experimental_mode = slc_fallback_method == 1
     toggle.slc_fallback_previous_speed_limit = slc_fallback_method == 2
     toggle.slc_fallback_set_speed = slc_fallback_method == 0
-    toggle.slc_mapbox_filler = toggle.speed_limit_controller and params_cache.get("MapboxSecretKey", encoding="utf-8") != None and (params.get_bool("SLCMapboxFiller") if tuning_level >= level["SLCMapboxFiller"] else default.get_bool("SLCMapboxFiller"))
+    toggle.slc_mapbox_filler = (toggle.show_speed_limits or toggle.speed_limit_controller) and params_cache.get("MapboxSecretKey", encoding="utf-8") != None and (params.get_bool("SLCMapboxFiller") if tuning_level >= level["SLCMapboxFiller"] else default.get_bool("SLCMapboxFiller"))
     toggle.speed_limit_confirmation = toggle.speed_limit_controller and (params.get_bool("SLCConfirmation") if tuning_level >= level["SLCConfirmation"] else default.get_bool("SLCConfirmation"))
     toggle.speed_limit_confirmation_higher = toggle.speed_limit_confirmation and (params.get_bool("SLCConfirmationHigher") if tuning_level >= level["SLCConfirmationHigher"] else default.get_bool("SLCConfirmationHigher"))
     toggle.speed_limit_confirmation_lower = toggle.speed_limit_confirmation and (params.get_bool("SLCConfirmationLower") if tuning_level >= level["SLCConfirmationLower"] else default.get_bool("SLCConfirmationLower"))

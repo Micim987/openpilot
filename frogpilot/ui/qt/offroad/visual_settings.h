@@ -38,7 +38,7 @@ private:
   std::set<QString> developerUIKeys = {"DeveloperMetrics", "DeveloperSidebar", "DeveloperWidgets"};
   std::set<QString> developerWidgetKeys = {"AdjacentLeadsUI", "RadarTracksUI", "ShowStoppingPoint"};
   std::set<QString> modelUIKeys = {"DynamicPathWidth", "LaneLinesWidth", "PathEdgeWidth", "PathWidth", "RoadEdgesWidth", "UnlimitedLength"};
-  std::set<QString> navigationUIKeys = {"BigMap", "MapStyle", "RoadNameUI", "ShowSpeedLimits", "UseVienna"};
+  std::set<QString> navigationUIKeys = {"BigMap", "MapStyle", "RoadNameUI", "ShowSpeedLimits", "SLCMapboxFiller", "UseVienna"};
   std::set<QString> qualityOfLifeKeys = {"CameraView", "DriverCamera", "StandbyMode", "StoppedTimer"};
 
   std::set<QString> parentKeys;
@@ -48,6 +48,7 @@ private:
   FrogPilotSettingsWindow *parent;
 
   Params params;
+  Params params_cache{"/cache/params"};
 
   QJsonObject frogpilotToggleLevels;
 };

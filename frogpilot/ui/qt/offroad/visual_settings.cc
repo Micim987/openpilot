@@ -94,6 +94,7 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
     {"MapStyle", tr("Map Style"), tr("The map style used for <b>Navigate on openpilot (NOO)</b>:<br><br><b>Stock</b>: Default comma.ai style<br><b>Mapbox Streets</b>: Standard street-focused view<br><b>Mapbox Outdoors</b>: Emphasizes outdoor and terrain features<br><b>Mapbox Light</b>: Minimalist, bright theme<br><b>Mapbox Dark</b>: Minimalist, dark theme<br><b>Mapbox Navigation Day</b>: Optimized for daytime navigation<br><b>Mapbox Navigation Night</b>: Optimized for nighttime navigation<br><b>Mapbox Satellite</b>: Satellite imagery only<br><b>Mapbox Satellite Streets</b>: Hybrid satellite imagery with street labels<br><b>Mapbox Traffic Night</b>: Dark theme emphasizing traffic conditions<br><b>mike854's (Satellite hybrid)</b>: Customized hybrid satellite view"), ""},
     {"RoadNameUI", tr("Road Name"), tr("Display the road name at the bottom of the driving screen using data from <b>OpenStreetMap</b>."), ""},
     {"ShowSpeedLimits", tr("Show Speed Limits"), tr("Display speed limits in the top left corner of the driving screen. Uses data from your car's dashboard (if supported) and data from <b>OpenStreetMaps</b>."), ""},
+    {"SLCMapboxFiller", tr("Show Speed Limits from Mapbox"), tr("Use <b>Mapbox</b> speed limit data when no other sources are available."), ""},
     {"UseVienna", tr("Use Vienna-Style Speed Signs"), tr("Force <b>Vienna-style (EU)</b> speed limit signs instead of <b>MUTCD (US)</b>."), ""},
 
     {"QOLVisuals", tr("Quality of Life"), tr("Visual features to improve your overall openpilot experience."), "../../frogpilot/assets/toggle_icons/quality_of_life.png"},
@@ -347,6 +348,11 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
     });
   }
 
+  std::set<QString> forceUpdateKeys = {"ShowSpeedLimits"};
+  for (const QString &key : forceUpdateKeys) {
+    QObject::connect(static_cast<ToggleControl*>(toggles[key]), &ToggleControl::toggleFlipped, this, &FrogPilotVisualsPanel::updateToggles);
+  }
+
   QObject::connect(parent, &FrogPilotSettingsWindow::closeSubPanel, [visualsLayout, visualsPanel] {visualsLayout->setCurrentWidget(visualsPanel);});
   QObject::connect(parent, &FrogPilotSettingsWindow::closeSubSubPanel, [this, visualsLayout, developerUIPanel]() {
     if (developerUIOpen) {
@@ -483,6 +489,11 @@ void FrogPilotVisualsPanel::updateToggles() {
 
     if (key == "ShowStoppingPoint") {
       setVisible &= hasOpenpilotLongitudinal;
+    }
+
+    if (key == "SLCMapboxFiller") {
+      setVisible &= params.getBool("ShowSpeedLimits") && !(hasOpenpilotLongitudinal && params.getBool("SpeedLimitController"));
+      setVisible &= !params_cache.get("MapboxSecretKey").empty();
     }
 
     toggle->setVisible(setVisible);

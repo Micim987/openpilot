@@ -776,6 +776,10 @@ void FrogPilotLongitudinalPanel::updateToggles() {
       setVisible &= isToyota;
     }
 
+    if (key == "SLCMapboxFiller") {
+      setVisible &= !params_cache.get("MapboxSecretKey").empty();
+    }
+
     toggle->setVisible(setVisible);
 
     if (setVisible) {
