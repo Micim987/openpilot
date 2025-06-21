@@ -103,12 +103,12 @@ def calculate_road_curvature(modelData, v_ego):
 
   return float(max_pred_lat_acc / max(v_ego, 1)**2)
 
-def delete_file(path):
+def delete_file(path, report=True):
   path = Path(path)
   if path.is_file() or path.is_symlink():
-    run_cmd(["sudo", "rm", "-f", str(path)], success_message=f"Deleted file: {path}", fail_message=f"Failed to delete file: {path}")
+    run_cmd(["sudo", "rm", "-f", str(path)], success_message=f"Deleted file: {path}", fail_message=f"Failed to delete file: {path}", report=report)
   elif path.is_dir():
-    run_cmd(["sudo", "rm", "-rf", str(path)], success_message=f"Deleted directory: {path}", fail_message=f"Failed to delete directory: {path}")
+    run_cmd(["sudo", "rm", "-rf", str(path)], success_message=f"Deleted directory: {path}", fail_message=f"Failed to delete directory: {path}", report=report)
   else:
     print(f"File not found: {path}")
 

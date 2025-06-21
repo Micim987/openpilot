@@ -123,9 +123,9 @@ class Controls:
 
     # cleanup old params
     if not self.CP.experimentalLongitudinalAvailable:
-      self.params.remove("ExperimentalLongitudinalEnabled")
+      self.params.put_bool("ExperimentalLongitudinalEnabled", False)
     if not self.CP.openpilotLongitudinalControl:
-      self.params.remove("ExperimentalMode")
+      self.params.put_bool("ExperimentalMode", False)
 
     self.CS_prev = car.CarState.new_message()
     self.AM = AlertManager()

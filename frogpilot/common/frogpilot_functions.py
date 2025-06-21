@@ -30,7 +30,7 @@ def backup_directory(backup, destination, success_message, fail_message, minimum
   if compressed:
     destination_compressed = destination.parent / (destination.name + ".tar.zst")
     if destination_compressed.exists():
-      delete_file(in_progress_destination)
+      delete_file(in_progress_destination, report=False)
       print("Backup already exists. Aborting...")
       return
 
@@ -40,7 +40,7 @@ def backup_directory(backup, destination, success_message, fail_message, minimum
     with tarfile.open(tar_file, "w") as tar:
       tar.add(in_progress_destination, arcname=destination.name)
 
-    delete_file(in_progress_destination)
+    delete_file(in_progress_destination, report=False)
 
     compressed_file = destination.parent / (destination.name + "_in_progress.tar.zst")
     with open(compressed_file, "wb") as f:
@@ -63,7 +63,7 @@ def backup_directory(backup, destination, success_message, fail_message, minimum
       params.put_int("MinimumBackupSize", compressed_backup_size)
   else:
     if destination.exists():
-      delete_file(in_progress_destination)
+      delete_file(in_progress_destination, report=False)
       print("Backup already exists. Aborting...")
       return
 
@@ -74,11 +74,11 @@ def cleanup_backups(directory, limit, compressed=False):
   directory.mkdir(parents=True, exist_ok=True)
 
   for in_progress in directory.glob("*_in_progress*"):
-    delete_file(in_progress)
+    delete_file(in_progress, report=False)
 
   backups = sorted(directory.glob("*_auto*"), key=lambda x: x.stat().st_mtime, reverse=True)
   for oldest_backup in backups[limit:]:
-    delete_file(oldest_backup)
+    delete_file(oldest_backup, report=False)
 
 def backup_frogpilot(build_metadata):
   backup_path = Path("/data/backups")

@@ -360,16 +360,16 @@ class MapSpeedLogger:
         params.put("OverpassRequests", json.dumps(self.overpass_requests))
         params.put("SpeedLimits", json.dumps(list(dataset)))
         params.put("SpeedLimitsFiltered", json.dumps(list(filtered_dataset)))
-      elif len(dataset) == 0:
-        self.overpass_requests["total_requests"] += processed_count
-        self.total_requests = 0
 
-        params.put("OverpassRequests", json.dumps(self.overpass_requests))
-        params.put("SpeedLimits", json.dumps(list(dataset)))
-        params.put("SpeedLimitsFiltered", json.dumps(list(filtered_dataset)))
+    self.overpass_requests["total_requests"] += processed_count
+    self.total_requests = 0
 
-        params_memory.remove("UpdateSpeedLimits")
-        params_memory.remove("UpdateSpeedLimitsStatus")
+    params.put("OverpassRequests", json.dumps(self.overpass_requests))
+    params.put("SpeedLimits", json.dumps(list(dataset)))
+    params.put("SpeedLimitsFiltered", json.dumps(list(filtered_dataset)))
+
+    params_memory.remove("UpdateSpeedLimits")
+    params_memory.remove("UpdateSpeedLimitsStatus")
 
 def main():
   logger = MapSpeedLogger()
