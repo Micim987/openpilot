@@ -6,6 +6,7 @@ import time
 import openpilot.system.sentry as sentry
 
 from cereal import messaging
+from openpilot.common.params import Params
 from openpilot.common.realtime import Priority, config_realtime_process
 from openpilot.common.time import system_time_valid
 
@@ -13,7 +14,7 @@ from openpilot.frogpilot.assets.model_manager import ModelManager, MODEL_DOWNLOA
 from openpilot.frogpilot.assets.theme_manager import ThemeManager
 from openpilot.frogpilot.common.frogpilot_functions import backup_toggles
 from openpilot.frogpilot.common.frogpilot_utilities import flash_panda, is_url_pingable, lock_doors, run_thread_with_lock, update_maps, update_openpilot
-from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, FrogPilotVariables, get_frogpilot_toggles, params, params_cache, params_memory
+from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, FrogPilotVariables, get_frogpilot_toggles, params, params_memory
 from openpilot.frogpilot.controls.frogpilot_planner import FrogPilotPlanner
 from openpilot.frogpilot.controls.lib.frogpilot_tracking import FrogPilotTracking
 
@@ -70,6 +71,7 @@ def frogpilot_thread():
 
   frogpilot_variables = FrogPilotVariables()
   model_manager = ModelManager()
+  params_cache = Params("/cache/params")
   theme_manager = ThemeManager()
 
   assets_checked = False
