@@ -227,7 +227,7 @@ class CarInterfaceBase(ABC):
     self.can_parsers = [self.cp, self.cp_cam, self.cp_adas, self.cp_body, self.cp_loopback]
 
     dbc_name = "" if self.cp is None else self.cp.dbc_name
-    self.CC: CarControllerBase = CarController(dbc_name, CP, self.VM)
+    self.CC: CarControllerBase = CarController(dbc_name, CP, FPCP, self.VM)
 
     # FrogPilot variables
     frogpilot_toggles = get_frogpilot_toggles()
@@ -675,7 +675,7 @@ SendCan = tuple[int, int, bytes, int]
 
 
 class CarControllerBase(ABC):
-  def __init__(self, dbc_name: str, CP, VM):
+  def __init__(self, dbc_name: str, CP, FPPC, VM):
     pass
 
   @abstractmethod
