@@ -12,12 +12,11 @@ from datetime import datetime
 import openpilot.system.sentry as sentry
 
 from openpilot.common.conversions import Conversions as CV
-from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
 from openpilot.common.time import system_time_valid
 
 from openpilot.frogpilot.common.frogpilot_utilities import calculate_bearing_offset, calculate_distance_to_point, is_url_pingable
-from openpilot.frogpilot.common.frogpilot_variables import params, params_memory
+from openpilot.frogpilot.common.frogpilot_variables import params, params_cache, params_memory
 
 FREE_MAPBOX_REQUESTS = 100_000
 
@@ -47,7 +46,7 @@ class SpeedLimitController:
     self.mapbox_requests.setdefault("max_requests", FREE_MAPBOX_REQUESTS - (28 * 100))
 
     self.mapbox_host = "https://api.mapbox.com"
-    self.mapbox_token = Params("/cache/params").get("MapboxSecretKey", encoding="utf8")
+    self.mapbox_token = params_cache.get("MapboxSecretKey", encoding="utf8")
 
     self.previous_target = params.get_float("PreviousSpeedLimit")
 
@@ -226,7 +225,6 @@ class SpeedLimitController:
       self.previous_target = self.target
 
       params.put_float_nonblocking("PreviousSpeedLimit", self.target)
-
 
   def update_limits(self, dashboard_speed_limit, gps_position, navigation_speed_limit, v_cruise, v_cruise_cluster, v_ego, sm):
     self.update_map_speed_limit(gps_position, v_ego)

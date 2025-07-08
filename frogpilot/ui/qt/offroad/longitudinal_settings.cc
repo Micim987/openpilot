@@ -153,74 +153,7 @@ FrogPilotLongitudinalPanel::FrogPilotLongitudinalPanel(FrogPilotSettingsWindow *
   for (const auto &[param, title, desc, icon] : longitudinalToggles) {
     AbstractControl *longitudinalToggle;
 
-    if (param == "CustomPersonalities") {
-      FrogPilotManageControl *customPersonalitiesToggle = new FrogPilotManageControl(param, title, desc, icon);
-      QObject::connect(customPersonalitiesToggle, &FrogPilotManageControl::manageButtonClicked, [longitudinalLayout, customDrivingPersonalityPanel]() {
-        longitudinalLayout->setCurrentWidget(customDrivingPersonalityPanel);
-      });
-      longitudinalToggle = customPersonalitiesToggle;
-    } else if (param == "ResetTrafficPersonality" || param == "ResetAggressivePersonality" || param == "ResetStandardPersonality" || param == "ResetRelaxedPersonality") {
-      ButtonControl *resetBtn = new ButtonControl(title, tr("RESET"), desc);
-      longitudinalToggle = resetBtn;
-    } else if (param == "TrafficPersonalityProfile") {
-      FrogPilotManageControl *trafficPersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
-      QObject::connect(trafficPersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, trafficPersonalityPanel]() {
-        openSubSubPanel();
-
-        longitudinalLayout->setCurrentWidget(trafficPersonalityPanel);
-
-        customPersonalityOpen = true;
-      });
-      longitudinalToggle = trafficPersonalityToggle;
-    } else if (param == "AggressivePersonalityProfile") {
-      FrogPilotManageControl *aggressivePersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
-      QObject::connect(aggressivePersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, aggressivePersonalityPanel]() {
-        openSubSubPanel();
-
-        longitudinalLayout->setCurrentWidget(aggressivePersonalityPanel);
-
-        customPersonalityOpen = true;
-      });
-      longitudinalToggle = aggressivePersonalityToggle;
-    } else if (param == "StandardPersonalityProfile") {
-      FrogPilotManageControl *standardPersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
-      QObject::connect(standardPersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, standardPersonalityPanel]() {
-        openSubSubPanel();
-
-        longitudinalLayout->setCurrentWidget(standardPersonalityPanel);
-
-        customPersonalityOpen = true;
-      });
-      longitudinalToggle = standardPersonalityToggle;
-    } else if (param == "RelaxedPersonalityProfile") {
-      FrogPilotManageControl *relaxedPersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
-      QObject::connect(relaxedPersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, relaxedPersonalityPanel]() {
-        openSubSubPanel();
-
-        longitudinalLayout->setCurrentWidget(relaxedPersonalityPanel);
-
-        customPersonalityOpen = true;
-      });
-      longitudinalToggle = relaxedPersonalityToggle;
-    } else if (aggressivePersonalityKeys.find(param) != aggressivePersonalityKeys.end() ||
-               standardPersonalityKeys.find(param) != standardPersonalityKeys.end() ||
-               relaxedPersonalityKeys.find(param) != relaxedPersonalityKeys.end() ||
-               trafficPersonalityKeys.find(param) != trafficPersonalityKeys.end()) {
-      if (param == "TrafficFollow" || param == "AggressiveFollow" || param == "StandardFollow" || param == "RelaxedFollow") {
-        std::map<float, QString> followTimeLabels;
-        for (float i = 0; i <= 5; i += 0.01) {
-          followTimeLabels[i] = std::lround(i / 0.01) == 1 / 0.01 ? QString::number(i, 'f', 2) + tr(" second") : QString::number(i, 'f', 2) + tr(" seconds");
-        }
-        if (param == "TrafficFollow") {
-          longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 0.5, 5, QString(), followTimeLabels, 0.01, true);
-        } else {
-          longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 1, 5, QString(), followTimeLabels, 0.01, true);
-        }
-      } else {
-        longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 1, 500, "%");
-      }
-
-    } else if (param == "ConditionalExperimental") {
+    if (param == "ConditionalExperimental") {
       FrogPilotManageControl *conditionalExperimentalToggle = new FrogPilotManageControl(param, title, desc, icon);
       QObject::connect(conditionalExperimentalToggle, &FrogPilotManageControl::manageButtonClicked, [longitudinalLayout, conditionalExperimentalPanel]() {
         longitudinalLayout->setCurrentWidget(conditionalExperimentalPanel);
@@ -285,6 +218,73 @@ FrogPilotLongitudinalPanel::FrogPilotLongitudinalPanel(FrogPilotSettingsWindow *
     } else if (param == "CurveSensitivity" || param == "TurnAggressiveness") {
       longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 1, 200, "%");
 
+    } else if (param == "CustomPersonalities") {
+      FrogPilotManageControl *customPersonalitiesToggle = new FrogPilotManageControl(param, title, desc, icon);
+      QObject::connect(customPersonalitiesToggle, &FrogPilotManageControl::manageButtonClicked, [longitudinalLayout, customDrivingPersonalityPanel]() {
+        longitudinalLayout->setCurrentWidget(customDrivingPersonalityPanel);
+      });
+      longitudinalToggle = customPersonalitiesToggle;
+    } else if (param == "ResetTrafficPersonality" || param == "ResetAggressivePersonality" || param == "ResetStandardPersonality" || param == "ResetRelaxedPersonality") {
+      ButtonControl *resetBtn = new ButtonControl(title, tr("RESET"), desc);
+      longitudinalToggle = resetBtn;
+    } else if (param == "TrafficPersonalityProfile") {
+      FrogPilotManageControl *trafficPersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
+      QObject::connect(trafficPersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, trafficPersonalityPanel]() {
+        openSubSubPanel();
+
+        longitudinalLayout->setCurrentWidget(trafficPersonalityPanel);
+
+        customPersonalityOpen = true;
+      });
+      longitudinalToggle = trafficPersonalityToggle;
+    } else if (param == "AggressivePersonalityProfile") {
+      FrogPilotManageControl *aggressivePersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
+      QObject::connect(aggressivePersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, aggressivePersonalityPanel]() {
+        openSubSubPanel();
+
+        longitudinalLayout->setCurrentWidget(aggressivePersonalityPanel);
+
+        customPersonalityOpen = true;
+      });
+      longitudinalToggle = aggressivePersonalityToggle;
+    } else if (param == "StandardPersonalityProfile") {
+      FrogPilotManageControl *standardPersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
+      QObject::connect(standardPersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, standardPersonalityPanel]() {
+        openSubSubPanel();
+
+        longitudinalLayout->setCurrentWidget(standardPersonalityPanel);
+
+        customPersonalityOpen = true;
+      });
+      longitudinalToggle = standardPersonalityToggle;
+    } else if (param == "RelaxedPersonalityProfile") {
+      FrogPilotManageControl *relaxedPersonalityToggle = new FrogPilotManageControl(param, title, desc, icon);
+      QObject::connect(relaxedPersonalityToggle, &FrogPilotManageControl::manageButtonClicked, [this, longitudinalLayout, relaxedPersonalityPanel]() {
+        openSubSubPanel();
+
+        longitudinalLayout->setCurrentWidget(relaxedPersonalityPanel);
+
+        customPersonalityOpen = true;
+      });
+      longitudinalToggle = relaxedPersonalityToggle;
+    } else if (aggressivePersonalityKeys.find(param) != aggressivePersonalityKeys.end() ||
+               standardPersonalityKeys.find(param) != standardPersonalityKeys.end() ||
+               relaxedPersonalityKeys.find(param) != relaxedPersonalityKeys.end() ||
+               trafficPersonalityKeys.find(param) != trafficPersonalityKeys.end()) {
+      if (param == "TrafficFollow" || param == "AggressiveFollow" || param == "StandardFollow" || param == "RelaxedFollow") {
+        std::map<float, QString> followTimeLabels;
+        for (float i = 0; i <= 5; i += 0.01) {
+          followTimeLabels[i] = std::lround(i / 0.01) == 1 / 0.01 ? QString::number(i, 'f', 2) + tr(" second") : QString::number(i, 'f', 2) + tr(" seconds");
+        }
+        if (param == "TrafficFollow") {
+          longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 0.5, 5, QString(), followTimeLabels, 0.01, true);
+        } else {
+          longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 1, 5, QString(), followTimeLabels, 0.01, true);
+        }
+      } else {
+        longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 25, 200, "%");
+      }
+
     } else if (param == "LongitudinalTune") {
       FrogPilotManageControl *longitudinalTuneToggle = new FrogPilotManageControl(param, title, desc, icon);
       QObject::connect(longitudinalTuneToggle, &FrogPilotManageControl::manageButtonClicked, [longitudinalLayout, longitudinalTunePanel]() {
@@ -300,7 +300,7 @@ FrogPilotLongitudinalPanel::FrogPilotLongitudinalPanel(FrogPilotSettingsWindow *
       ButtonParamControl *decelerationProfileToggle = new ButtonParamControl(param, title, desc, icon, decelerationProfiles);
       longitudinalToggle = decelerationProfileToggle;
     } else if (param == "LeadDetectionThreshold") {
-      longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 1, 99, "%");
+      longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 1, 50, "%");
     } else if (param == "MaxDesiredAcceleration") {
       longitudinalToggle = new FrogPilotParamValueControl(param, title, desc, icon, 0.1, 4.0, tr(" m/s²"), std::map<float, QString>(), 0.1);
 
@@ -772,7 +772,6 @@ void FrogPilotLongitudinalPanel::updateToggles() {
     }
 
     if (key == "ReverseCruise") {
-      setVisible &= hasPCMCruise;
       setVisible &= isToyota;
     }
 
