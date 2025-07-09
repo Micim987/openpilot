@@ -3199,6 +3199,10 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
         <source>Are you sure you want to reset all toggles to match stock openpilot?</source>
         <translation type="gpt-4o-generated">Tüm anahtarları stok openpilot ile eşleşecek şekilde sıfırlamak istediğinizden emin misiniz?</translation>
     </message>
+    <message>
+        <source>Ensure your device has an internet connection before sending a report!</source>
+        <translation type="gpt-4o-generated">Rapor göndermeden önce cihazınızın internet bağlantısına sahip olduğundan emin olun!</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotVehiclesPanel</name>

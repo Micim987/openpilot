@@ -3201,6 +3201,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>Are you sure you want to reset all toggles to match stock openpilot?</source>
         <translation type="gpt-4o-generated">هل أنت متأكد أنك تريد إعادة تعيين جميع التبديلات لتتوافق مع openpilot الافتراضي؟</translation>
     </message>
+    <message>
+        <source>Ensure your device has an internet connection before sending a report!</source>
+        <translation type="gpt-4o-generated">تأكد من أن جهازك متصل بالإنترنت قبل إرسال التقرير!</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotVehiclesPanel</name>
