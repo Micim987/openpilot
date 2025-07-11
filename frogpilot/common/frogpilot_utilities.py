@@ -22,7 +22,7 @@ from openpilot.selfdrive.car.toyota.carcontroller import LOCK_CMD
 from openpilot.system.hardware import HARDWARE
 from panda import Panda
 
-from openpilot.frogpilot.common.frogpilot_variables import EARTH_RADIUS, KONIK_PATH, MAPD_PATH, MAPS_PATH, params, params_memory
+from openpilot.frogpilot.common.frogpilot_variables import EARTH_RADIUS, KONIK_PATH, MAPD_PATH, MAPS_PATH, params, params_cache, params_memory
 
 running_threads = {}
 
@@ -184,6 +184,12 @@ def update_maps(now):
     time.sleep(60)
 
   maps_selected = json.loads(params.get("MapsSelected", encoding="utf-8") or "{}")
+
+  if isinstance(maps_selected, int):
+    params.remove("MapsSelected")
+    params_cache.remove("MapsSelected")
+    return
+
   if not (maps_selected.get("nations") or maps_selected.get("states")):
     return
 
