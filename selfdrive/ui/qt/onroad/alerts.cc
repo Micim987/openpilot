@@ -37,13 +37,13 @@ OnroadAlerts::Alert OnroadAlerts::getAlert(const SubMaster &sm, uint64_t started
            tr("Please post the \"Error Log\" in the FrogPilot Discord!"),
            "openpilotCrashedRandomEvent",
            cereal::ControlsState::AlertSize::MID,
-           cereal::ControlsState::AlertStatus::NORMAL};
+           cereal::ControlsState::AlertStatus::CRITICAL};
     } else {
       a = {tr("openpilot crashed"),
            tr("Please post the \"Error Log\" in the FrogPilot Discord!"),
            "openpilotCrashed",
            cereal::ControlsState::AlertSize::MID,
-           cereal::ControlsState::AlertStatus::NORMAL};
+           cereal::ControlsState::AlertStatus::CRITICAL};
     }
     return a;
   } else if (controls_frame >= started_frame) {  // Don't get old alert.

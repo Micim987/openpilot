@@ -51,6 +51,7 @@ private:
   QMap<QString, QString> carModels;
 
   ParamControl *disableOpenpilotLong;
+  ParamControl *forceFingerprint;
 
   Params params;
   Params params_default{"/dev/shm/params_default"};

@@ -13,7 +13,7 @@ from openpilot.frogpilot.assets.download_functions import GITLAB_URL, download_f
 from openpilot.frogpilot.common.frogpilot_utilities import delete_file
 from openpilot.frogpilot.common.frogpilot_variables import DEFAULT_CLASSIC_MODEL, DEFAULT_MODEL, DEFAULT_TINYGRAD_MODEL, MODELS_PATH, params, params_default, params_memory
 
-VERSION = "v14"
+VERSION = "v15"
 
 CANCEL_DOWNLOAD_PARAM = "CancelModelDownload"
 DOWNLOAD_PROGRESS_PARAM = "ModelDownloadProgress"
@@ -22,22 +22,15 @@ MODEL_DOWNLOAD_ALL_PARAM = "DownloadAllModels"
 
 class ModelManager:
   def __init__(self):
+    self.downloading_model = False
+
     self.available_models = (params.get("AvailableModels", encoding="utf-8") or "").split(",")
     self.model_versions = (params.get("ModelVersions", encoding="utf-8") or "").split(",")
 
-    self.downloading_model = False
+    self.session = requests.Session()
+    self.session.headers.update({"User-Agent": "frogpilot-model-downloader/1.0 (https://github.com/FrogAi/FrogPilot)"})
 
-  @staticmethod
-  def fetch_models(url):
-    try:
-      with urllib.request.urlopen(url, timeout=10) as response:
-        return json.loads(response.read().decode("utf-8"))["models"]
-    except Exception as error:
-      handle_request_error(error, None, None, None, None)
-      return []
-
-  @staticmethod
-  def fetch_all_model_sizes(repo_url):
+  def fetch_all_model_sizes(self, repo_url):
     project_path = "FrogAi/FrogPilot-Resources"
     branch = "Models"
 
@@ -49,7 +42,7 @@ class ModelManager:
       return {}
 
     try:
-      response = requests.get(api_url)
+      response = self.session.get(api_url)
       response.raise_for_status()
       model_files = [file for file in response.json() if "." in file["name"]]
 
@@ -58,7 +51,7 @@ class ModelManager:
         for file in model_files:
           file_path = file["path"]
           metadata_url = f"https://gitlab.com/api/v4/projects/{urllib.parse.quote_plus(project_path)}/repository/files/{urllib.parse.quote_plus(file_path)}/raw?ref={branch}"
-          metadata_response = requests.head(metadata_url)
+          metadata_response = self.session.head(metadata_url)
           metadata_response.raise_for_status()
           model_sizes[file["name"].rsplit(".", 1)[0]] = int(metadata_response.headers.get("content-length", 0))
         return model_sizes
@@ -69,17 +62,26 @@ class ModelManager:
       handle_request_error(f"Failed to fetch model sizes from {'GitHub' if 'github' in repo_url else 'GitLab'}: {error}", None, None, None, None)
       return {}
 
+  def fetch_models(self, url):
+    try:
+      response = self.session.get(url, timeout=10)
+      response.raise_for_status()
+      return response.json().get("models", [])
+    except Exception as error:
+      handle_request_error(error, None, None, None, None)
+      return []
+
   def handle_verification_failure(self, model, model_path, file_extension):
     print(f"Verification failed for model {model}. Retrying from GitLab...")
     model_url = f"{GITLAB_URL}/Models/{model}.{file_extension}"
-    download_file(CANCEL_DOWNLOAD_PARAM, model_path, DOWNLOAD_PROGRESS_PARAM, model_url, MODEL_DOWNLOAD_PARAM, params_memory)
+    download_file(CANCEL_DOWNLOAD_PARAM, model_path, DOWNLOAD_PROGRESS_PARAM, model_url, MODEL_DOWNLOAD_PARAM, params_memory, self.session)
 
     if params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
       handle_error(None, "Download cancelled...", "Download cancelled...", MODEL_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, params_memory)
       self.downloading_model = False
       return
 
-    if verify_download(model_path, model_url):
+    if verify_download(model_path, model_url, self.session):
       print(f"Model {model} downloaded and verified successfully!")
       params_memory.put(DOWNLOAD_PROGRESS_PARAM, "Downloaded!")
       params_memory.remove(MODEL_DOWNLOAD_PARAM)
@@ -91,7 +93,7 @@ class ModelManager:
   def download_model(self, model_to_download):
     self.downloading_model = True
 
-    repo_url = get_repository_url()
+    repo_url = get_repository_url(self.session)
     if not repo_url:
       handle_error(None, "GitHub and GitLab are offline...", "Repository unavailable", MODEL_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, params_memory)
       self.downloading_model = False
@@ -101,14 +103,14 @@ class ModelManager:
     model_path = MODELS_PATH / f"{model_to_download}.{file_extension}"
     model_url = f"{repo_url}/Models/{model_to_download}.{file_extension}"
     print(f"Downloading model: {model_to_download}")
-    download_file(CANCEL_DOWNLOAD_PARAM, model_path, DOWNLOAD_PROGRESS_PARAM, model_url, MODEL_DOWNLOAD_PARAM, params_memory)
+    download_file(CANCEL_DOWNLOAD_PARAM, model_path, DOWNLOAD_PROGRESS_PARAM, model_url, MODEL_DOWNLOAD_PARAM, params_memory, self.session)
 
     if params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
       handle_error(None, "Download cancelled...", "Download cancelled...", MODEL_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, params_memory)
       self.downloading_model = False
       return
 
-    if verify_download(model_path, model_url):
+    if verify_download(model_path, model_url, self.session):
       print(f"Model {model_to_download} downloaded and verified successfully!")
       params_memory.put(DOWNLOAD_PROGRESS_PARAM, "Downloaded!")
       params_memory.remove(MODEL_DOWNLOAD_PARAM)
@@ -194,7 +196,7 @@ class ModelManager:
     if self.downloading_model:
       return
 
-    repo_url = get_repository_url()
+    repo_url = get_repository_url(self.session)
     if repo_url is None:
       print("GitHub and GitLab are offline...")
       return
@@ -205,7 +207,7 @@ class ModelManager:
       self.check_models(boot_run, repo_url)
 
   def download_all_models(self):
-    repo_url = get_repository_url()
+    repo_url = get_repository_url(self.session)
     if not repo_url:
       handle_error(None, "GitHub and GitLab are offline...", "Repository unavailable", MODEL_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, params_memory)
       return

@@ -64,6 +64,8 @@ def update_checks(manually_updated, model_manager, now, sm, theme_manager, frogp
 def frogpilot_thread():
   config_realtime_process(5, Priority.CTRL_LOW)
 
+  frogpilot_toggles = get_frogpilot_toggles()
+
   error_log = ERROR_LOGS_PATH / "error.txt"
   if error_log.is_file():
     error_log.unlink()
@@ -72,21 +74,20 @@ def frogpilot_thread():
   model_manager = ModelManager()
   theme_manager = ThemeManager()
 
+  toggles_last_updated = datetime.datetime.now()
+
+  pm = messaging.PubMaster(["frogpilotPlan"])
+  sm = messaging.SubMaster(["carControl", "carState", "controlsState", "deviceState", "driverMonitoringState",
+                            "liveLocationKalman", "liveParameters", "managerState", "modelV2",
+                            "pandaStates", "radarState", "frogpilotCarState",
+                            "frogpilotNavigation"],
+                            poll="modelV2", ignore_avg_freq=["radarState"])
+
   assets_checked = False
   run_update_checks = False
   started_previously = False
   time_validated = False
   toggles_updated = False
-
-  frogpilot_toggles = get_frogpilot_toggles()
-
-  toggles_last_updated = datetime.datetime.now()
-
-  pm = messaging.PubMaster(["frogpilotPlan"])
-  sm = messaging.SubMaster(["carControl", "carState", "controlsState", "deviceState", "driverMonitoringState",
-                            "liveLocationKalman", "managerState", "modelV2", "pandaStates", "radarState",
-                            "frogpilotCarState", "frogpilotNavigation"],
-                            poll="modelV2", ignore_avg_freq=["radarState"])
 
   while True:
     sm.update()

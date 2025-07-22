@@ -8,7 +8,8 @@ from enum import Enum
 from pathlib import Path
 from sentry_sdk.integrations.threading import ThreadingIntegration
 
-from openpilot.common.params import Params, ParamKeyType
+from openpilot.common.params import Params
+from openpilot.system.athena.registration import is_registered_device
 from openpilot.system.hardware import HARDWARE, PC
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.version import get_build_metadata, get_version
@@ -44,7 +45,7 @@ def capture_exception(*args, **kwargs) -> None:
     return
 
   save_exception(exc_text)
-  cloudlog.error("crash", exc_info=kwargs.get("exc_info", 1))
+  cloudlog.error("crash", exc_info=kwargs.get('exc_info', 1))
 
   try:
     sentry_sdk.capture_exception(*args, **kwargs)
@@ -125,8 +126,6 @@ def save_exception(exc_text: str) -> None:
     else:
       file_path.write_text(exc_text)
 
-  print(f"Logged current crash to {[str(file) for file in files]}")
-
 
 def init(project: SentryProject) -> bool:
   build_metadata = get_build_metadata()
@@ -136,7 +135,7 @@ def init(project: SentryProject) -> bool:
 
   short_branch = build_metadata.channel
 
-  if short_branch == "COMMA":
+  if short_branch in ["COMMA", "HEAD"]:
     return
   elif short_branch == "FrogPilot-Development":
     env = "Development"
@@ -149,7 +148,6 @@ def init(project: SentryProject) -> bool:
   else:
     env = short_branch
 
-  params = Params()
   dongle_id = params.get("DongleId", encoding="utf-8")
   installed = params.get("InstallDate", encoding="utf-8")
   updated = params.get("Updated", encoding="utf-8")

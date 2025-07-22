@@ -26,7 +26,6 @@ PERM_STEER_FAULTS = (3, 17)
 
 
 # Traffic signals for Speed Limit Controller - Credit goes to the DragonPilot team!
-@staticmethod
 def calculate_speed_limit(cp_cam, frogpilot_toggles):
   speed_limit_unit = cp_cam.vl["RSA1"]["TSGN1"]
   speed_limit_value = cp_cam.vl["RSA1"]["SPDVAL1"]

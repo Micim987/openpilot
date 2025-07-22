@@ -16,14 +16,14 @@ from openpilot.common.conversions import Conversions as CV
 from openpilot.common.git import get_short_branch
 from openpilot.common.numpy_fast import clip
 from openpilot.common.params import Params
-from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper, DT_CTRL, DT_MDL
+from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper, DT_CTRL
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.selfdrive.car.car_helpers import get_car_interface, get_startup_event
 from openpilot.selfdrive.car.gm.values import CC_ONLY_CAR, GMFlags
 from openpilot.selfdrive.controls.lib.alertmanager import AlertManager, set_offroad_alert
 from openpilot.selfdrive.controls.lib.drive_helpers import VCruiseHelper, clip_curvature
-from openpilot.selfdrive.controls.lib.events import ET, EVENTS, Events
+from openpilot.selfdrive.controls.lib.events import Events, ET
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl, MIN_LATERAL_CONTROL_SPEED
 from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle, STEER_ANGLE_SATURATION_THRESHOLD
@@ -194,14 +194,14 @@ class Controls:
     self.resumeRequired_shown = False
     self.steerTempUnavailableSilent_shown = False
 
+    self.display_timer = 0
+
+    self.event_names_to_clear = set()
+
     self.planner_curves = self.frogpilot_toggles.planner_curvature_model
     self.use_old_long = self.frogpilot_toggles.old_long_api
 
-    self.display_timer = 0
-
     self.has_menu = self.CP.carName == "gm" and not (self.CP.flags & GMFlags.NO_CAMERA.value or self.CP.carFingerprint in CC_ONLY_CAR)
-
-    self.event_names_to_clear = set()
 
   def set_initial_state(self):
     if REPLAY:
@@ -609,8 +609,8 @@ class Controls:
         self.LaC.update_live_torque_params(torque_params.latAccelFactorFiltered, torque_params.latAccelOffsetFiltered,
                                            torque_params.frictionCoefficientFiltered)
 
-      if self.sm.updated['liveDelay'] and (self.CI.use_nnff or self.CI.use_nnff_lite):
-        self.LaC.update_live_delay(self.sm['liveDelay'].lateralDelay)
+      if self.sm.updated['liveDelay'] and (self.frogpilot_toggles.nnff or self.frogpilot_toggles.nnff_lite):
+        self.LaC.nnff.update_live_delay(self.sm['liveDelay'].lateralDelay)
 
     long_plan = self.sm['longitudinalPlan']
     model_v2 = self.sm['modelV2']
@@ -653,9 +653,9 @@ class Controls:
 
       if self.use_old_long:
         t_since_plan = (self.sm.frame - self.sm.recv_frame['longitudinalPlan']) * DT_CTRL
-        actuators.accel = self.LoC.update_old_long(CC.longActive, CS, long_plan, pid_accel_limits, t_since_plan, self.frogpilot_toggles)
+        actuators.accel = min(self.LoC.update_old_long(CC.longActive, CS, long_plan, pid_accel_limits, t_since_plan, self.frogpilot_toggles), self.frogpilot_toggles.max_desired_acceleration)
       else:
-        actuators.accel = self.LoC.update(CC.longActive, CS, long_plan.aTarget, long_plan.shouldStop or self.sm['frogpilotPlan'].forcingStopLength < 1, pid_accel_limits, self.frogpilot_toggles)
+        actuators.accel = min(self.LoC.update(CC.longActive, CS, long_plan.aTarget, long_plan.shouldStop, pid_accel_limits, self.frogpilot_toggles), self.frogpilot_toggles.max_desired_acceleration)
 
       if len(long_plan.speeds):
         actuators.speed = long_plan.speeds[-1]
@@ -825,7 +825,7 @@ class Controls:
     if self.enabled:
       clear_event_types.add(ET.NO_ENTRY)
 
-    alerts = self.events.create_alerts(self.current_alert_types, [self.CP, CS, self.sm, self.is_metric, self.soft_disable_timer, self.params, self.frogpilot_toggles])
+    alerts = self.events.create_alerts(self.current_alert_types, [self.CP, CS, self.sm, self.is_metric, self.soft_disable_timer, self.frogpilot_toggles])
     self.AM.add_many(self.sm.frame, alerts)
     current_alert = self.AM.process_alerts(self.sm.frame, clear_event_types)
     if current_alert:

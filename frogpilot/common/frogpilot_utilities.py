@@ -67,11 +67,11 @@ def calculate_bearing_offset(latitude, longitude, current_bearing, distance):
   new_longitude = lon_rad + math.atan2(math.sin(bearing) * math.sin(delta) * math.cos(lat_rad),  math.cos(delta) - math.sin(lat_rad) * math.sin(new_latitude))
   return math.degrees(new_latitude), math.degrees(new_longitude)
 
-def calculate_distance_to_point(ax, ay, bx, by):
-  delta_x = (bx - ax) / 2
-  delta_y = (by - ay) / 2
+def calculate_distance_to_point(lat1, lon1, lat2, lon2):
+  delta_lat = lat2 - lat1
+  delta_lon = lon2 - lon1
 
-  a = (math.sin(delta_x)**2) + math.cos(ax) * math.cos(bx) * (math.sin(delta_y)**2)
+  a = (math.sin(delta_lat / 2) ** 2) + math.cos(lat1) * math.cos(lat2) * (math.sin(delta_lon / 2) ** 2)
   c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
   return EARTH_RADIUS * c
@@ -135,23 +135,19 @@ def flash_panda():
 
   params_memory.remove("FlashPanda")
 
-def is_url_pingable(url, timeout=10):
+def is_url_pingable(url):
+  headers = {"User-Agent": "frogpilot-ping-test/1.0 (https://github.com/FrogAi/FrogPilot)"}
   try:
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers, timeout=timeout)
-    return response.status_code < 400
-  except requests.ConnectionError:
-    print(f"ConnectionError while pinging {url}")
-  except requests.HTTPError:
-    print(f"HTTPError while fetching from {url}")
-  except requests.RequestException:
-    print(f"RequestException while pinging {url}")
-  except requests.Timeout:
-    print(f"Timeout while pinging {url}")
-  except Exception as error:
-    sentry.capture_exception(error)
-    print(f"Unexpected error while pinging {url}: {error}")
-  return False
+    response = requests.head(url, headers=headers, timeout=10, allow_redirects=True)
+    response.raise_for_status()
+    return True
+  except requests.RequestException as e:
+    print(f"Network/HTTP error for {url}: {e}")
+    return False
+  except Exception as e:
+    print(f"An unexpected error occurred while checking {url}: {e}")
+    sentry.capture_exception(e)
+    return False
 
 def lock_doors(lock_doors_timer, sm):
   wait_for_no_driver(sm, lock_doors_timer)

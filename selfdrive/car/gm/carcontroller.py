@@ -138,7 +138,7 @@ class CarController(CarControllerBase):
           self.apply_brake = 0
         elif near_stop and stopping and not CC.cruiseControl.resume:
           self.apply_gas = self.params.INACTIVE_REGEN
-          self.apply_brake = int(min(-100 * self.CP.stopAccel, self.params.MAX_BRAKE))
+          self.apply_brake = int(min(-100 * frogpilot_toggles.stopAccel, self.params.MAX_BRAKE))
         else:
           # Normal operation
           if self.CP.carFingerprint in EV_CAR:

@@ -15,10 +15,6 @@
         <source>Reboot and Update</source>
         <translation>再起動してアップデート</translation>
     </message>
-    <message>
-        <source>Disable Internet Check</source>
-        <translation type="gpt-4o-generated">インターネットチェックを無効にする</translation>
-    </message>
 </context>
 <context>
     <name>AdvancedNetworking</name>
@@ -890,12 +886,12 @@
         <translation type="gpt-4o-generated">秒</translation>
     </message>
     <message>
-        <source>Disable Internet Requirement</source>
-        <translation type="gpt-4o-generated">インターネット要件を無効にする</translation>
+        <source>High Bitrate Recording</source>
+        <translation type="gpt-4o-generated">高ビットレート録音</translation>
     </message>
     <message>
-        <source>Allow the device to work indefinitely without an internet connection.</source>
-        <translation type="gpt-4o-generated">デバイスがインターネット接続なしで無期限に動作することを許可します。</translation>
+        <source>Record driving footage at double the standard bitrate for improved video quality in driving logs.</source>
+        <translation type="gpt-4o-generated">運転ログのビデオ品質を向上させるために、標準ビットレートの2倍で運転映像を記録します。</translation>
     </message>
 </context>
 <context>
@@ -1171,6 +1167,10 @@
     <message>
         <source> km/h</source>
         <translation type="gpt-4o-generated">km/h</translation>
+    </message>
+    <message>
+        <source>Turn Signal Only</source>
+        <translation type="gpt-4o-generated">ターンシグナルのみ</translation>
     </message>
 </context>
 <context>
@@ -1652,56 +1652,28 @@
         <translation type="gpt-4o-generated">掲示された制限速度に対するオフセットは、より「人間らしい」運転体験のためです。</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (0–24 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (0–24 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 0 and 24 mph.</source>
         <translation type="gpt-4o-generated">0から24 mphの制限速度に対して適用される目標速度オフセット。</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (25–34 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット（25–34 mph）</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 25 and 34 mph.</source>
         <translation type="gpt-4o-generated">25 mphから34 mphの制限速度に対して適用される目標速度オフセット。</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (35–44 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット（35–44 mph）</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 35 and 44 mph.</source>
         <translation type="gpt-4o-generated">35 mphから44 mphの制限速度に対して適用される目標速度オフセット。</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (45–54 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット（45–54 mph）</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 45 and 54 mph.</source>
         <translation type="gpt-4o-generated">45 mphから54 mphの制限速度に対して適用される目標速度オフセット。</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (55–64 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット（55–64 mph）</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 55 and 64 mph.</source>
         <translation type="gpt-4o-generated">55 mphから64 mphの制限速度に対して適用される目標速度オフセット。</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (65–74 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (65–74 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 65 and 74 mph.</source>
         <translation type="gpt-4o-generated">65 mphから74 mphの制限速度に対して適用される目標速度オフセット。</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (75–99 mph)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット（75–99 mph）</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 75 and 99 mph.</source>
@@ -1912,34 +1884,6 @@
         <translation type="gpt-4o-generated">km/h</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (0–29 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (0–29 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (30–49 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (30–49 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (50–59 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (50–59 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (60–79 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (60–79 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (80–99 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (80–99 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (100–119 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (100–119 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (120–140 km/h)</source>
-        <translation type="gpt-4o-generated">速度制限オフセット (120–140 km/h)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 0 and 29 km/h.</source>
         <translation type="gpt-4o-generated">0から29 km/hの制限速度に対して適用される目標速度オフセット。</translation>
     </message>
@@ -1968,6 +1912,146 @@
         <translation type="gpt-4o-generated">120 km/hから140 km/hの制限速度に対して目標速度オフセットが適用されました。</translation>
     </message>
     <message>
+        <source>Advanced Longitudinal Tuning</source>
+        <translation type="gpt-4o-generated">高度な縦調整</translation>
+    </message>
+    <message>
+        <source>Advanced settings for customizing how openpilot handles acceleration and braking.</source>
+        <translation type="gpt-4o-generated">オープンパイロットが加速とブレーキを処理する方法をカスタマイズするための詳細設定。</translation>
+    </message>
+    <message>
+        <source>Actuator Delay (Default: %1)</source>
+        <translation type="gpt-4o-generated">アクチュエータ遅延（デフォルト: %1）</translation>
+    </message>
+    <message>
+        <source>Actuator Delay</source>
+        <translation type="gpt-4o-generated">アクチュエータ遅延</translation>
+    </message>
+    <message>
+        <source>Delay before throttle or brake takes effect. Higher values smooth slow actuators but can feel laggy; lower values react quicker but may overshoot.</source>
+        <translation type="gpt-4o-generated">スロットルまたはブレーキが効き始めるまでの遅延。高い値は遅いアクチュエータをスムーズにしますが、遅れを感じることがあります。低い値は反応が速くなりますが、オーバーシュートする可能性があります。</translation>
+    </message>
+    <message>
+        <source>Start Acceleration (Default: %1)</source>
+        <translation type="gpt-4o-generated">開始加速（デフォルト: %1）</translation>
+    </message>
+    <message>
+        <source>Start Acceleration</source>
+        <translation type="gpt-4o-generated">加速開始</translation>
+    </message>
+    <message>
+        <source>Extra acceleration applied when pulling away from a stop. Increase for snappier launches at the cost of smoothness; decrease for gentler starts.</source>
+        <translation type="gpt-4o-generated">停止からの発進時に追加の加速を適用します。スムーズさを犠牲にしてより素早い発進を求める場合は増加させ、穏やかなスタートを求める場合は減少させます。</translation>
+    </message>
+    <message>
+        <source>Start Speed (Default: %1)</source>
+        <translation type="gpt-4o-generated">開始速度 (デフォルト: %1)</translation>
+    </message>
+    <message>
+        <source>Start Speed</source>
+        <translation type="gpt-4o-generated">開始速度</translation>
+    </message>
+    <message>
+        <source>Speed where openpilot begins to exit the stopped state. Higher values avoid creeping but may feel sluggish; lower values move sooner but risk creeping.</source>
+        <translation type="gpt-4o-generated">openpilotが停止状態を終了し始める速度。高い値はクリープを避けますが、鈍く感じることがあります。低い値は早く動き始めますが、クリープのリスクがあります。</translation>
+    </message>
+    <message>
+        <source>Stop Acceleration (Default: %1)</source>
+        <translation type="gpt-4o-generated">加速停止（デフォルト: %1）</translation>
+    </message>
+    <message>
+        <source>Stop Acceleration</source>
+        <translation type="gpt-4o-generated">加速を止める</translation>
+    </message>
+    <message>
+        <source>Brake force applied to hold the vehicle still. Larger values prevent creeping on hills but might jerk to a stop. Smaller values can feel smoother but may allow rolling.</source>
+        <translation type="gpt-4o-generated">ブレーキ力が適用され、車両を静止させます。大きな値は坂道でのクリープを防ぎますが、急に停止することがあります。小さな値はよりスムーズに感じられますが、転がる可能性があります。</translation>
+    </message>
+    <message>
+        <source>Stopping Rate (Default: %1)</source>
+        <translation type="gpt-4o-generated">停止率（デフォルト: %1）</translation>
+    </message>
+    <message>
+        <source>Stopping Rate</source>
+        <translation type="gpt-4o-generated">停止率</translation>
+    </message>
+    <message>
+        <source>How quickly braking ramps up when stopping. Faster rates shorten stopping distance but can be harsh; slower rates are smoother but need more room.</source>
+        <translation type="gpt-4o-generated">停止時にブレーキがどれだけ速く効くか。速い速度は停止距離を短くしますが、厳しい場合があります。遅い速度はスムーズですが、より多くのスペースが必要です。</translation>
+    </message>
+    <message>
+        <source>Stop Speed (Default: %1)</source>
+        <translation type="gpt-4o-generated">停止速度 (デフォルト: %1)</translation>
+    </message>
+    <message>
+        <source>Stop Speed</source>
+        <translation type="gpt-4o-generated">速度を止める</translation>
+    </message>
+    <message>
+        <source>Speed where openpilot beings to enter the stopped state. Higher values brake earlier for smoother stops but might stop too soon; lower values wait longer and can overshoot.</source>
+        <translation type="gpt-4o-generated">openpilotが停止状態に入る速度。高い値はスムーズな停止のために早めにブレーキをかけますが、早すぎる可能性があります。低い値は待機時間が長くなり、行き過ぎることがあります。</translation>
+    </message>
+    <message>
+        <source>Speed Offset (0–24 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット (0–24 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (25–34 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット (25–34 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (35–44 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット (35–44 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (45–54 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット（45–54 mph）</translation>
+    </message>
+    <message>
+        <source>Speed Offset (55–64 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット (55–64 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (65–74 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット (65–74 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (75–99 mph)</source>
+        <translation type="gpt-4o-generated">速度オフセット (75–99 mph)</translation>
+    </message>
+    <message>
+        <source>Only For Detected Lanes</source>
+        <translation type="gpt-4o-generated">検出された車線のみ</translation>
+    </message>
+    <message>
+        <source>Speed Offset (0–29 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (0–29 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (30–49 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (30–49 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (50–59 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (50–59 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (60–79 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (60–79 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (80–99 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (80–99 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (100–119 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (100–119 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (120–140 km/h)</source>
+        <translation type="gpt-4o-generated">速度オフセット (120–140 km/h)</translation>
+    </message>
+    <message>
         <source>Curve Speed Control</source>
         <translation type="gpt-4o-generated">カーブ速度制御</translation>
     </message>
@@ -1989,7 +2073,7 @@
     </message>
     <message>
         <source>Only trigger &lt;b&gt;Curve Speed Control&lt;/b&gt; if a curve is detected with the model while using the &lt;b&gt;Map-Based&lt;/b&gt; method. Useful to help prevent false positives.</source>
-        <translation type="gpt-4o-generated">カーブがモデルで検出された場合にのみ、&lt;b&gt;マップベース&lt;/b&gt;方式を使用して&lt;b&gt;カーブ速度制御&lt;/b&gt;をトリガーします。誤検知を防ぐのに役立ちます。</translation>
+        <translation type="gpt-4o-generated">&lt;b&gt;Map-Based&lt;/b&gt; メソッドを使用している間にモデルでカーブが検出された場合にのみ、&lt;b&gt;Curve Speed Control&lt;/b&gt; をトリガーします。誤検知を防ぐのに役立ちます。</translation>
     </message>
     <message>
         <source>Curve Detection Sensitivity</source>
@@ -1997,7 +2081,7 @@
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">カーブを検出する際のopenpilotの感度。高い値は、頻繁にトリガーされるリスクがあるが、早期の反応を引き起こし、低い値は、トリガーがあまりにも少ないリスクがあるが、信頼性を高める。</translation>
+        <translation type="gpt-4o-generated">openpilotがカーブを検出する際の感度。高い値は、頻繁にトリガーされるリスクがある一方で、より早い反応を引き起こします。低い値は、トリガーがあまりにも少ないリスクがある一方で、自信を高めます。</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2005,7 +2089,7 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">openpilotがカーブを通過する際の攻撃性。値が高いほど速いターンになりますが、快適性や安定性が低下する可能性があります。一方、値が低いほど遅く滑らかなターンになりますが、慎重すぎるリスクがあります。</translation>
+        <translation type="gpt-4o-generated">openpilotがカーブを通過する際の攻撃性。値が高いほど速いターンが可能になるが、快適性や安定性が低下する可能性があり、値が低いほど遅く滑らかなターンになるが、過度に慎重になるリスクがある。</translation>
     </message>
     <message>
         <source>Map Based</source>
@@ -2488,16 +2572,8 @@
         <translation type="gpt-4o-generated">キャンセル</translation>
     </message>
     <message>
-        <source>Update Speed Limits</source>
-        <translation type="gpt-4o-generated">速度制限を更新する</translation>
-    </message>
-    <message>
         <source>Speed Limit Filler</source>
         <translation type="gpt-4o-generated">速度制限フィラー</translation>
-    </message>
-    <message>
-        <source>Automatically collect missing speed limits from your dashboard (if supported), &lt;b&gt;Mapbox&lt;/b&gt;, and &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; while driving.&lt;br&gt;&lt;br&gt;Tap &lt;b&gt;Update Speed Limits&lt;/b&gt; at home (good Wi-Fi, 12V power) to process your recent drives.&lt;br&gt;&lt;br&gt;Download the data from &lt;b&gt;Fleet Manager&lt;/b&gt; → &lt;b&gt;Tools&lt;/b&gt; → &lt;b&gt;Download Speed Limits&lt;/b&gt;, then upload it to &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt; to review and submit.&lt;br&gt;&lt;br&gt;For a full walkthrough, check the &lt;b&gt;#speed-limit-filler&lt;/b&gt; channel in the &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</source>
-        <translation type="gpt-4o-generated">ダッシュボード（対応している場合）、&lt;b&gt;Mapbox&lt;/b&gt;、および&lt;b&gt;Navigate-on-openpilot&lt;/b&gt;から運転中に自動的に欠落している速度制限を収集します。&lt;br&gt;&lt;br&gt;自宅で&lt;b&gt;速度制限を更新&lt;/b&gt;をタップして（良好なWi-Fi、12V電源）、最近の運転を処理します。&lt;br&gt;&lt;br&gt;&lt;b&gt;Fleet Manager&lt;/b&gt; → &lt;b&gt;Tools&lt;/b&gt; → &lt;b&gt;Download Speed Limits&lt;/b&gt;からデータをダウンロードし、それを&lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt;にアップロードしてレビューおよび提出します。&lt;br&gt;&lt;br&gt;完全な手順については、&lt;b&gt;FrogPilot Discord&lt;/b&gt;の&lt;b&gt;#speed-limit-filler&lt;/b&gt;チャンネルを確認してください！</translation>
     </message>
     <message>
         <source>Are you sure you want to cancel the speed limit update process?</source>
@@ -2514,6 +2590,22 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>This process will take awhile, so it's advised to start when you're done driving with a stable Wi-Fi connection. Do you wish to proceed?</source>
         <translation type="gpt-4o-generated">このプロセスには時間がかかるため、運転を終えて安定したWi-Fi接続があるときに開始することをお勧めします。続行しますか？</translation>
+    </message>
+    <message>
+        <source>Manually Update Speed Limits</source>
+        <translation type="gpt-4o-generated">速度制限を手動で更新する</translation>
+    </message>
+    <message>
+        <source>Automatically collect missing or incorrect speed limits from your dashboard (if supported), &lt;b&gt;Mapbox&lt;/b&gt;, and &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; while driving.&lt;br&gt;&lt;br&gt;When the car is turned off and connected to Wi-Fi, your speed limit data is automatically processed into a compiled file formatted for the tool located at &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt;.&lt;br&gt;&lt;br&gt;You can grab the processed file from &lt;b&gt;The Pond&lt;/b&gt; via the &lt;b&gt;Download Speed Limits&lt;/b&gt; menu.&lt;br&gt;&lt;br&gt;Want a more thorough walkthrough? Check out the &lt;b&gt;#speed-limit-filler&lt;/b&gt; channel in the &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</source>
+        <translation type="gpt-4o-generated">ダッシュボード（対応している場合）、&lt;b&gt;Mapbox&lt;/b&gt;、および&lt;b&gt;Navigate-on-openpilot&lt;/b&gt;から不足または誤った速度制限を自動的に収集します。&lt;br&gt;&lt;br&gt;車がオフになり、Wi-Fiに接続されると、速度制限データは自動的に処理され、&lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt;にあるツール用にフォーマットされたコンパイルファイルに変換されます。&lt;br&gt;&lt;br&gt;処理されたファイルは&lt;b&gt;The Pond&lt;/b&gt;の&lt;b&gt;Download Speed Limits&lt;/b&gt;メニューから取得できます。&lt;br&gt;&lt;br&gt;より詳しい説明が必要ですか？&lt;b&gt;FrogPilot Discord&lt;/b&gt;の&lt;b&gt;#speed-limit-filler&lt;/b&gt;チャンネルをチェックしてください！</translation>
+    </message>
+    <message>
+        <source>Cancelled...</source>
+        <translation type="gpt-4o-generated">キャンセルされました...</translation>
+    </message>
+    <message>
+        <source>Completed!</source>
+        <translation type="gpt-4o-generated">完了しました！</translation>
     </message>
 </context>
 <context>
@@ -2778,6 +2870,10 @@ Developer - Unlocks highly customizable settings for seasoned enthusiasts</sourc
     <message>
         <source>Auto</source>
         <translation type="gpt-4o-generated">オート</translation>
+    </message>
+    <message>
+        <source>Test</source>
+        <translation type="gpt-4o-generated">テスト</translation>
     </message>
 </context>
 <context>
@@ -3700,10 +3796,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">パス幅</translation>
     </message>
     <message>
-        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(6.1 feet / 1.9 meters)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
-        <translation type="gpt-4o-generated">運転画面上の走行路の幅。&lt;br&gt;&lt;br&gt;デフォルト &lt;b&gt;(6.1フィート / 1.9メートル)&lt;/b&gt; は &lt;b&gt;2019 Lexus ES 350&lt;/b&gt; の幅に一致します。</translation>
-    </message>
-    <message>
         <source>Road Edges Width</source>
         <translation type="gpt-4o-generated">道路端部の幅</translation>
     </message>
@@ -4059,6 +4151,14 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>Sidebar Metrics</source>
         <translation type="gpt-4o-generated">サイドバーメトリクス</translation>
     </message>
+    <message>
+        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(6.1 feet)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
+        <translation type="gpt-4o-generated">運転画面上の走行路の幅。&lt;br&gt;&lt;br&gt;デフォルト &lt;b&gt;(6.1フィート)&lt;/b&gt; は &lt;b&gt;2019 Lexus ES 350&lt;/b&gt; の幅に一致します。</translation>
+    </message>
+    <message>
+        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(1.9 meters)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
+        <translation type="gpt-4o-generated">運転画面上の走行路の幅。&lt;br&gt;&lt;br&gt;デフォルト &lt;b&gt;(1.9メートル)&lt;/b&gt; は &lt;b&gt;2019 Lexus ES 350&lt;/b&gt; の幅に一致します。</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotWheelPanel</name>
@@ -4194,6 +4294,57 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>Waiting for route</source>
         <translation type="gpt-4o-generated">ルートを待っています</translation>
+    </message>
+</context>
+<context>
+    <name>ModelReview</name>
+    <message>
+        <source>How would you rate that drive?</source>
+        <translation type="gpt-4o-generated">そのドライブをどのように評価しますか？</translation>
+    </message>
+    <message>
+        <source>Blacklist this model</source>
+        <translation type="gpt-4o-generated">このモデルをブラックリストに登録する</translation>
+    </message>
+    <message>
+        <source>The model used during that drive was:</source>
+        <translation type="gpt-4o-generated">そのドライブで使用されたモデルは:</translation>
+    </message>
+    <message>
+        <source>Current Model Score: 0</source>
+        <translation type="gpt-4o-generated">現在のモデルスコア: 0</translation>
+    </message>
+    <message>
+        <source>Current Model Rank: 0</source>
+        <translation type="gpt-4o-generated">現在のモデルランク: 0</translation>
+    </message>
+    <message>
+        <source>Total Model Drives: 0</source>
+        <translation type="gpt-4o-generated">総モデルドライブ数: 0</translation>
+    </message>
+    <message>
+        <source>Total Overall Model Drives: 0</source>
+        <translation type="gpt-4o-generated">総合モデルドライブ数: 0</translation>
+    </message>
+    <message>
+        <source>Total Model Drives: %1</source>
+        <translation type="gpt-4o-generated">総モデルドライブ数: %1</translation>
+    </message>
+    <message>
+        <source>Current Model Rank: %1</source>
+        <translation type="gpt-4o-generated">現在のモデルランク: %1</translation>
+    </message>
+    <message>
+        <source>Current Model Score: %1</source>
+        <translation type="gpt-4o-generated">現在のモデルスコア: %1</translation>
+    </message>
+    <message>
+        <source>Total Overall Drives: %1</source>
+        <translation type="gpt-4o-generated">総合ドライブ数: %1</translation>
+    </message>
+    <message>
+        <source>Model successfully blacklisted!</source>
+        <translation type="gpt-4o-generated">モデルが正常にブラックリストに登録されました！</translation>
     </message>
 </context>
 <context>

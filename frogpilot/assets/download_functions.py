@@ -10,9 +10,9 @@ from openpilot.frogpilot.common.frogpilot_utilities import delete_file, is_url_p
 GITHUB_URL = "https://raw.githubusercontent.com/FrogAi/FrogPilot-Resources"
 GITLAB_URL = "https://gitlab.com/FrogAi/FrogPilot-Resources/-/raw"
 
-def check_github_rate_limit():
+def check_github_rate_limit(session):
   try:
-    response = requests.get("https://api.github.com/rate_limit")
+    response = session.get("https://api.github.com/rate_limit", timeout=10)
     response.raise_for_status()
     rate_limit_info = response.json()
 
@@ -29,17 +29,17 @@ def check_github_rate_limit():
     print(f"Error checking GitHub rate limit: {error}")
     return False
 
-def download_file(cancel_param, destination, progress_param, url, download_param, params_memory):
+def download_file(cancel_param, destination, progress_param, url, download_param, params_memory, session):
   try:
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    total_size = get_remote_file_size(url)
+    total_size = get_remote_file_size(url, session)
     if total_size == 0:
       if not url.endswith(".gif"):
         handle_error(None, "Download invalid...", "Download invalid...", download_param, progress_param, params_memory)
       return
 
-    with requests.get(url, stream=True, timeout=10) as response:
+    with session.get(url, stream=True, timeout=10) as response:
       response.raise_for_status()
 
       with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as temp_file:
@@ -67,18 +67,18 @@ def download_file(cancel_param, destination, progress_param, url, download_param
   except Exception as error:
     handle_request_error(error, destination, download_param, progress_param, params_memory)
 
-def get_remote_file_size(url):
+def get_remote_file_size(url, session):
   try:
-    response = requests.head(url, headers={"Accept-Encoding": "identity"}, timeout=10)
+    response = session.head(url, headers={"Accept-Encoding": "identity"}, timeout=10)
     response.raise_for_status()
     return int(response.headers.get("Content-Length", 0))
   except Exception as error:
     handle_request_error(error, None, None, None, None)
     return 0
 
-def get_repository_url():
+def get_repository_url(session):
   if is_url_pingable("https://github.com"):
-    if check_github_rate_limit():
+    if check_github_rate_limit(session):
       return GITHUB_URL
   if is_url_pingable("https://gitlab.com"):
     return GITLAB_URL
@@ -104,8 +104,8 @@ def handle_request_error(error, destination, download_param, progress_param, par
   error_message = error_map.get(type(error), "Unexpected error")
   handle_error(destination, f"Failed: {error_message}", error, download_param, progress_param, params_memory)
 
-def verify_download(file_path, url):
-  remote_file_size = get_remote_file_size(url)
+def verify_download(file_path, url, session):
+  remote_file_size = get_remote_file_size(url, session)
 
   if remote_file_size == 0:
     print(f"Error fetching remote size for {file_path}")

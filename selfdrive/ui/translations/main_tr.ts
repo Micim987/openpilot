@@ -15,10 +15,6 @@
         <source>Reboot and Update</source>
         <translation>Güncelle ve Yeniden başlat</translation>
     </message>
-    <message>
-        <source>Disable Internet Check</source>
-        <translation type="gpt-4o-generated">İnternet Kontrolünü Devre Dışı Bırak</translation>
-    </message>
 </context>
 <context>
     <name>AdvancedNetworking</name>
@@ -890,12 +886,12 @@
         <translation type="gpt-4o-generated">saniye</translation>
     </message>
     <message>
-        <source>Disable Internet Requirement</source>
-        <translation type="gpt-4o-generated">İnternet Gereksinimini Devre Dışı Bırak</translation>
+        <source>High Bitrate Recording</source>
+        <translation type="gpt-4o-generated">Yüksek Bit Hızı Kaydı</translation>
     </message>
     <message>
-        <source>Allow the device to work indefinitely without an internet connection.</source>
-        <translation type="gpt-4o-generated">Cihazın internet bağlantısı olmadan süresiz çalışmasına izin ver.</translation>
+        <source>Record driving footage at double the standard bitrate for improved video quality in driving logs.</source>
+        <translation type="gpt-4o-generated">Sürüş günlüklerinde video kalitesini artırmak için sürüş görüntülerini standart bit hızının iki katında kaydedin.</translation>
     </message>
 </context>
 <context>
@@ -1171,6 +1167,10 @@
     <message>
         <source> km/h</source>
         <translation type="gpt-4o-generated">km/h</translation>
+    </message>
+    <message>
+        <source>Turn Signal Only</source>
+        <translation type="gpt-4o-generated">Sadece Dönüş Sinyali</translation>
     </message>
 </context>
 <context>
@@ -1652,56 +1652,28 @@
         <translation type="gpt-4o-generated">Yayınlanan hız sınırına göre daha "insan benzeri" bir sürüş deneyimi için ofsetler.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (0–24 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (0–24 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 0 and 24 mph.</source>
         <translation type="gpt-4o-generated">Hedef hız ofseti, 0 ile 24 mph arasındaki ilan edilen limitler için uygulanır.</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (25–34 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (25–34 mph)</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 25 and 34 mph.</source>
         <translation type="gpt-4o-generated">Hedef hız ofseti, 25 ile 34 mph arasındaki ilan edilen limitler için uygulanır.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (35–44 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (35–44 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 35 and 44 mph.</source>
         <translation type="gpt-4o-generated">Hedef hız ofseti, 35 ile 44 mil/saat arasındaki ilan edilen limitler için uygulanır.</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (45–54 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (45–54 mph)</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 45 and 54 mph.</source>
         <translation type="gpt-4o-generated">Hedef hız ofseti, 45 ile 54 mil/saat arasındaki ilan edilen limitler için uygulanır.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (55–64 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (55–64 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 55 and 64 mph.</source>
         <translation type="gpt-4o-generated">Hedef hız ofseti, 55 ile 64 mph arasındaki ilan edilen limitler için uygulanır.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (65–74 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (65–74 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 65 and 74 mph.</source>
         <translation type="gpt-4o-generated">65 ile 74 mil/saat arasındaki ilan edilen hız sınırları için hedef hız sapması uygulandı.</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (75–99 mph)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (75–99 mph)</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 75 and 99 mph.</source>
@@ -1912,34 +1884,6 @@
         <translation type="gpt-4o-generated">km/h</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (0–29 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (0–29 km/sa)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (30–49 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (30–49 km/s)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (50–59 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (50–59 km/s)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (60–79 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (60–79 km/s)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (80–99 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (80–99 km/s)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (100–119 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (100–119 km/s)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (120–140 km/h)</source>
-        <translation type="gpt-4o-generated">Hız Sınırı Ofseti (120–140 km/s)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 0 and 29 km/h.</source>
         <translation type="gpt-4o-generated">Hedef hız ofseti, 0 ile 29 km/s arasındaki ilan edilen limitler için uygulanır.</translation>
     </message>
@@ -1968,6 +1912,146 @@
         <translation type="gpt-4o-generated">Hedef hız ofseti, 120 ile 140 km/s arasındaki ilan edilen limitler için uygulanır.</translation>
     </message>
     <message>
+        <source>Advanced Longitudinal Tuning</source>
+        <translation type="gpt-4o-generated">Gelişmiş Boylamsal Ayarlama</translation>
+    </message>
+    <message>
+        <source>Advanced settings for customizing how openpilot handles acceleration and braking.</source>
+        <translation type="gpt-4o-generated">Openpilot'ın hızlanma ve frenlemeyi nasıl yönettiğini özelleştirmek için gelişmiş ayarlar.</translation>
+    </message>
+    <message>
+        <source>Actuator Delay (Default: %1)</source>
+        <translation type="gpt-4o-generated">Aktüatör Gecikmesi (Varsayılan: %1)</translation>
+    </message>
+    <message>
+        <source>Actuator Delay</source>
+        <translation type="gpt-4o-generated">Aktüatör Gecikmesi</translation>
+    </message>
+    <message>
+        <source>Delay before throttle or brake takes effect. Higher values smooth slow actuators but can feel laggy; lower values react quicker but may overshoot.</source>
+        <translation type="gpt-4o-generated">Gecikme, gaz veya frenin etkili olmasından önce gerçekleşir. Daha yüksek değerler yavaş aktüatörleri yumuşatır ancak gecikmeli hissedilebilir; daha düşük değerler daha hızlı tepki verir ancak aşırıya kaçabilir.</translation>
+    </message>
+    <message>
+        <source>Start Acceleration (Default: %1)</source>
+        <translation type="gpt-4o-generated">Başlangıç Hızlanması (Varsayılan: %1)</translation>
+    </message>
+    <message>
+        <source>Start Acceleration</source>
+        <translation type="gpt-4o-generated">Hızlanmayı Başlat</translation>
+    </message>
+    <message>
+        <source>Extra acceleration applied when pulling away from a stop. Increase for snappier launches at the cost of smoothness; decrease for gentler starts.</source>
+        <translation type="gpt-4o-generated">Duruştan kalkarken ekstra ivme uygulanır. Daha hızlı kalkışlar için artırın, ancak pürüzsüzlükten ödün verin; daha yumuşak başlangıçlar için azaltın.</translation>
+    </message>
+    <message>
+        <source>Start Speed (Default: %1)</source>
+        <translation type="gpt-4o-generated">Başlangıç Hızı (Varsayılan: %1)</translation>
+    </message>
+    <message>
+        <source>Start Speed</source>
+        <translation type="gpt-4o-generated">Hız Başlat</translation>
+    </message>
+    <message>
+        <source>Speed where openpilot begins to exit the stopped state. Higher values avoid creeping but may feel sluggish; lower values move sooner but risk creeping.</source>
+        <translation type="gpt-4o-generated">openpilot'in durma durumundan çıkmaya başladığı hız. Daha yüksek değerler sürünmeyi önler ancak yavaş hissedilebilir; daha düşük değerler daha erken hareket eder ancak sürünme riski taşır.</translation>
+    </message>
+    <message>
+        <source>Stop Acceleration (Default: %1)</source>
+        <translation type="gpt-4o-generated">Hızlanmayı Durdur (Varsayılan: %1)</translation>
+    </message>
+    <message>
+        <source>Stop Acceleration</source>
+        <translation type="gpt-4o-generated">Hızlanmayı Durdur</translation>
+    </message>
+    <message>
+        <source>Brake force applied to hold the vehicle still. Larger values prevent creeping on hills but might jerk to a stop. Smaller values can feel smoother but may allow rolling.</source>
+        <translation type="gpt-4o-generated">Aracı sabit tutmak için uygulanan fren kuvveti. Daha büyük değerler, yokuşlarda kaymayı önler ancak ani durmalara neden olabilir. Daha küçük değerler daha pürüzsüz hissedilebilir ancak yuvarlanmaya izin verebilir.</translation>
+    </message>
+    <message>
+        <source>Stopping Rate (Default: %1)</source>
+        <translation type="gpt-4o-generated">Durdurma Oranı (Varsayılan: %1)</translation>
+    </message>
+    <message>
+        <source>Stopping Rate</source>
+        <translation type="gpt-4o-generated">Durdurma Oranı</translation>
+    </message>
+    <message>
+        <source>How quickly braking ramps up when stopping. Faster rates shorten stopping distance but can be harsh; slower rates are smoother but need more room.</source>
+        <translation type="gpt-4o-generated">Fren yaparken durmanın ne kadar hızlı arttığı. Daha hızlı oranlar durma mesafesini kısaltır ancak sert olabilir; daha yavaş oranlar daha pürüzsüzdür ancak daha fazla alan gerektirir.</translation>
+    </message>
+    <message>
+        <source>Stop Speed (Default: %1)</source>
+        <translation type="gpt-4o-generated">Hızı Durdur (Varsayılan: %1)</translation>
+    </message>
+    <message>
+        <source>Stop Speed</source>
+        <translation type="gpt-4o-generated">Hızı Durdur</translation>
+    </message>
+    <message>
+        <source>Speed where openpilot beings to enter the stopped state. Higher values brake earlier for smoother stops but might stop too soon; lower values wait longer and can overshoot.</source>
+        <translation type="gpt-4o-generated">Openpilot'in durma durumuna girmeye başladığı hız. Daha yüksek değerler daha erken fren yaparak daha yumuşak duruşlar sağlar ancak çok erken durabilir; daha düşük değerler daha uzun süre bekler ve aşırıya kaçabilir.</translation>
+    </message>
+    <message>
+        <source>Speed Offset (0–24 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (0–24 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (25–34 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (25–34 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (35–44 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (35–44 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (45–54 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (45–54 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (55–64 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (55–64 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (65–74 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (65–74 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (75–99 mph)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (75–99 mph)</translation>
+    </message>
+    <message>
+        <source>Only For Detected Lanes</source>
+        <translation type="gpt-4o-generated">Yalnızca Tespit Edilen Şeritler İçin</translation>
+    </message>
+    <message>
+        <source>Speed Offset (0–29 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (0–29 km/sa)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (30–49 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (30–49 km/s)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (50–59 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (50–59 km/s)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (60–79 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (60–79 km/s)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (80–99 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (80–99 km/s)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (100–119 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (100–119 km/sa)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (120–140 km/h)</source>
+        <translation type="gpt-4o-generated">Hız Ofseti (120–140 km/s)</translation>
+    </message>
+    <message>
         <source>Curve Speed Control</source>
         <translation type="gpt-4o-generated">Viraj Hız Kontrolü</translation>
     </message>
@@ -1981,11 +2065,11 @@
     </message>
     <message>
         <source>How curves are detected. &lt;b&gt;Map-Based&lt;/b&gt; uses downloaded map data to identify curves and determine the appropriate speed in which to handle them at, while &lt;b&gt;Vision&lt;/b&gt; relies solely on the driving model.</source>
-        <translation type="gpt-4o-generated">Kavisler nasıl algılanır. &lt;b&gt;Harita Tabanlı&lt;/b&gt;, kavisleri tanımlamak ve bunları ele almak için uygun hızı belirlemek amacıyla indirilen harita verilerini kullanırken, &lt;b&gt;Görüş&lt;/b&gt; yalnızca sürüş modeline dayanır.</translation>
+        <translation type="gpt-4o-generated">Kavisler nasıl tespit edilir. &lt;b&gt;Harita Tabanlı&lt;/b&gt;, kavisleri tanımlamak ve bunları ele almak için uygun hızı belirlemek amacıyla indirilen harita verilerini kullanırken, &lt;b&gt;Görüş&lt;/b&gt; yalnızca sürüş modeline dayanır.</translation>
     </message>
     <message>
         <source>Curve Detection Failsafe</source>
-        <translation type="gpt-4o-generated">Eğri Tespit Emniyeti</translation>
+        <translation type="gpt-4o-generated">Eğri Algılama Emniyeti</translation>
     </message>
     <message>
         <source>Only trigger &lt;b&gt;Curve Speed Control&lt;/b&gt; if a curve is detected with the model while using the &lt;b&gt;Map-Based&lt;/b&gt; method. Useful to help prevent false positives.</source>
@@ -1997,7 +2081,7 @@
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">openpilot'ın virajları algılarken ne kadar hassas olduğu. Daha yüksek değerler, çok sık tetikleme riskiyle daha erken tepkiler tetiklerken, daha düşük değerler, çok seyrek tetikleme riskiyle güveni artırır.</translation>
+        <translation type="gpt-4o-generated">openpilot'ın virajları algılarken ne kadar hassas olduğu. Daha yüksek değerler, daha sık tetikleme riskiyle birlikte daha erken tepkiler tetiklerken, daha düşük değerler, daha az sıklıkta tetikleme riskiyle birlikte güveni artırır.</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2005,7 +2089,7 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">openpilot'ın virajlardan geçerken ne kadar agresif olduğu. Daha yüksek değerler, daha hızlı dönüşlere neden olabilir ancak konfor veya kararlılığı azaltabilirken, daha düşük değerler, aşırı temkinli olma riskiyle daha yavaş, daha yumuşak dönüşlere neden olur.</translation>
+        <translation type="gpt-4o-generated">openpilot'ın virajlarda ne kadar agresif olduğu. Daha yüksek değerler, daha hızlı dönüşler sağlar ancak konfor veya stabiliteyi azaltabilirken, daha düşük değerler, aşırı temkinli olma riskiyle daha yavaş ve daha yumuşak dönüşler sağlar.</translation>
     </message>
     <message>
         <source>Map Based</source>
@@ -2488,16 +2572,8 @@
         <translation type="gpt-4o-generated">İPTAL ET</translation>
     </message>
     <message>
-        <source>Update Speed Limits</source>
-        <translation type="gpt-4o-generated">Hız Limitlerini Güncelle</translation>
-    </message>
-    <message>
         <source>Speed Limit Filler</source>
         <translation type="gpt-4o-generated">Hız Sınırı Doldurucu</translation>
-    </message>
-    <message>
-        <source>Automatically collect missing speed limits from your dashboard (if supported), &lt;b&gt;Mapbox&lt;/b&gt;, and &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; while driving.&lt;br&gt;&lt;br&gt;Tap &lt;b&gt;Update Speed Limits&lt;/b&gt; at home (good Wi-Fi, 12V power) to process your recent drives.&lt;br&gt;&lt;br&gt;Download the data from &lt;b&gt;Fleet Manager&lt;/b&gt; → &lt;b&gt;Tools&lt;/b&gt; → &lt;b&gt;Download Speed Limits&lt;/b&gt;, then upload it to &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt; to review and submit.&lt;br&gt;&lt;br&gt;For a full walkthrough, check the &lt;b&gt;#speed-limit-filler&lt;/b&gt; channel in the &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</source>
-        <translation type="gpt-4o-generated">Destekleniyorsa, sürüş sırasında eksik hız limitlerini gösterge panelinizden, &lt;b&gt;Mapbox&lt;/b&gt; ve &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; üzerinden otomatik olarak toplayın.&lt;br&gt;&lt;br&gt;Son sürüşlerinizi işlemek için evde (iyi Wi-Fi, 12V güç) &lt;b&gt;Hız Limitlerini Güncelle&lt;/b&gt;'ye dokunun.&lt;br&gt;&lt;br&gt;Verileri &lt;b&gt;Filo Yöneticisi&lt;/b&gt; → &lt;b&gt;Araçlar&lt;/b&gt; → &lt;b&gt;Hız Limitlerini İndir&lt;/b&gt; üzerinden indirin, ardından incelemek ve göndermek için &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt; adresine yükleyin.&lt;br&gt;&lt;br&gt;Tam bir kılavuz için &lt;b&gt;FrogPilot Discord&lt;/b&gt; üzerindeki &lt;b&gt;#speed-limit-filler&lt;/b&gt; kanalına göz atın!</translation>
     </message>
     <message>
         <source>Are you sure you want to cancel the speed limit update process?</source>
@@ -2514,6 +2590,22 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>This process will take awhile, so it's advised to start when you're done driving with a stable Wi-Fi connection. Do you wish to proceed?</source>
         <translation type="gpt-4o-generated">Bu işlem biraz zaman alacak, bu yüzden sürüşünüz bittiğinde ve sabit bir Wi-Fi bağlantınız olduğunda başlamanız tavsiye edilir. Devam etmek istiyor musunuz?</translation>
+    </message>
+    <message>
+        <source>Manually Update Speed Limits</source>
+        <translation type="gpt-4o-generated">Hız Limitlerini Manuel Olarak Güncelle</translation>
+    </message>
+    <message>
+        <source>Automatically collect missing or incorrect speed limits from your dashboard (if supported), &lt;b&gt;Mapbox&lt;/b&gt;, and &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; while driving.&lt;br&gt;&lt;br&gt;When the car is turned off and connected to Wi-Fi, your speed limit data is automatically processed into a compiled file formatted for the tool located at &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt;.&lt;br&gt;&lt;br&gt;You can grab the processed file from &lt;b&gt;The Pond&lt;/b&gt; via the &lt;b&gt;Download Speed Limits&lt;/b&gt; menu.&lt;br&gt;&lt;br&gt;Want a more thorough walkthrough? Check out the &lt;b&gt;#speed-limit-filler&lt;/b&gt; channel in the &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</source>
+        <translation type="gpt-4o-generated">Destekleniyorsa, gösterge panelinizden, &lt;b&gt;Mapbox&lt;/b&gt; ve &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; ile sürüş sırasında eksik veya yanlış hız limitlerini otomatik olarak toplayın.&lt;br&gt;&lt;br&gt;Araba kapatıldığında ve Wi-Fi'ye bağlı olduğunda, hız limiti verileriniz otomatik olarak &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt; adresinde bulunan araç için biçimlendirilmiş derlenmiş bir dosyaya işlenir.&lt;br&gt;&lt;br&gt;İşlenmiş dosyayı &lt;b&gt;The Pond&lt;/b&gt; üzerinden &lt;b&gt;Download Speed Limits&lt;/b&gt; menüsünden alabilirsiniz.&lt;br&gt;&lt;br&gt;Daha ayrıntılı bir kılavuz mu istiyorsunuz? &lt;b&gt;FrogPilot Discord&lt;/b&gt; üzerindeki &lt;b&gt;#speed-limit-filler&lt;/b&gt; kanalına göz atın!</translation>
+    </message>
+    <message>
+        <source>Cancelled...</source>
+        <translation type="gpt-4o-generated">İptal edildi...</translation>
+    </message>
+    <message>
+        <source>Completed!</source>
+        <translation type="gpt-4o-generated">Tamamlandı!</translation>
     </message>
 </context>
 <context>
@@ -2778,6 +2870,10 @@ Geliştirici - Deneyimli meraklılar için son derece özelleştirilebilir ayarl
     <message>
         <source>Auto</source>
         <translation type="gpt-4o-generated">Otomatik</translation>
+    </message>
+    <message>
+        <source>Test</source>
+        <translation type="gpt-4o-generated">Test</translation>
     </message>
 </context>
 <context>
@@ -3698,10 +3794,6 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
         <translation type="gpt-4o-generated">Yol Genişliği</translation>
     </message>
     <message>
-        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(6.1 feet / 1.9 meters)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
-        <translation type="gpt-4o-generated">Sürüş ekranındaki sürüş yolunun genişliği.&lt;br&gt;&lt;br&gt;Varsayılan &lt;b&gt;(6.1 feet / 1.9 metre)&lt;/b&gt;, bir &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;'nin genişliğiyle eşleşir.</translation>
-    </message>
-    <message>
         <source>Road Edges Width</source>
         <translation type="gpt-4o-generated">Yol Kenarları Genişliği</translation>
     </message>
@@ -4057,6 +4149,14 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
         <source>Sidebar Metrics</source>
         <translation type="gpt-4o-generated">Kenar Çubuğu Metrikleri</translation>
     </message>
+    <message>
+        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(6.1 feet)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
+        <translation type="gpt-4o-generated">Sürüş ekranındaki sürüş yolunun genişliği.&lt;br&gt;&lt;br&gt;Varsayılan &lt;b&gt;(6.1 feet)&lt;/b&gt;, bir &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;'nin genişliğiyle eşleşir.</translation>
+    </message>
+    <message>
+        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(1.9 meters)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
+        <translation type="gpt-4o-generated">Sürüş ekranındaki sürüş yolunun genişliği.&lt;br&gt;&lt;br&gt;Varsayılan &lt;b&gt;(1.9 metre)&lt;/b&gt;, bir &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;'nin genişliğiyle eşleşir.</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotWheelPanel</name>
@@ -4192,6 +4292,57 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
     <message>
         <source>Waiting for route</source>
         <translation type="gpt-4o-generated">Rota bekleniyor</translation>
+    </message>
+</context>
+<context>
+    <name>ModelReview</name>
+    <message>
+        <source>How would you rate that drive?</source>
+        <translation type="gpt-4o-generated">Bu sürüşü nasıl değerlendirirdiniz?</translation>
+    </message>
+    <message>
+        <source>Blacklist this model</source>
+        <translation type="gpt-4o-generated">Bu modeli kara listeye al</translation>
+    </message>
+    <message>
+        <source>The model used during that drive was:</source>
+        <translation type="gpt-4o-generated">O sürüş sırasında kullanılan model şuydu:</translation>
+    </message>
+    <message>
+        <source>Current Model Score: 0</source>
+        <translation type="gpt-4o-generated">Mevcut Model Skoru: 0</translation>
+    </message>
+    <message>
+        <source>Current Model Rank: 0</source>
+        <translation type="gpt-4o-generated">Mevcut Model Sıralaması: 0</translation>
+    </message>
+    <message>
+        <source>Total Model Drives: 0</source>
+        <translation type="gpt-4o-generated">Toplam Model Sürücüleri: 0</translation>
+    </message>
+    <message>
+        <source>Total Overall Model Drives: 0</source>
+        <translation type="gpt-4o-generated">Toplam Genel Model Sürücüleri: 0</translation>
+    </message>
+    <message>
+        <source>Total Model Drives: %1</source>
+        <translation type="gpt-4o-generated">Toplam Model Sürücüleri: %1</translation>
+    </message>
+    <message>
+        <source>Current Model Rank: %1</source>
+        <translation type="gpt-4o-generated">Mevcut Model Sıralaması: %1</translation>
+    </message>
+    <message>
+        <source>Current Model Score: %1</source>
+        <translation type="gpt-4o-generated">Mevcut Model Skoru: %1</translation>
+    </message>
+    <message>
+        <source>Total Overall Drives: %1</source>
+        <translation type="gpt-4o-generated">Toplam Genel Sürücüler: %1</translation>
+    </message>
+    <message>
+        <source>Model successfully blacklisted!</source>
+        <translation type="gpt-4o-generated">Model başarıyla kara listeye alındı!</translation>
     </message>
 </context>
 <context>

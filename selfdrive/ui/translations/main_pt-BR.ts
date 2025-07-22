@@ -15,10 +15,6 @@
         <source>Reboot and Update</source>
         <translation>Reiniciar e Atualizar</translation>
     </message>
-    <message>
-        <source>Disable Internet Check</source>
-        <translation type="gpt-4o-generated">Desativar Verificação de Internet</translation>
-    </message>
 </context>
 <context>
     <name>AdvancedNetworking</name>
@@ -890,12 +886,12 @@
         <translation type="gpt-4o-generated">segundos</translation>
     </message>
     <message>
-        <source>Disable Internet Requirement</source>
-        <translation type="gpt-4o-generated">Desativar Requisito de Internet</translation>
+        <source>High Bitrate Recording</source>
+        <translation type="gpt-4o-generated">Gravação de Alta Taxa de Bits</translation>
     </message>
     <message>
-        <source>Allow the device to work indefinitely without an internet connection.</source>
-        <translation type="gpt-4o-generated">Permitir que o dispositivo funcione indefinidamente sem uma conexão com a internet.</translation>
+        <source>Record driving footage at double the standard bitrate for improved video quality in driving logs.</source>
+        <translation type="gpt-4o-generated">Grave imagens de direção com o dobro da taxa de bits padrão para melhorar a qualidade do vídeo nos registros de direção.</translation>
     </message>
 </context>
 <context>
@@ -1171,6 +1167,10 @@
     <message>
         <source> km/h</source>
         <translation type="gpt-4o-generated">km/h</translation>
+    </message>
+    <message>
+        <source>Turn Signal Only</source>
+        <translation type="gpt-4o-generated">Apenas Sinal de Direção</translation>
     </message>
 </context>
 <context>
@@ -1652,56 +1652,28 @@
         <translation type="gpt-4o-generated">Desvios relativos ao limite de velocidade estabelecido para uma experiência de direção mais "humana".</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (0–24 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (0–24 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 0 and 24 mph.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 0 e 24 mph.</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (25–34 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (25–34 mph)</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 25 and 34 mph.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 25 e 34 mph.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (35–44 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (35–44 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 35 and 44 mph.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 35 e 44 mph.</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (45–54 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (45–54 mph)</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 45 and 54 mph.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 45 e 54 mph.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (55–64 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (55–64 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 55 and 64 mph.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 55 e 64 mph.</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (65–74 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (65–74 mph)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 65 and 74 mph.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 65 e 74 mph.</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (75–99 mph)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (75–99 mph)</translation>
     </message>
     <message>
         <source>Target speed offset applied for posted limits between 75 and 99 mph.</source>
@@ -1912,34 +1884,6 @@
         <translation type="gpt-4o-generated">km/h</translation>
     </message>
     <message>
-        <source>Speed Limit Offset (0–29 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (0–29 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (30–49 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (30–49 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (50–59 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (50–59 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (60–79 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (60–79 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (80–99 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (80–99 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (100–119 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (100–119 km/h)</translation>
-    </message>
-    <message>
-        <source>Speed Limit Offset (120–140 km/h)</source>
-        <translation type="gpt-4o-generated">Deslocamento do Limite de Velocidade (120–140 km/h)</translation>
-    </message>
-    <message>
         <source>Target speed offset applied for posted limits between 0 and 29 km/h.</source>
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 0 e 29 km/h.</translation>
     </message>
@@ -1968,6 +1912,146 @@
         <translation type="gpt-4o-generated">Deslocamento de velocidade alvo aplicado para limites postados entre 120 e 140 km/h.</translation>
     </message>
     <message>
+        <source>Advanced Longitudinal Tuning</source>
+        <translation type="gpt-4o-generated">Ajuste Longitudinal Avançado</translation>
+    </message>
+    <message>
+        <source>Advanced settings for customizing how openpilot handles acceleration and braking.</source>
+        <translation type="gpt-4o-generated">Configurações avançadas para personalizar como o openpilot lida com aceleração e frenagem.</translation>
+    </message>
+    <message>
+        <source>Actuator Delay (Default: %1)</source>
+        <translation type="gpt-4o-generated">Atraso do Atuador (Padrão: %1)</translation>
+    </message>
+    <message>
+        <source>Actuator Delay</source>
+        <translation type="gpt-4o-generated">Atraso do Atuador</translation>
+    </message>
+    <message>
+        <source>Delay before throttle or brake takes effect. Higher values smooth slow actuators but can feel laggy; lower values react quicker but may overshoot.</source>
+        <translation type="gpt-4o-generated">Atraso antes que o acelerador ou freio entre em efeito. Valores mais altos suavizam atuadores lentos, mas podem parecer lentos; valores mais baixos reagem mais rápido, mas podem ultrapassar.</translation>
+    </message>
+    <message>
+        <source>Start Acceleration (Default: %1)</source>
+        <translation type="gpt-4o-generated">Iniciar Aceleração (Padrão: %1)</translation>
+    </message>
+    <message>
+        <source>Start Acceleration</source>
+        <translation type="gpt-4o-generated">Iniciar Aceleração</translation>
+    </message>
+    <message>
+        <source>Extra acceleration applied when pulling away from a stop. Increase for snappier launches at the cost of smoothness; decrease for gentler starts.</source>
+        <translation type="gpt-4o-generated">Aceleração extra aplicada ao arrancar de uma parada. Aumente para partidas mais rápidas à custa de suavidade; diminua para inícios mais suaves.</translation>
+    </message>
+    <message>
+        <source>Start Speed (Default: %1)</source>
+        <translation type="gpt-4o-generated">Velocidade Inicial (Padrão: %1)</translation>
+    </message>
+    <message>
+        <source>Start Speed</source>
+        <translation type="gpt-4o-generated">Iniciar Velocidade</translation>
+    </message>
+    <message>
+        <source>Speed where openpilot begins to exit the stopped state. Higher values avoid creeping but may feel sluggish; lower values move sooner but risk creeping.</source>
+        <translation type="gpt-4o-generated">Velocidade em que o openpilot começa a sair do estado parado. Valores mais altos evitam o avanço lento, mas podem parecer lentos; valores mais baixos se movem mais cedo, mas correm o risco de avançar lentamente.</translation>
+    </message>
+    <message>
+        <source>Stop Acceleration (Default: %1)</source>
+        <translation type="gpt-4o-generated">Parar Aceleração (Padrão: %1)</translation>
+    </message>
+    <message>
+        <source>Stop Acceleration</source>
+        <translation type="gpt-4o-generated">Parar Aceleração</translation>
+    </message>
+    <message>
+        <source>Brake force applied to hold the vehicle still. Larger values prevent creeping on hills but might jerk to a stop. Smaller values can feel smoother but may allow rolling.</source>
+        <translation type="gpt-4o-generated">Força de frenagem aplicada para manter o veículo parado. Valores maiores evitam que o veículo deslize em colinas, mas podem causar uma parada brusca. Valores menores podem proporcionar uma sensação mais suave, mas podem permitir que o veículo role.</translation>
+    </message>
+    <message>
+        <source>Stopping Rate (Default: %1)</source>
+        <translation type="gpt-4o-generated">Taxa de Parada (Padrão: %1)</translation>
+    </message>
+    <message>
+        <source>Stopping Rate</source>
+        <translation type="gpt-4o-generated">Taxa de Parada</translation>
+    </message>
+    <message>
+        <source>How quickly braking ramps up when stopping. Faster rates shorten stopping distance but can be harsh; slower rates are smoother but need more room.</source>
+        <translation type="gpt-4o-generated">Quão rapidamente a frenagem aumenta ao parar. Taxas mais rápidas encurtam a distância de parada, mas podem ser bruscas; taxas mais lentas são mais suaves, mas precisam de mais espaço.</translation>
+    </message>
+    <message>
+        <source>Stop Speed (Default: %1)</source>
+        <translation type="gpt-4o-generated">Parar Velocidade (Padrão: %1)</translation>
+    </message>
+    <message>
+        <source>Stop Speed</source>
+        <translation type="gpt-4o-generated">Parar Velocidade</translation>
+    </message>
+    <message>
+        <source>Speed where openpilot beings to enter the stopped state. Higher values brake earlier for smoother stops but might stop too soon; lower values wait longer and can overshoot.</source>
+        <translation type="gpt-4o-generated">Velocidade em que o openpilot começa a entrar no estado de parada. Valores mais altos freiam mais cedo para paradas mais suaves, mas podem parar muito cedo; valores mais baixos esperam mais e podem ultrapassar.</translation>
+    </message>
+    <message>
+        <source>Speed Offset (0–24 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (0–24 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (25–34 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (25–34 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (35–44 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (35–44 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (45–54 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (45–54 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (55–64 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (55–64 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (65–74 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (65–74 mph)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (75–99 mph)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (75–99 mph)</translation>
+    </message>
+    <message>
+        <source>Only For Detected Lanes</source>
+        <translation type="gpt-4o-generated">Somente para Faixas Detectadas</translation>
+    </message>
+    <message>
+        <source>Speed Offset (0–29 km/h)</source>
+        <translation type="gpt-4o-generated">Offset de Velocidade (0–29 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (30–49 km/h)</source>
+        <translation type="gpt-4o-generated">Desvio de Velocidade (30–49 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (50–59 km/h)</source>
+        <translation type="gpt-4o-generated">Desvio de Velocidade (50–59 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (60–79 km/h)</source>
+        <translation type="gpt-4o-generated">Desvio de Velocidade (60–79 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (80–99 km/h)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (80–99 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (100–119 km/h)</source>
+        <translation type="gpt-4o-generated">Desvio de Velocidade (100–119 km/h)</translation>
+    </message>
+    <message>
+        <source>Speed Offset (120–140 km/h)</source>
+        <translation type="gpt-4o-generated">Deslocamento de Velocidade (120–140 km/h)</translation>
+    </message>
+    <message>
         <source>Curve Speed Control</source>
         <translation type="gpt-4o-generated">Controle de Velocidade em Curvas</translation>
     </message>
@@ -1985,11 +2069,11 @@
     </message>
     <message>
         <source>Curve Detection Failsafe</source>
-        <translation type="gpt-4o-generated">Falha de Segurança na Detecção de Curvas</translation>
+        <translation type="gpt-4o-generated">Falha na Detecção de Curva</translation>
     </message>
     <message>
         <source>Only trigger &lt;b&gt;Curve Speed Control&lt;/b&gt; if a curve is detected with the model while using the &lt;b&gt;Map-Based&lt;/b&gt; method. Useful to help prevent false positives.</source>
-        <translation type="gpt-4o-generated">Acione &lt;b&gt;Controle de Velocidade em Curvas&lt;/b&gt; apenas se uma curva for detectada com o modelo ao usar o método &lt;b&gt;Baseado em Mapa&lt;/b&gt;. Útil para ajudar a prevenir falsos positivos.</translation>
+        <translation type="gpt-4o-generated">Acione o &lt;b&gt;Controle de Velocidade em Curvas&lt;/b&gt; apenas se uma curva for detectada com o modelo ao usar o método &lt;b&gt;Baseado em Mapa&lt;/b&gt;. Útil para ajudar a prevenir falsos positivos.</translation>
     </message>
     <message>
         <source>Curve Detection Sensitivity</source>
@@ -1997,11 +2081,11 @@
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">Quão sensível o openpilot é ao detectar curvas. Valores mais altos acionam respostas mais cedo, com o risco de acionar com muita frequência, enquanto valores mais baixos aumentam a confiança, com o risco de acionar com pouca frequência.</translation>
+        <translation type="gpt-4o-generated">Quão sensível o openpilot é ao detectar curvas. Valores mais altos acionam respostas mais cedo, com o risco de acionar com muita frequência, enquanto valores mais baixos aumentam a confiança com o risco de acionar com pouca frequência.</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
-        <translation type="gpt-4o-generated">Agressividade de Velocidade em Curvas</translation>
+        <translation type="gpt-4o-generated">Agressividade da Velocidade em Curvas</translation>
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
@@ -2488,16 +2572,8 @@
         <translation type="gpt-4o-generated">CANCELAR</translation>
     </message>
     <message>
-        <source>Update Speed Limits</source>
-        <translation type="gpt-4o-generated">Atualizar Limites de Velocidade</translation>
-    </message>
-    <message>
         <source>Speed Limit Filler</source>
         <translation type="gpt-4o-generated">Preenchimento de Limite de Velocidade</translation>
-    </message>
-    <message>
-        <source>Automatically collect missing speed limits from your dashboard (if supported), &lt;b&gt;Mapbox&lt;/b&gt;, and &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; while driving.&lt;br&gt;&lt;br&gt;Tap &lt;b&gt;Update Speed Limits&lt;/b&gt; at home (good Wi-Fi, 12V power) to process your recent drives.&lt;br&gt;&lt;br&gt;Download the data from &lt;b&gt;Fleet Manager&lt;/b&gt; → &lt;b&gt;Tools&lt;/b&gt; → &lt;b&gt;Download Speed Limits&lt;/b&gt;, then upload it to &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt; to review and submit.&lt;br&gt;&lt;br&gt;For a full walkthrough, check the &lt;b&gt;#speed-limit-filler&lt;/b&gt; channel in the &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</source>
-        <translation type="gpt-4o-generated">Colete automaticamente os limites de velocidade ausentes do seu painel (se suportado), &lt;b&gt;Mapbox&lt;/b&gt; e &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; enquanto dirige.&lt;br&gt;&lt;br&gt;Toque em &lt;b&gt;Atualizar Limites de Velocidade&lt;/b&gt; em casa (bom Wi-Fi, energia 12V) para processar suas viagens recentes.&lt;br&gt;&lt;br&gt;Baixe os dados do &lt;b&gt;Gerenciador de Frotas&lt;/b&gt; → &lt;b&gt;Ferramentas&lt;/b&gt; → &lt;b&gt;Baixar Limites de Velocidade&lt;/b&gt;, depois faça o upload para &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt; para revisar e enviar.&lt;br&gt;&lt;br&gt;Para um guia completo, confira o canal &lt;b&gt;#speed-limit-filler&lt;/b&gt; no &lt;b&gt;Discord do FrogPilot&lt;/b&gt;!</translation>
     </message>
     <message>
         <source>Are you sure you want to cancel the speed limit update process?</source>
@@ -2514,6 +2590,22 @@ Ele será redefinido em %1 horas e %2 minutos.</translation>
     <message>
         <source>This process will take awhile, so it's advised to start when you're done driving with a stable Wi-Fi connection. Do you wish to proceed?</source>
         <translation type="gpt-4o-generated">Este processo levará algum tempo, por isso é aconselhável começar quando você terminar de dirigir com uma conexão Wi-Fi estável. Deseja prosseguir?</translation>
+    </message>
+    <message>
+        <source>Manually Update Speed Limits</source>
+        <translation type="gpt-4o-generated">Atualizar Limites de Velocidade Manualmente</translation>
+    </message>
+    <message>
+        <source>Automatically collect missing or incorrect speed limits from your dashboard (if supported), &lt;b&gt;Mapbox&lt;/b&gt;, and &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; while driving.&lt;br&gt;&lt;br&gt;When the car is turned off and connected to Wi-Fi, your speed limit data is automatically processed into a compiled file formatted for the tool located at &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt;.&lt;br&gt;&lt;br&gt;You can grab the processed file from &lt;b&gt;The Pond&lt;/b&gt; via the &lt;b&gt;Download Speed Limits&lt;/b&gt; menu.&lt;br&gt;&lt;br&gt;Want a more thorough walkthrough? Check out the &lt;b&gt;#speed-limit-filler&lt;/b&gt; channel in the &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</source>
+        <translation type="gpt-4o-generated">Colete automaticamente limites de velocidade ausentes ou incorretos do seu painel (se suportado), &lt;b&gt;Mapbox&lt;/b&gt; e &lt;b&gt;Navigate-on-openpilot&lt;/b&gt; enquanto dirige.&lt;br&gt;&lt;br&gt;Quando o carro é desligado e conectado ao Wi-Fi, seus dados de limite de velocidade são processados automaticamente em um arquivo compilado formatado para a ferramenta localizada em &lt;b&gt;SpeedLimitFiller.frogpilot.download&lt;/b&gt;.&lt;br&gt;&lt;br&gt;Você pode obter o arquivo processado de &lt;b&gt;The Pond&lt;/b&gt; através do menu &lt;b&gt;Download Speed Limits&lt;/b&gt;.&lt;br&gt;&lt;br&gt;Quer um guia mais detalhado? Confira o canal &lt;b&gt;#speed-limit-filler&lt;/b&gt; no &lt;b&gt;FrogPilot Discord&lt;/b&gt;!</translation>
+    </message>
+    <message>
+        <source>Cancelled...</source>
+        <translation type="gpt-4o-generated">Cancelado...</translation>
+    </message>
+    <message>
+        <source>Completed!</source>
+        <translation type="gpt-4o-generated">Concluído!</translation>
     </message>
 </context>
 <context>
@@ -2778,6 +2870,10 @@ Desenvolvedor - Desbloqueia configurações altamente personalizáveis para entu
     <message>
         <source>Auto</source>
         <translation type="gpt-4o-generated">Auto</translation>
+    </message>
+    <message>
+        <source>Test</source>
+        <translation type="gpt-4o-generated">Teste</translation>
     </message>
 </context>
 <context>
@@ -3698,10 +3794,6 @@ Quer enviar suas próprias animações? Compartilhe-as no canal "custom-themes" 
         <translation type="gpt-4o-generated">Largura do Caminho</translation>
     </message>
     <message>
-        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(6.1 feet / 1.9 meters)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
-        <translation type="gpt-4o-generated">A largura do caminho de condução na tela de condução.&lt;br&gt;&lt;br&gt;Padrão &lt;b&gt;(6,1 pés / 1,9 metros)&lt;/b&gt; corresponde à largura de um &lt;b&gt;Lexus ES 350 2019&lt;/b&gt;.</translation>
-    </message>
-    <message>
         <source>Road Edges Width</source>
         <translation type="gpt-4o-generated">Largura das Bordas da Estrada</translation>
     </message>
@@ -4057,6 +4149,14 @@ Quer enviar suas próprias animações? Compartilhe-as no canal "custom-themes" 
         <source>Sidebar Metrics</source>
         <translation type="gpt-4o-generated">Métricas da Barra Lateral</translation>
     </message>
+    <message>
+        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(6.1 feet)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
+        <translation type="gpt-4o-generated">A largura do caminho de condução na tela de condução.&lt;br&gt;&lt;br&gt;O padrão &lt;b&gt;(6,1 pés)&lt;/b&gt; corresponde à largura de um &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>The width of the driving path on the driving screen.&lt;br&gt;&lt;br&gt;Default &lt;b&gt;(1.9 meters)&lt;/b&gt; matches the width of a &lt;b&gt;2019 Lexus ES 350&lt;/b&gt;.</source>
+        <translation type="gpt-4o-generated">A largura do caminho de condução na tela de condução.&lt;br&gt;&lt;br&gt;O padrão &lt;b&gt;(1,9 metros)&lt;/b&gt; corresponde à largura de um &lt;b&gt;Lexus ES 350 de 2019&lt;/b&gt;.</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotWheelPanel</name>
@@ -4193,6 +4293,57 @@ Quer enviar suas próprias animações? Compartilhe-as no canal "custom-themes" 
     <message>
         <source>Waiting for route</source>
         <translation>Aguardando rota</translation>
+    </message>
+</context>
+<context>
+    <name>ModelReview</name>
+    <message>
+        <source>How would you rate that drive?</source>
+        <translation type="gpt-4o-generated">Como você avaliaria essa unidade?</translation>
+    </message>
+    <message>
+        <source>Blacklist this model</source>
+        <translation type="gpt-4o-generated">Colocar este modelo na lista negra</translation>
+    </message>
+    <message>
+        <source>The model used during that drive was:</source>
+        <translation type="gpt-4o-generated">O modelo usado durante aquela unidade foi:</translation>
+    </message>
+    <message>
+        <source>Current Model Score: 0</source>
+        <translation type="gpt-4o-generated">Pontuação Atual do Modelo: 0</translation>
+    </message>
+    <message>
+        <source>Current Model Rank: 0</source>
+        <translation type="gpt-4o-generated">Classificação Atual do Modelo: 0</translation>
+    </message>
+    <message>
+        <source>Total Model Drives: 0</source>
+        <translation type="gpt-4o-generated">Total de Unidades de Modelo: 0</translation>
+    </message>
+    <message>
+        <source>Total Overall Model Drives: 0</source>
+        <translation type="gpt-4o-generated">Total de Drives do Modelo Geral: 0</translation>
+    </message>
+    <message>
+        <source>Total Model Drives: %1</source>
+        <translation type="gpt-4o-generated">Total de unidades do modelo: %1</translation>
+    </message>
+    <message>
+        <source>Current Model Rank: %1</source>
+        <translation type="gpt-4o-generated">Classificação Atual do Modelo: %1</translation>
+    </message>
+    <message>
+        <source>Current Model Score: %1</source>
+        <translation type="gpt-4o-generated">Pontuação Atual do Modelo: %1</translation>
+    </message>
+    <message>
+        <source>Total Overall Drives: %1</source>
+        <translation type="gpt-4o-generated">Total de Unidades Gerais: %1</translation>
+    </message>
+    <message>
+        <source>Model successfully blacklisted!</source>
+        <translation type="gpt-4o-generated">Modelo bloqueado com sucesso!</translation>
     </message>
 </context>
 <context>

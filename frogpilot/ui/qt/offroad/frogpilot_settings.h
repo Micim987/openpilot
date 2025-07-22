@@ -37,9 +37,15 @@ public:
 
   float friction;
   float latAccelFactor;
+  float longitudinalActuatorDelay;
+  float startAccel;
   float steerActuatorDelay;
   float steerKp;
   float steerRatio;
+  float stopAccel;
+  float stoppingDecelRate;
+  float vEgoStarting;
+  float vEgoStopping;
 
   int tuningLevel;
 
@@ -58,11 +64,13 @@ private:
   void createPanelButtons(FrogPilotListWidget *list);
   void hideEvent(QHideEvent *event) override;
   void updateState();
+  void updateTuningLevel();
 
   bool panelOpen;
 
   FrogPilotButtonsControl *drivingPanelButtons;
   FrogPilotButtonsControl *systemPanelButtons;
+  FrogPilotButtonsControl *togglePreset;
   FrogPilotButtonsControl *vehiclePanelButtons;
 
   Params params;

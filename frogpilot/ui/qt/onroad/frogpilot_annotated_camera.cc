@@ -33,8 +33,6 @@ FrogPilotAnnotatedCameraWidget::FrogPilotAnnotatedCameraWidget(QWidget *parent) 
 }
 
 void FrogPilotAnnotatedCameraWidget::showEvent(QShowEvent *event) {
-  update_theme(frogpilotUIState());
-
   FrogPilotUIState &fs = *frogpilotUIState();
   QJsonObject &frogpilot_toggles = fs.frogpilot_toggles;
   UIState &s = *uiState();

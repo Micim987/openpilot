@@ -128,7 +128,7 @@ FrogPilotLateralPanel::FrogPilotLateralPanel(FrogPilotSettingsWindow *parent) : 
       lateralToggle = qolLateralToggle;
     } else if (param == "PauseLateralSpeed") {
       std::vector<QString> pauseLateralToggles{"PauseLateralOnSignal"};
-      std::vector<QString> pauseLateralToggleNames{"Turn Signal Only"};
+      std::vector<QString> pauseLateralToggleNames{tr("Turn Signal Only")};
       lateralToggle = new FrogPilotParamValueButtonControl(param, title, desc, icon, 0, 99, QString(), std::map<float, QString>(), 1, true, pauseLateralToggles, pauseLateralToggleNames, true);
 
     } else {
@@ -167,7 +167,7 @@ FrogPilotLateralPanel::FrogPilotLateralPanel(FrogPilotSettingsWindow *parent) : 
     QObject::connect(static_cast<ToggleControl*>(toggles[key]), &ToggleControl::toggleFlipped, this, &FrogPilotLateralPanel::updateToggles);
   }
 
-  std::set<QString> rebootKeys = {"AlwaysOnLateral", "NNFF", "NNFFLite"};
+  std::set<QString> rebootKeys = {"AlwaysOnLateral"};
   for (const QString &key : rebootKeys) {
     QObject::connect(static_cast<ToggleControl*>(toggles[key]), &ToggleControl::toggleFlipped, [this, key](bool state) {
       if (started) {

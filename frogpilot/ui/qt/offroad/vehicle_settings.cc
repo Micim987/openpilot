@@ -118,7 +118,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
   });
   settingsList->addItem(selectModelButton);
 
-  ParamControl *forceFingerprint = new ParamControl("ForceFingerprint", tr("Disable Automatic Fingerprint Detection"), tr("Forces the selected fingerprint and prevents it from ever changing."), "");
+  forceFingerprint = new ParamControl("ForceFingerprint", tr("Disable Automatic Fingerprint Detection"), tr("Forces the selected fingerprint and prevents it from ever changing."), "");
   settingsList->addItem(forceFingerprint);
 
   disableOpenpilotLong = new ParamControl("DisableOpenpilotLongitudinal", tr("Disable openpilot Longitudinal Control"), tr("Disables openpilot longitudinal control and uses the car's stock ACC instead."), "");
@@ -242,7 +242,7 @@ FrogPilotVehiclesPanel::FrogPilotVehiclesPanel(FrogPilotSettingsWindow *parent) 
 
   static_cast<FrogPilotParamValueControl*>(toggles["LockDoorsTimer"])->setWarning("<b>Warning:</b> openpilot can't detect if keys are still inside the car, so ensure you have a spare key to prevent accidental lockouts!");
 
-  std::set<QString> rebootKeys = {"NewLongAPI"};
+  std::set<QString> rebootKeys = {"NewLongAPI", "TacoTuneHacks"};
   for (const QString &key : rebootKeys) {
     QObject::connect(static_cast<ToggleControl*>(toggles[key]), &ToggleControl::toggleFlipped, [this]() {
       if (started) {
@@ -345,7 +345,8 @@ void FrogPilotVehiclesPanel::updateToggles() {
     }
   }
 
-  disableOpenpilotLong->setVisible((hasOpenpilotLongitudinal || openpilotLongitudinalControlDisabled) && !hasExperimentalOpenpilotLongitudinal);
+  disableOpenpilotLong->setVisible((hasOpenpilotLongitudinal || openpilotLongitudinalControlDisabled) && !hasExperimentalOpenpilotLongitudinal && tuningLevel >= frogpilotToggleLevels["DisableOpenpilotLongitudinal"].toDouble());
+  forceFingerprint->setVisible(tuningLevel >= frogpilotToggleLevels["ForceFingerprint"].toDouble());
 
   update();
 }

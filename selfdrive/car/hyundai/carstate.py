@@ -17,7 +17,6 @@ STANDSTILL_THRESHOLD = 12 * 0.03125 * CV.KPH_TO_MS
 
 
 # Traffic signals for Speed Limit Controller - Credit goes to Multikyd!
-@staticmethod
 def calculate_speed_limit(CP, FPCP, cp, cp_cam):
   if CP.carFingerprint in CANFD_CAR:
     if CP.flags & HyundaiFlags.CANFD_HDA2:

@@ -98,7 +98,7 @@ FrogPilotUtilitiesPanel::FrogPilotUtilitiesPanel(FrogPilotSettingsWindow *parent
     ConfirmationDialog::alert(tr("Your report has been submitted. Thanks for letting us know!"), this);
   });
   addItem(reportIssueBtn);
-  reportIssueBtn->setVisible(params.get("GitRemote") == "https://github.com/FrogAi/openpilot.git");
+  reportIssueBtn->setVisible(QString::fromStdString(params.get("GitRemote")).toLower() == "https://github.com/frogai/openpilot.git");
 
   ButtonControl *resetTogglesBtn = new ButtonControl(tr("Reset Toggles to Default"), tr("RESET"), tr("Reset all toggles to their default values."));
   QObject::connect(resetTogglesBtn, &ButtonControl::clicked, [this, parent, resetTogglesBtn]() {
