@@ -56,12 +56,22 @@ class MapSpeedLogger:
   @staticmethod
   def cleanup_dataset(dataset):
     cleaned_data = OrderedDict()
+
     for item in dataset:
+      if "last_vetted" in item:
+        required = {"incorrect_limit", "last_vetted", "segment_id", "source", "speed_limit", "start_coordinates"}
+      else:
+        required = {"bearing", "end_coordinates", "incorrect_limit", "road_name", "road_width", "source", "speed_limit", "start_coordinates"}
+
+      if not required.issubset(item.keys()):
+        continue
+
       entry_copy = item.copy()
       entry_copy.pop("last_vetted", None)
 
       key = json.dumps(entry_copy, sort_keys=True)
       cleaned_data[key] = item
+
     return deque(cleaned_data.values(), maxlen=MAX_ENTRIES)
 
   @staticmethod
@@ -235,8 +245,8 @@ class MapSpeedLogger:
       "incorrect_limit": is_incorrect_limit,
       "road_name": road_name,
       "road_width": calculate_lane_width(self.sm["modelV2"].laneLines[1], self.sm["modelV2"].laneLines[2]),
-      "speed_limit": speed_limit,
       "source": source,
+      "speed_limit": speed_limit,
       "start_coordinates": self.previous_coordinates,
     })
 
@@ -270,18 +280,18 @@ class MapSpeedLogger:
         segment_id = segment["segment_id"]
         if segment_id in existing_segment_ids:
           continue
-        if segment["maxspeed"] and not entry.get("incorrect_limit", False):
+        if segment["maxspeed"] and not entry.get("incorrect_limit"):
           continue
         if segment["road_name"] != entry.get("road_name"):
           continue
 
         filtered_dataset.append({
+          "incorrect_limit": entry.get("incorrect_limit"),
+          "last_vetted": datetime.now(timezone.utc).isoformat(),
           "segment_id": segment_id,
-          "start_coordinates": entry["start_coordinates"],
           "source": entry["source"],
           "speed_limit": entry["speed_limit"],
-          "last_vetted": datetime.now(timezone.utc).isoformat(),
-          "incorrect_limit": entry.get("incorrect_limit", False),
+          "start_coordinates": entry["start_coordinates"],
         })
         existing_segment_ids.add(segment_id)
 
