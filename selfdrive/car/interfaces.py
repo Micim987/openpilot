@@ -161,6 +161,10 @@ class CarInterfaceBase(ABC):
     ret.rotationalInertia = scale_rot_inertia(ret.mass, ret.wheelbase)
     ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront, ret.tireStiffnessFactor)
 
+    # Enable torque controller for all cars that do not use angle based steering
+    if ret.steerControlType != car.CarParams.SteerControlType.angle and (frogpilot_toggles.nnff or frogpilot_toggles.nnff_lite):
+      CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
+
     return ret
 
   @classmethod
