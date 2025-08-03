@@ -176,7 +176,7 @@ void FrogPilotSoundsPanel::updateToggles() {
       setVisible &= hasBSM;
     }
 
-    if (key == "SpeedLimitChangedAlert") {
+    else if (key == "SpeedLimitChangedAlert") {
       setVisible &= params.getBool("ShowSpeedLimits") || (hasOpenpilotLongitudinal && params.getBool("SpeedLimitController"));
     }
 

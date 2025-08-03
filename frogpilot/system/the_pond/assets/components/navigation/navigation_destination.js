@@ -681,7 +681,7 @@ export function NavDestination() {
 function SearchSuggestions({ suggestions, selectSuggestion, removeFavorite, renameFavorite, setHome, setWork }) {
   const isFavorite = s => s.name && s.latitude != null && s.longitude != null && s.routeId;
   const item = s => html`
-    <span class="suggestion-item" @click="${() => selectSuggestion(s)}">
+    <div class="suggestion-item" @click="${() => selectSuggestion(s)}">
       <p>
         ${s.is_home ? "🏠 " : ""}
         ${s.is_work ? "💼 " : ""}
@@ -695,7 +695,7 @@ function SearchSuggestions({ suggestions, selectSuggestion, removeFavorite, rena
           <button class="remove-favorite-button" title="Remove from Favorites" @click="${e => { e.stopPropagation(); removeFavorite(s); }}">🗑️</button>
         </div>
       ` : ""}
-    </span>
+    </div>
   `;
   return html`<div id="searchSuggestions">${suggestions.map(item)}</div>`;
 }

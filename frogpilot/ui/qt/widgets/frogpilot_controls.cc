@@ -30,6 +30,8 @@ void loadImage(const QString &basePath, QPixmap &pixmap, QSharedPointer<QMovie> 
 
   QFileInfo gifFile(basePath + ".gif");
   if (gifFile.exists()) {
+    QProcess::execute("gifsicle", QStringList() << "-O3" << gifFile.filePath() << "-o" << gifFile.filePath());
+
     QSharedPointer<QMovie> gif(new QMovie(gifFile.filePath()));
     if (!gif->isValid()) {
       pixmap = loadPixmap(basePath + ".png", size, aspectRatioMode);
@@ -64,11 +66,15 @@ QColor loadThemeColors(const QString &colorKey, bool clearCache) {
 
   if (clearCache) {
     QFile file("../../frogpilot/assets/active_theme/colors/colors.json");
-
     if (file.open(QIODevice::ReadOnly)) {
       cachedColorData = QJsonDocument::fromJson(file.readAll()).object();
     } else {
+      cachedColorData = QJsonObject();
       return QColor();
+    }
+
+    if (colorKey.isEmpty()) {
+      return QColor(255, 255, 255);
     }
   }
 
@@ -76,7 +82,7 @@ QColor loadThemeColors(const QString &colorKey, bool clearCache) {
     return QColor();
   }
 
-  const QJsonObject &colorObj = cachedColorData[colorKey].toObject();
+  const QJsonObject colorObj = cachedColorData[colorKey].toObject();
   return QColor(
     colorObj.value("red").toInt(255),
     colorObj.value("green").toInt(255),

@@ -127,7 +127,7 @@ FrogPilotLongitudinalPanel::FrogPilotLongitudinalPanel(FrogPilotSettingsWindow *
     {"MaxDesiredAcceleration", tr("Maximum Acceleration Rate"), tr("Set a cap on how fast openpilot can accelerate."), ""},
     {"TacoTune", tr("\"Taco Bell Run\" Turn Speed Hack"), tr("The turn speed hack from comma’s 2022 \"Taco Bell Run\" drive. Designed to slow down when taking left/right turns for smoother turns."), ""},
 
-    {"QOLLongitudinal", tr("Quality of Life"), tr("Miscellaneous features to improve the acceleration and braking experience."), "../../frogpilot/assets/toggle_icons/quality_of_life.png"},
+    {"QOLLongitudinal", tr("Quality of Life"), tr("Miscellaneous features to improve the acceleration and braking experience."), "../../frogpilot/assets/toggle_icons/icon_quality_of_life.png"},
     {"CustomCruise", tr("Cruise Interval"), tr("The interval used when changing the cruise control speed."), ""},
     {"CustomCruiseLong", tr("Cruise Interval (Long Press)"), tr("The interval used when changing the cruise control speed while holding down the button for 0.5+ seconds."), ""},
     {"ForceStandstill", tr("Force Keep openpilot in the Standstill State"), tr("Keep openpilot in the standstill state until either the gas pedal or <b>resume</b> button is pressed."), ""},
@@ -814,32 +814,32 @@ void FrogPilotLongitudinalPanel::updateToggles() {
       setVisible &= !hasPCMCruise;
     }
 
-    if (key == "ForceMPHDashboard") {
+    else if (key == "ForceMPHDashboard") {
       setVisible &= isToyota;
     }
 
-    if (key == "MapGears") {
+    else if (key == "MapGears") {
       setVisible &= isGM || isHKGCanFd || isToyota;
       setVisible &= !isTSK;
     }
 
-    if (key == "MTSCCurvatureCheck") {
+    else if (key == "MTSCCurvatureCheck") {
       setVisible &= params.getBool("MapTurnControl");
     }
 
-    if (key == "ReverseCruise") {
+    else if (key == "ReverseCruise") {
       setVisible &= isToyota;
     }
 
-    if (key == "SLCMapboxFiller") {
+    else if (key == "SLCMapboxFiller") {
       setVisible &= !params.get("MapboxSecretKey").empty();
     }
 
-    if (key == "StartAccel") {
+    else if (key == "StartAccel") {
       setVisible &= !(params.getBool("LongitudinalTune") && params.getBool("HumanAcceleration"));
     }
 
-    if (key == "StoppingDecelRate" || key == "VEgoStarting" || key == "VEgoStopping") {
+    else if (key == "StoppingDecelRate" || key == "VEgoStarting" || key == "VEgoStopping") {
       setVisible &= !isGM || !params.getBool("ExperimentalGMTune");
       setVisible &= !isToyota || !params.getBool("FrogsGoMoosTweak");
     }

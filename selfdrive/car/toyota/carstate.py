@@ -217,9 +217,7 @@ class CarState(CarStateBase):
     # FrogPilot CarState functions
     fp_ret.brakeLights = bool(cp.vl["ESP_CONTROL"]["BRAKE_LIGHTS_ACC"])
 
-    self.cruise_decreased_previously = self.cruise_decreased
     self.cruise_decreased = self.pcm_acc_status == 10
-    self.cruise_increased_previously = self.cruise_increased
     self.cruise_increased = self.pcm_acc_status == 9
 
     fp_ret.dashboardSpeedLimit = calculate_speed_limit(cp_cam, frogpilot_toggles)

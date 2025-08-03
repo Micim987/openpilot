@@ -2065,7 +2065,7 @@
     </message>
     <message>
         <source>How curves are detected. &lt;b&gt;Map-Based&lt;/b&gt; uses downloaded map data to identify curves and determine the appropriate speed in which to handle them at, while &lt;b&gt;Vision&lt;/b&gt; relies solely on the driving model.</source>
-        <translation type="gpt-4o-generated">如何检测曲线。&lt;b&gt;基于地图&lt;/b&gt;使用下载的地图数据来识别曲线并确定适当的处理速度，而&lt;b&gt;视觉&lt;/b&gt;则完全依赖于驾驶模型。</translation>
+        <translation type="gpt-4o-generated">如何检测曲线。&lt;b&gt;基于地图&lt;/b&gt;使用下载的地图数据来识别曲线并确定处理它们的适当速度，而&lt;b&gt;视觉&lt;/b&gt;则完全依赖于驾驶模型。</translation>
     </message>
     <message>
         <source>Curve Detection Failsafe</source>
@@ -2081,7 +2081,7 @@
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">openpilot在检测曲线时的敏感度。较高的值会在风险触发过于频繁的情况下触发更早的响应，而较低的值会在风险触发过于不频繁的情况下增加信心。</translation>
+        <translation type="gpt-4o-generated">openpilot在检测曲线时的敏感度。较高的值会在更早的时间触发响应，但可能会过于频繁触发，而较低的值会增加信心，但可能触发过于不频繁。</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2089,7 +2089,7 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">openpilot在通过曲线时的激进程度。较高的值会导致更快的转弯，但可能会降低舒适性或稳定性，而较低的值会导致转弯较慢、较平稳，但可能过于谨慎。</translation>
+        <translation type="gpt-4o-generated">openpilot在通过曲线时的激进程度。较高的值会导致转弯速度更快，但可能会降低舒适性或稳定性，而较低的值会导致转弯速度较慢、更平稳，但可能过于谨慎。</translation>
     </message>
     <message>
         <source>Map Based</source>
@@ -2289,6 +2289,10 @@
         <source>CANCELLED</source>
         <translation type="gpt-4o-generated">已取消</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">离线...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotModelPanel</name>
@@ -2456,6 +2460,10 @@
         <source>The "Model Randomizer" only works with downloaded models. Do you want to download all the driving models?</source>
         <translation type="gpt-4o-generated">“模型随机器”仅适用于已下载的模型。您想下载所有驾驶模型吗？</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">离线...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotNavigationPanel</name>
@@ -2486,10 +2494,6 @@
     <message>
         <source>Manage Your Settings At</source>
         <translation type="gpt-4o-generated">在管理您的设置</translation>
-    </message>
-    <message>
-        <source>Device Offline</source>
-        <translation type="gpt-4o-generated">设备离线</translation>
     </message>
     <message>
         <source>MapBox</source>
@@ -2606,6 +2610,10 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>Completed!</source>
         <translation type="gpt-4o-generated">完成！</translation>
+    </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">离线...</translation>
     </message>
 </context>
 <context>
@@ -2931,10 +2939,6 @@ Want to submit your own sounds? Share them in the "custom-themes" channel on the
         <translation type="gpt-4o-generated">驾驶屏幕右上角的方向盘图标。</translation>
     </message>
     <message>
-        <source>Turn Signal Animation</source>
-        <translation type="gpt-4o-generated">转向灯动画</translation>
-    </message>
-    <message>
         <source>Themed turn signal animations.
 
 Want to submit your own animations? Share them in the "custom-themes" channel on the FrogPilot Discord!</source>
@@ -3138,6 +3142,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>Are you sure you want to completely reset your startup message?</source>
         <translation type="gpt-4o-generated">您确定要完全重置启动消息吗？</translation>
     </message>
+    <message>
+        <source>Turn Signal</source>
+        <translation type="gpt-4o-generated">转向灯</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotUtilitiesPanel</name>
@@ -3218,26 +3226,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">我看到一个警报说“openpilot崩溃”</translation>
     </message>
     <message>
-        <source>I'm noticing harsh acceleration</source>
-        <translation type="gpt-4o-generated">我注意到加速过猛</translation>
-    </message>
-    <message>
-        <source>I'm noticing harsh braking</source>
-        <translation type="gpt-4o-generated">我注意到急刹车</translation>
-    </message>
-    <message>
-        <source>I'm noticing unusual steering</source>
-        <translation type="gpt-4o-generated">我注意到转向异常</translation>
-    </message>
-    <message>
-        <source>My car isn't staying in its lane</source>
-        <translation type="gpt-4o-generated">我的车没有保持在车道上。</translation>
-    </message>
-    <message>
-        <source>Something else</source>
-        <translation type="gpt-4o-generated">别的东西</translation>
-    </message>
-    <message>
         <source>What's going on?</source>
         <translation type="gpt-4o-generated">怎么回事？</translation>
     </message>
@@ -3300,6 +3288,70 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>Ensure your device has an internet connection before sending a report!</source>
         <translation type="gpt-4o-generated">在发送报告之前，请确保您的设备已连接互联网！</translation>
+    </message>
+    <message>
+        <source>Acceleration feels too harsh or jerky</source>
+        <translation type="gpt-4o-generated">加速感觉太猛烈或不平稳</translation>
+    </message>
+    <message>
+        <source>An alert confused me and I didn’t know what it meant</source>
+        <translation type="gpt-4o-generated">一个警报让我感到困惑，我不知道它的意思。</translation>
+    </message>
+    <message>
+        <source>Braking is too sudden or uncomfortable</source>
+        <translation type="gpt-4o-generated">刹车过于突然或不舒服</translation>
+    </message>
+    <message>
+        <source>I’m not sure if this is normal or a bug:</source>
+        <translation type="gpt-4o-generated">我不确定这是正常现象还是一个错误：</translation>
+    </message>
+    <message>
+        <source>Lane changes don’t work properly or feel unsafe</source>
+        <translation type="gpt-4o-generated">变道无法正常工作或感觉不安全</translation>
+    </message>
+    <message>
+        <source>My screen froze or got stuck on loading</source>
+        <translation type="gpt-4o-generated">我的屏幕冻结或卡在加载中</translation>
+    </message>
+    <message>
+        <source>My steering wheel buttons aren’t working</source>
+        <translation type="gpt-4o-generated">我的方向盘按钮不起作用</translation>
+    </message>
+    <message>
+        <source>openpilot disengages when I don't expect it</source>
+        <translation type="gpt-4o-generated">当我没有预料到时，openpilot 会断开连接。</translation>
+    </message>
+    <message>
+        <source>openpilot doesn’t resume after I stop</source>
+        <translation type="gpt-4o-generated">openpilot在我停止后不会恢复</translation>
+    </message>
+    <message>
+        <source>openpilot doesn't react to stopped vehicles ahead</source>
+        <translation type="gpt-4o-generated">openpilot对前方停止的车辆没有反应</translation>
+    </message>
+    <message>
+        <source>openpilot feels sluggish or slow to respond</source>
+        <translation type="gpt-4o-generated">openpilot感觉迟缓或反应慢</translation>
+    </message>
+    <message>
+        <source>Steering feels twitchy or unnatural</source>
+        <translation type="gpt-4o-generated">转向感觉不稳定或不自然</translation>
+    </message>
+    <message>
+        <source>The car doesn’t follow curves well</source>
+        <translation type="gpt-4o-generated">这辆车在转弯时表现不好</translation>
+    </message>
+    <message>
+        <source>The car isn’t staying centered in its lane</source>
+        <translation type="gpt-4o-generated">汽车没有保持在车道中央。</translation>
+    </message>
+    <message>
+        <source>The speed or display info looks wrong</source>
+        <translation type="gpt-4o-generated">速度或显示信息看起来不对</translation>
+    </message>
+    <message>
+        <source>Something else (please describe)</source>
+        <translation type="gpt-4o-generated">其他（请描述）</translation>
     </message>
 </context>
 <context>
@@ -4555,10 +4607,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
 <context>
     <name>QObject</name>
     <message>
-        <source>Reboot</source>
-        <translation>重启</translation>
-    </message>
-    <message>
         <source>Exit</source>
         <translation>退出</translation>
     </message>
@@ -4603,6 +4651,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>FrogPilot</source>
         <translation type="gpt-4o-generated">FrogPilot</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="gpt-4o-generated">恢复</translation>
     </message>
 </context>
 <context>

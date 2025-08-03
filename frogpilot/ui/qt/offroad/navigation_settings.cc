@@ -34,7 +34,7 @@ FrogPilotNavigationPanel::FrogPilotNavigationPanel(FrogPilotSettingsWindow *pare
   addItem(primelessLayout);
 
   FrogPilotListWidget *settingsList = new FrogPilotListWidget(this);
-  ipLabel = new LabelControl(tr("Manage Your Settings At"), tr("Device Offline"));
+  ipLabel = new LabelControl(tr("Manage Your Settings At"), tr("Offline..."));
   settingsList->addItem(ipLabel);
 
   std::vector<QString> searchOptions{tr("MapBox"), tr("Amap"), tr("Google")};
@@ -225,15 +225,19 @@ FrogPilotNavigationPanel::FrogPilotNavigationPanel(FrogPilotSettingsWindow *pare
 
 void FrogPilotNavigationPanel::showEvent(QShowEvent *event) {
   FrogPilotUIState &fs = *frogpilotUIState();
+  UIState &s = *uiState();
+
   FrogPilotUIScene &frogpilot_scene = fs.frogpilot_scene;
 
   QString ipAddress = fs.wifi->getIp4Address();
-  ipLabel->setText(ipAddress.isEmpty() ? tr("Device Offline") : QString("%1:8082").arg(ipAddress));
+  ipLabel->setText(ipAddress.isEmpty() ? tr("Offline...") : QString("%1:8082").arg(ipAddress));
 
   updateButtons();
 
   setupCompleted = mapboxPublicKeySet && mapboxSecretKeySet;
   updatingLimits = !params_memory.get("UpdateSpeedLimitsStatus").empty() && QString::fromStdString(params_memory.get("UpdateSpeedLimitsStatus")) != "Completed!";
+
+  bool parked = !s.scene.started || fs.frogpilot_scene.parked || fs.frogpilot_toggles.value("frogs_go_moo").toBool();
 
   int searchInput = params.getInt("SearchInput");
 
@@ -242,13 +246,15 @@ void FrogPilotNavigationPanel::showEvent(QShowEvent *event) {
 
   googleKeyControl->setVisible(searchInput == 2);
 
-  updateSpeedLimitsToggle->setEnabledButton(1, frogpilot_scene.online && util::system_time_valid());
-  updateSpeedLimitsToggle->setVisible(parent->tuningLevel >= parent->frogpilotToggleLevels["SpeedLimitFiller"].toDouble());
   updateSpeedLimitsToggle->setVisibleButton(0, updatingLimits);
   updateSpeedLimitsToggle->setVisibleButton(1, !updatingLimits);
 
   if (updatingLimits) {
     updateSpeedLimitsToggle->setValue(QString::fromStdString(params_memory.get("UpdateSpeedLimitsStatus")));
+  } else {
+    updateSpeedLimitsToggle->setEnabledButton(1, frogpilot_scene.online && util::system_time_valid() && parked);
+    updateSpeedLimitsToggle->setValue(frogpilot_scene.online ? (parked ? "" : "Not parked") : tr("Offline..."));
+    updateSpeedLimitsToggle->setVisible(parent->tuningLevel >= parent->frogpilotToggleLevels["SpeedLimitFiller"].toDouble());
   }
 }
 
@@ -285,7 +291,7 @@ void FrogPilotNavigationPanel::updateState(const UIState &s, const FrogPilotUISt
   updateButtons();
   updateStep();
 
-  updateSpeedLimitsToggle->setEnabledButton(1, fs.frogpilot_scene.online && util::system_time_valid());
+  bool parked = !s.scene.started || fs.frogpilot_scene.parked || fs.frogpilot_toggles.value("frogs_go_moo").toBool();
 
   if (updatingLimits) {
     if (QString::fromStdString(params_memory.get("UpdateSpeedLimitsStatus")) == "Completed!") {
@@ -304,6 +310,9 @@ void FrogPilotNavigationPanel::updateState(const UIState &s, const FrogPilotUISt
     } else {
       updateSpeedLimitsToggle->setValue(QString::fromStdString(params_memory.get("UpdateSpeedLimitsStatus")));
     }
+  } else {
+    updateSpeedLimitsToggle->setEnabledButton(1, fs.frogpilot_scene.online && util::system_time_valid() && parked);
+    updateSpeedLimitsToggle->setValue(fs.frogpilot_scene.online ? (parked ? "" : "Not parked") : tr("Offline..."));
   }
 
   parent->keepScreenOn = primelessLayout->currentIndex() == 1 || updatingLimits;

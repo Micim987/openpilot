@@ -221,7 +221,7 @@ void FrogPilotDevicePanel::updateToggles() {
       setVisible &= params.getBool("DeviceManagement") && params.getBool("NoUploads") && !params.getBool("DisableOnroadUploads");
     }
 
-    if (key == "UseKonikServer" && QFile("/data/not_vetted").exists()) {
+    else if (key == "UseKonikServer" && QFile("/data/not_vetted").exists()) {
       static_cast<ToggleControl*>(toggle)->forceOn(true);
     }
 

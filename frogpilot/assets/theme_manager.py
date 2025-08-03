@@ -11,7 +11,7 @@ from pathlib import Path
 
 from openpilot.frogpilot.assets.download_functions import GITLAB_URL, download_file, get_repository_url, handle_error, handle_request_error, verify_download
 from openpilot.frogpilot.common.frogpilot_utilities import delete_file, extract_zip
-from openpilot.frogpilot.common.frogpilot_variables import ACTIVE_THEME_PATH, RANDOM_EVENTS_PATH, THEME_SAVE_PATH, params, params_memory, update_frogpilot_toggles
+from openpilot.frogpilot.common.frogpilot_variables import ACTIVE_THEME_PATH, RANDOM_EVENTS_PATH, RESOURCES_REPO, THEME_SAVE_PATH, params, params_memory, update_frogpilot_toggles
 
 CANCEL_DOWNLOAD_PARAM = "CancelThemeDownload"
 DOWNLOAD_PROGRESS_PARAM = "ThemeDownloadProgress"
@@ -302,10 +302,10 @@ class ThemeManager:
 
     theme_url = download_link + ext
     print(f"Downloading theme from GitLab: {theme_name}")
-    download_file(CANCEL_DOWNLOAD_PARAM, theme_path, DOWNLOAD_PROGRESS_PARAM, theme_url, theme_param, params_memory, self.session)
+    download_file(CANCEL_DOWNLOAD_PARAM, theme_path, DOWNLOAD_PROGRESS_PARAM, theme_url, theme_param, self.session)
 
     if params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
-      handle_error(None, "Download cancelled...", "Download cancelled...", theme_param, DOWNLOAD_PROGRESS_PARAM, params_memory)
+      handle_error(None, "Download cancelled...", "Download cancelled...", theme_param, DOWNLOAD_PROGRESS_PARAM)
       self.downloading_theme = False
       return
 
@@ -324,7 +324,7 @@ class ThemeManager:
 
     repo_url = get_repository_url(self.session)
     if not repo_url:
-      handle_error(None, "GitHub and GitLab are offline...", "Repository unavailable", theme_param, DOWNLOAD_PROGRESS_PARAM, params_memory)
+      handle_error(None, "GitHub and GitLab are offline...", "Repository unavailable", theme_param, DOWNLOAD_PROGRESS_PARAM)
       self.downloading_theme = False
       return
 
@@ -344,10 +344,10 @@ class ThemeManager:
 
       theme_url = download_link + ext
       print(f"Downloading theme from GitHub: {theme_name}")
-      download_file(CANCEL_DOWNLOAD_PARAM, theme_path, DOWNLOAD_PROGRESS_PARAM, theme_url, theme_param, params_memory, self.session)
+      download_file(CANCEL_DOWNLOAD_PARAM, theme_path, DOWNLOAD_PROGRESS_PARAM, theme_url, theme_param, self.session)
 
       if params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
-        handle_error(None, "Download cancelled...", "Download cancelled...", theme_param, DOWNLOAD_PROGRESS_PARAM, params_memory)
+        handle_error(None, "Download cancelled...", "Download cancelled...", theme_param, DOWNLOAD_PROGRESS_PARAM)
         self.downloading_theme = False
         return
 
@@ -363,11 +363,10 @@ class ThemeManager:
         self.downloading_theme = False
         return
 
-    handle_error(download_path, "Download failed...", "Download failed...", theme_param, DOWNLOAD_PROGRESS_PARAM, params_memory)
+    handle_error(download_path, "Download failed...", "Download failed...", theme_param, DOWNLOAD_PROGRESS_PARAM)
     self.downloading_theme = False
 
   def fetch_assets(self, repo_url):
-    repo = "FrogAi/FrogPilot-Resources"
     branches = ["Distance-Icons", "Steering-Wheels", "Themes"]
 
     assets = {
@@ -378,9 +377,9 @@ class ThemeManager:
     try:
       for branch in branches:
         if "github" in repo_url:
-          api_url = f"https://api.github.com/repos/{repo}/git/trees/{branch}?recursive=1"
+          api_url = f"https://api.github.com/repos/{RESOURCES_REPO}/git/trees/{branch}?recursive=1"
         elif "gitlab" in repo_url:
-          api_url = f"https://gitlab.com/api/v4/projects/{repo.replace('/', '%2F')}/repository/tree?ref={branch}&recursive=true"
+          api_url = f"https://gitlab.com/api/v4/projects/{RESOURCES_REPO.replace('/', '%2F')}/repository/tree?ref={branch}&recursive=true"
         else:
           print(f"Unsupported repository URL: {repo_url}")
           return assets
@@ -417,7 +416,7 @@ class ThemeManager:
 
       return {**assets, "themes": {k: list(v) for k, v in assets["themes"].items()}}
     except requests.exceptions.RequestException as error:
-      handle_request_error(f"Failed to fetch theme sizes from {'GitHub' if 'github' in repo_url else 'GitLab'}: {error}", None, None, None, None)
+      handle_request_error(f"Failed to fetch theme sizes from {'GitHub' if 'github' in repo_url else 'GitLab'}: {error}", None, None, None)
       return {}
 
   def update_theme_params(self, downloadable_colors, downloadable_distance_icons, downloadable_icons, downloadable_signals, downloadable_sounds, downloadable_wheels):

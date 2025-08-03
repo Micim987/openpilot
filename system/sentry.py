@@ -1,11 +1,9 @@
 """Install exception handler for process crash."""
 import os
-import psutil
 import sentry_sdk
 import traceback
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from sentry_sdk.integrations.threading import ThreadingIntegration
 
 from openpilot.common.params import Params
@@ -52,47 +50,6 @@ def capture_exception(*args, **kwargs) -> None:
     sentry_sdk.flush()  # https://github.com/getsentry/sentry-python/issues/291
   except Exception:
     cloudlog.exception("sentry exception")
-
-
-def capture_memory_log():
-  virtual_memory = psutil.virtual_memory()
-  total_used = virtual_memory.used
-  total_memory = virtual_memory.total
-
-  process_list = []
-  for process in psutil.process_iter(['pid', 'username', 'memory_percent', 'cmdline', 'name']):
-    try:
-      cmdline = process.info.get('cmdline')
-      memory_percent = process.info.get('memory_percent', 0)
-
-      if cmdline and len(cmdline) > 0:
-        command = " ".join(cmdline)
-      else:
-        command = process.info.get('name', '')
-
-      process_list.append({
-        "pid": process.info['pid'],
-        "user": process.info.get('username', ''),
-        "memory_usage_percent": memory_percent,
-        "command": command
-      })
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-      continue
-
-  process_list.sort(key=lambda process: process['memory_usage_percent'], reverse=True)
-  top_processes = process_list[:5]
-
-  message = (
-    f"High memory detected: "
-    f"{(total_used / total_memory) * 100:.2f}% of total."
-  )
-
-  with sentry_sdk.push_scope() as scope:
-    scope.set_extra("total_memory_usage_percent", (total_used / total_memory) * 100)
-    scope.set_extra("top_processes", top_processes)
-    scope.set_extra("updater_state", params.get("UpdaterState", encoding="utf-8"))
-    sentry_sdk.capture_message(message, level="fatal")
-    sentry_sdk.flush()
 
 
 def capture_report(discord_user, report, frogpilot_toggles):

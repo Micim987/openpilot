@@ -6,7 +6,6 @@ import threading
 from typing import SupportsFloat
 
 import cereal.messaging as messaging
-import openpilot.system.sentry as sentry
 
 from cereal import car, custom, log
 from msgq.visionipc import VisionIpcClient, VisionStreamType
@@ -190,7 +189,6 @@ class Controls:
 
     self.belowSteerSpeed_shown = False
     self.distance_pressed_previously = False
-    self.memory_log_sent = False
     self.resumeRequired_shown = False
     self.steerTempUnavailableSilent_shown = False
 
@@ -198,7 +196,6 @@ class Controls:
 
     self.event_names_to_clear = set()
 
-    self.planner_curves = self.frogpilot_toggles.planner_curvature_model
     self.use_old_long = self.frogpilot_toggles.old_long_api
 
     self.has_menu = self.CP.carName == "gm" and not (self.CP.flags & GMFlags.NO_CAMERA.value or self.CP.carFingerprint in CC_ONLY_CAR)
@@ -257,11 +254,6 @@ class Controls:
       self.events.add(EventName.outOfSpace)
     if self.sm['deviceState'].memoryUsagePercent > 90 and not SIMULATION:
       self.events.add(EventName.lowMemory)
-
-      if not self.memory_log_sent:
-        sentry.capture_memory_log()
-
-        self.memory_log_sent = True
 
     # TODO: enable this once loggerd CPU usage is more reasonable
     #cpus = list(self.sm['deviceState'].cpuUsagePercent)
@@ -661,7 +653,7 @@ class Controls:
         actuators.speed = long_plan.speeds[-1]
 
       # Steering PID loop and lateral MPC
-      self.desired_curvature = clip_curvature(CS.vEgo, self.desired_curvature, model_v2.action.desiredCurvature, self.planner_curves)
+      self.desired_curvature = clip_curvature(CS.vEgo, self.desired_curvature, model_v2.action.desiredCurvature)
       actuators.curvature = self.desired_curvature
       actuators.steer, actuators.steeringAngleDeg, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
                                                                              self.steer_limited, self.desired_curvature,

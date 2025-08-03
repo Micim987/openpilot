@@ -2077,11 +2077,11 @@
     </message>
     <message>
         <source>Curve Detection Sensitivity</source>
-        <translation type="gpt-4o-generated">حساسية اكتشاف المنحنيات</translation>
+        <translation type="gpt-4o-generated">حساسية اكتشاف المنحنى</translation>
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">مدى حساسية openpilot عند اكتشاف المنحنيات. القيم الأعلى تؤدي إلى استجابات مبكرة مع خطر التفعيل بشكل متكرر، بينما القيم الأقل تزيد الثقة مع خطر التفعيل بشكل غير متكرر.</translation>
+        <translation type="gpt-4o-generated">مدى حساسية openpilot عند اكتشاف المنحنيات. القيم الأعلى تؤدي إلى استجابات مبكرة مع خطر التفعيل بشكل متكرر، بينما القيم الأدنى تزيد الثقة مع خطر التفعيل بشكل غير متكرر.</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2101,7 +2101,7 @@
     </message>
     <message>
         <source>The &lt;b&gt;Map Based&lt;/b&gt; option is only available when some &lt;b&gt;Map Data&lt;/b&gt; has been downloaded!</source>
-        <translation type="gpt-4o-generated">خيار &lt;b&gt;المستند إلى الخريطة&lt;/b&gt; متاح فقط عند تنزيل بعض &lt;b&gt;بيانات الخريطة&lt;/b&gt;!</translation>
+        <translation type="gpt-4o-generated">خيار &lt;b&gt;المستند إلى الخريطة&lt;/b&gt; متاح فقط عندما يتم تنزيل بعض &lt;b&gt;بيانات الخريطة&lt;/b&gt;!</translation>
     </message>
 </context>
 <context>
@@ -2289,6 +2289,10 @@
         <source>CANCELLED</source>
         <translation type="gpt-4o-generated">أُلغي</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">غير متصل...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotModelPanel</name>
@@ -2456,6 +2460,10 @@
         <source>The "Model Randomizer" only works with downloaded models. Do you want to download all the driving models?</source>
         <translation type="gpt-4o-generated">يعمل "Model Randomizer" فقط مع النماذج التي تم تنزيلها. هل تريد تنزيل جميع نماذج القيادة؟</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">غير متصل...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotNavigationPanel</name>
@@ -2486,10 +2494,6 @@
     <message>
         <source>Manage Your Settings At</source>
         <translation type="gpt-4o-generated">إدارة إعداداتك في</translation>
-    </message>
-    <message>
-        <source>Device Offline</source>
-        <translation type="gpt-4o-generated">الجهاز غير متصل بالإنترنت</translation>
     </message>
     <message>
         <source>MapBox</source>
@@ -2606,6 +2610,10 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>Completed!</source>
         <translation type="gpt-4o-generated">مكتمل!</translation>
+    </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">غير متصل...</translation>
     </message>
 </context>
 <context>
@@ -2931,10 +2939,6 @@ Want to submit your own sounds? Share them in the "custom-themes" channel on the
         <translation type="gpt-4o-generated">رمز عجلة القيادة في الزاوية العلوية اليمنى من شاشة القيادة.</translation>
     </message>
     <message>
-        <source>Turn Signal Animation</source>
-        <translation type="gpt-4o-generated">إشارة الانعطاف المتحركة</translation>
-    </message>
-    <message>
         <source>Themed turn signal animations.
 
 Want to submit your own animations? Share them in the "custom-themes" channel on the FrogPilot Discord!</source>
@@ -3138,6 +3142,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>Are you sure you want to completely reset your startup message?</source>
         <translation type="gpt-4o-generated">هل أنت متأكد أنك تريد إعادة تعيين رسالة بدء التشغيل بالكامل؟</translation>
     </message>
+    <message>
+        <source>Turn Signal</source>
+        <translation type="gpt-4o-generated">إشارة الانعطاف</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotUtilitiesPanel</name>
@@ -3218,26 +3226,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">رأيت تنبيهًا يقول "openpilot crashed"</translation>
     </message>
     <message>
-        <source>I'm noticing harsh acceleration</source>
-        <translation type="gpt-4o-generated">ألاحظ تسارعًا حادًا</translation>
-    </message>
-    <message>
-        <source>I'm noticing harsh braking</source>
-        <translation type="gpt-4o-generated">ألاحظ فرملة قاسية</translation>
-    </message>
-    <message>
-        <source>I'm noticing unusual steering</source>
-        <translation type="gpt-4o-generated">ألاحظ توجيهًا غير عادي</translation>
-    </message>
-    <message>
-        <source>My car isn't staying in its lane</source>
-        <translation type="gpt-4o-generated">سيارتي لا تبقى في مسارها</translation>
-    </message>
-    <message>
-        <source>Something else</source>
-        <translation type="gpt-4o-generated">شيء آخر</translation>
-    </message>
-    <message>
         <source>What's going on?</source>
         <translation type="gpt-4o-generated">ما الذي يحدث؟</translation>
     </message>
@@ -3300,6 +3288,70 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>Ensure your device has an internet connection before sending a report!</source>
         <translation type="gpt-4o-generated">تأكد من أن جهازك متصل بالإنترنت قبل إرسال التقرير!</translation>
+    </message>
+    <message>
+        <source>Acceleration feels too harsh or jerky</source>
+        <translation type="gpt-4o-generated">يشعر التسارع بأنه قاسي أو متقطع.</translation>
+    </message>
+    <message>
+        <source>An alert confused me and I didn’t know what it meant</source>
+        <translation type="gpt-4o-generated">أربكني تنبيه ولم أعرف ماذا يعني</translation>
+    </message>
+    <message>
+        <source>Braking is too sudden or uncomfortable</source>
+        <translation type="gpt-4o-generated">الفرملة مفاجئة جدًا أو غير مريحة</translation>
+    </message>
+    <message>
+        <source>I’m not sure if this is normal or a bug:</source>
+        <translation type="gpt-4o-generated">لست متأكدًا مما إذا كان هذا طبيعيًا أم خطأ:</translation>
+    </message>
+    <message>
+        <source>Lane changes don’t work properly or feel unsafe</source>
+        <translation type="gpt-4o-generated">تغيير المسارات لا يعمل بشكل صحيح أو يشعر بعدم الأمان</translation>
+    </message>
+    <message>
+        <source>My screen froze or got stuck on loading</source>
+        <translation type="gpt-4o-generated">تجمدت شاشتي أو توقفت عند التحميل</translation>
+    </message>
+    <message>
+        <source>My steering wheel buttons aren’t working</source>
+        <translation type="gpt-4o-generated">أزرار عجلة القيادة لا تعمل</translation>
+    </message>
+    <message>
+        <source>openpilot disengages when I don't expect it</source>
+        <translation type="gpt-4o-generated">يتوقف openpilot عن العمل عندما لا أتوقع ذلك</translation>
+    </message>
+    <message>
+        <source>openpilot doesn’t resume after I stop</source>
+        <translation type="gpt-4o-generated">لا يستأنف openpilot بعد أن أتوقف</translation>
+    </message>
+    <message>
+        <source>openpilot doesn't react to stopped vehicles ahead</source>
+        <translation type="gpt-4o-generated">لا يتفاعل openpilot مع المركبات المتوقفة أمامه</translation>
+    </message>
+    <message>
+        <source>openpilot feels sluggish or slow to respond</source>
+        <translation type="gpt-4o-generated">يشعر openpilot بالبطء أو الاستجابة البطيئة</translation>
+    </message>
+    <message>
+        <source>Steering feels twitchy or unnatural</source>
+        <translation type="gpt-4o-generated">التوجيه يبدو متذبذبًا أو غير طبيعي</translation>
+    </message>
+    <message>
+        <source>The car doesn’t follow curves well</source>
+        <translation type="gpt-4o-generated">السيارة لا تتبع المنحنيات بشكل جيد</translation>
+    </message>
+    <message>
+        <source>The car isn’t staying centered in its lane</source>
+        <translation type="gpt-4o-generated">السيارة لا تبقى في وسط مسارها</translation>
+    </message>
+    <message>
+        <source>The speed or display info looks wrong</source>
+        <translation type="gpt-4o-generated">تبدو سرعة أو معلومات العرض غير صحيحة</translation>
+    </message>
+    <message>
+        <source>Something else (please describe)</source>
+        <translation type="gpt-4o-generated">شيء آخر (يرجى الوصف)</translation>
     </message>
 </context>
 <context>
@@ -4560,10 +4612,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
 <context>
     <name>QObject</name>
     <message>
-        <source>Reboot</source>
-        <translation>إعادة التشغيل</translation>
-    </message>
-    <message>
         <source>Exit</source>
         <translation>إغلاق</translation>
     </message>
@@ -4623,6 +4671,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>FrogPilot</source>
         <translation type="gpt-4o-generated">FrogPilot</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="gpt-4o-generated">استعادة</translation>
     </message>
 </context>
 <context>

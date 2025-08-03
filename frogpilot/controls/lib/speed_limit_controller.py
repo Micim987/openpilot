@@ -146,8 +146,8 @@ class SpeedLimitController:
         successful = True
 
         return response.json()
-      except Exception as error:
-        print(f"Unexpected error in Mapbox request: {error}")
+      except Exception as exception:
+        print(f"Unexpected error in Mapbox request: {exception}")
       finally:
         self.calling_mapbox = False
 
@@ -192,8 +192,8 @@ class SpeedLimitController:
         self.mapbox_limit = 0
         self.segment_distance = v_ego
 
-      except Exception as error:
-        print(f"Mapbox Callback Error: {error}")
+      except Exception as exception:
+        print(f"Mapbox Callback Error: {exception}")
         self.mapbox_limit = 0
         self.segment_distance = v_ego
 
@@ -248,7 +248,7 @@ class SpeedLimitController:
       "Map Data": self.map_speed_limit,
       "Navigation": navigation_speed_limit
     }
-    filtered_limits = {source: limit for source, limit in limits.items() if limit}
+    filtered_limits = {source: limit for source, limit in limits.items() if limit >= 1}
 
     if self.frogpilot_toggles.speed_limit_priority_highest:
       desired_source = max(filtered_limits, key=filtered_limits.get, default="None")
@@ -276,15 +276,15 @@ class SpeedLimitController:
       desired_source = "None"
       desired_target = 0
 
-    if desired_target == 0:
+    if desired_target == 0 or self.target == 0:
       if self.mapbox_requests["total_requests"] < self.mapbox_requests["max_requests"] and self.frogpilot_toggles.slc_mapbox_filler:
         self.get_mapbox_speed_limit(gps_position, v_ego, sm)
 
-        if self.mapbox_limit:
+        if self.mapbox_limit >= 1:
           desired_source = "Mapbox"
           desired_target = self.mapbox_limit
 
-      if desired_target == 0:
+      if desired_target == 0 or self.target == 0:
         if self.denied_target != self.previous_target > 0 and self.frogpilot_toggles.slc_fallback_previous_speed_limit:
           desired_source = self.previous_source
           desired_target = self.previous_target

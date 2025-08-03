@@ -7,7 +7,7 @@ from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
 
-from cereal import car, log
+from cereal import car, custom, log
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.params import Params
@@ -41,6 +41,8 @@ PLANNER_TIME = ModelConstants.T_IDXS[-1]  # Length of time the model projects ou
 THRESHOLD = 0.63                          # Requires the condition to be true for ~1 second
 
 NON_DRIVING_GEARS = [GearShifter.neutral, GearShifter.park, GearShifter.reverse, GearShifter.unknown]
+
+RESOURCES_REPO = "FrogAi/FrogPilot-Resources"
 
 ACTIVE_THEME_PATH = Path(__file__).parents[1] / "assets/active_theme"
 METADATAS_PATH = Path(__file__).parents[1] / "assets/model_metadata"
@@ -77,11 +79,28 @@ DEFAULT_TINYGRAD_MODEL = "tomb-raider"
 DEFAULT_TINYGRAD_MODEL_NAME = "Tomb Raider 👀📡"
 DEFAULT_TINYGRAD_MODEL_VERSION = "v7"
 
+BUTTON_FUNCTIONS = {
+  "NOTHING": 0,
+  "PERSONALITY_PROFILE": 1,
+  "FORCE_COAST": 2,
+  "PAUSE_LATERAL": 3,
+  "PAUSE_LONGITUDINAL": 4,
+  "EXPERIMENTAL_MODE": 5,
+  "TRAFFIC_MODE": 6
+}
+
 EXCLUDED_KEYS = {
   "AvailableModels", "AvailableModelNames", "CarParamsPersistent",
-  "ExperimentalLongitudinalEnabled", "ExperimentalModels", "KonikMinutes", "MapBoxRequests", "ModelDrivesAndScores",
+  "ExperimentalLongitudinalEnabled", "KonikMinutes", "MapBoxRequests", "ModelDrivesAndScores",
   "ModelVersions", "openpilotMinutes", "OverpassRequests", "SpeedLimits", "SpeedLimitsFiltered", "UpdaterAvailableBranches"
 }
+
+TINYGRAD_FILES = [
+  ("driving_policy_metadata.pkl", "policy metadata"),
+  ("driving_policy_tinygrad.pkl", "policy model"),
+  ("driving_vision_metadata.pkl", "vision metadata"),
+  ("driving_vision_tinygrad.pkl", "vision model"),
+]
 
 @cache
 def get_comma_nnff_model_file():
@@ -201,7 +220,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("ExperimentalGMTune", "0", 2, "0"),
   ("ExperimentalLongitudinalEnabled", "0", 0, "0"),
   ("ExperimentalModeConfirmed", "0", 0, "0"),
-  ("ExperimentalModels", "", 1, ""),
   ("Fahrenheit", "0", 3, "0"),
   ("FavoriteDestinations", "", 0, ""),
   ("ForceAutoTune", "0", 2, "0"),
@@ -241,7 +259,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("LaneChangeTime", "2.0", 0, "0"),
   ("LaneDetectionWidth", "0", 2, "0"),
   ("LaneLinesWidth", "4", 2, "2"),
-  ("LateralMetrics", "1", 3, "0"),
   ("LateralTune", "1", 2, "0"),
   ("LeadDepartingAlert", "0", 0, "0"),
   ("LeadDetectionThreshold", "35", 3, "50"),
@@ -251,7 +268,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("LockDoors", "1", 0, "0"),
   ("LockDoorsTimer", "0", 0, "0"),
   ("LongDistanceButtonControl", "5", 2, "0"),
-  ("LongitudinalMetrics", "1", 2, "0"),
   ("LongitudinalActuatorDelay", "", 3, ""),
   ("LongitudinalActuatorDelayStock", "", 3, ""),
   ("LongitudinalTune", "1", 0, "0"),
@@ -272,7 +288,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("ModelDrivesAndScores", "", 2, ""),
   ("ModelRandomizer", "0", 2, "0"),
   ("ModelUI", "1", 2, "0"),
-  ("ModelVersion", DEFAULT_CLASSIC_MODEL_VERSION, 2, DEFAULT_CLASSIC_MODEL_VERSION),
   ("ModelVersions", "", 2, ""),
   ("MTSCCurvatureCheck", "1", 2, "1"),
   ("NavigationUI", "1", 1, "0"),
@@ -399,7 +414,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("TacoTune", "0", 2, "0"),
   ("TacoTuneHacks", "0", 2, "0"),
   ("TetheringEnabled", "0", 0, "0"),
-  ("TogglesUpdated", "0", 0, "0"),
   ("ToyotaDoors", "1", 0, "0"),
   ("TrafficFollow", "0.5", 2, "0.5"),
   ("TrafficJerkAcceleration", "50", 3, "50"),
@@ -489,16 +503,6 @@ class FrogPilotVariables:
 
       HARDWARE.reboot()
 
-    self.button_functions = {
-      "NOTHING": 0,
-      "PERSONALITY_PROFILE": 1,
-      "FORCE_COAST": 2,
-      "PAUSE_LATERAL": 3,
-      "PAUSE_LONGITUDINAL": 4,
-      "EXPERIMENTAL_MODE": 5,
-      "TRAFFIC_MODE": 6
-    }
-
     for k, v, _, _ in frogpilot_default_params:
       params_default.put(k, v)
 
@@ -548,6 +552,7 @@ class FrogPilotVariables:
     has_pedal = CP.enableGasInterceptor
     has_radar = not CP.radarUnavailable
     has_sng = CP.autoResumeSng
+    is_angle_car = CP.steerControlType == car.CarParams.SteerControlType.angle
     latAccelFactor = CP.lateralTuning.torque.latAccelFactor
     longitudinalActuatorDelay = CP.longitudinalActuatorDelay
     max_acceleration_enabled = bool(CP.alternativeExperience & ALTERNATIVE_EXPERIENCE.RAISE_LONGITUDINAL_LIMITS_TO_ISO_MAX)
@@ -619,7 +624,7 @@ class FrogPilotVariables:
     toggle.always_on_lateral_main = toggle.always_on_lateral_set and not toggle.use_lkas_for_aol and (params.get_bool("AlwaysOnLateralMain") if tuning_level >= level["AlwaysOnLateralMain"] else default.get_bool("AlwaysOnLateralMain"))
     toggle.always_on_lateral_pause_speed = params.get_int("PauseAOLOnBrake") if toggle.always_on_lateral_set and tuning_level >= level["PauseAOLOnBrake"] else default.get_int("PauseAOLOnBrake")
 
-    toggle.automatic_updates = params.get_bool("AutomaticUpdates") if tuning_level >= level["AutomaticUpdates"] and (self.release_branch or self.vetting_branch) or BACKUP_PATH.is_file() else default.get_bool("AutomaticUpdates")
+    toggle.automatic_updates = (params.get_bool("AutomaticUpdates") if tuning_level >= level["AutomaticUpdates"] and (self.release_branch or self.vetting_branch) else default.get_bool("AutomaticUpdates")) and not BACKUP_PATH.is_file()
 
     toggle.car_model = params.get("CarModel", encoding="utf-8") or toggle.car_model
 
@@ -741,31 +746,31 @@ class FrogPilotVariables:
     toggle.disable_openpilot_long = params.get_bool("DisableOpenpilotLongitudinal") if tuning_level >= level["DisableOpenpilotLongitudinal"] else default.get_bool("DisableOpenpilotLongitudinal")
 
     distance_button_control = params.get_int("DistanceButtonControl") if tuning_level >= level["DistanceButtonControl"] else default.get_int("DistanceButtonControl")
-    toggle.experimental_mode_via_distance = openpilot_longitudinal and distance_button_control == self.button_functions["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_distance = openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press = toggle.experimental_mode_via_distance
-    toggle.force_coast_via_distance = openpilot_longitudinal and distance_button_control == self.button_functions["FORCE_COAST"]
-    toggle.pause_lateral_via_distance = distance_button_control == self.button_functions["PAUSE_LATERAL"]
-    toggle.pause_longitudinal_via_distance = openpilot_longitudinal and distance_button_control == self.button_functions["PAUSE_LONGITUDINAL"]
-    toggle.personality_profile_via_distance = openpilot_longitudinal and distance_button_control == self.button_functions["PERSONALITY_PROFILE"]
-    toggle.traffic_mode_via_distance = openpilot_longitudinal and distance_button_control == self.button_functions["TRAFFIC_MODE"]
+    toggle.force_coast_via_distance = openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pause_lateral_via_distance = distance_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
+    toggle.pause_longitudinal_via_distance = openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
+    toggle.personality_profile_via_distance = openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
+    toggle.traffic_mode_via_distance = openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["TRAFFIC_MODE"]
 
     distance_button_control_long = params.get_int("LongDistanceButtonControl") if tuning_level >= level["LongDistanceButtonControl"] else default.get_int("LongDistanceButtonControl")
-    toggle.experimental_mode_via_distance_long = openpilot_longitudinal and distance_button_control_long == self.button_functions["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_distance_long = openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_distance_long
-    toggle.force_coast_via_distance_long = openpilot_longitudinal and distance_button_control_long == self.button_functions["FORCE_COAST"]
-    toggle.pause_lateral_via_distance_long = distance_button_control_long == self.button_functions["PAUSE_LATERAL"]
-    toggle.pause_longitudinal_via_distance_long = openpilot_longitudinal and distance_button_control_long == self.button_functions["PAUSE_LONGITUDINAL"]
-    toggle.personality_profile_via_distance_long = openpilot_longitudinal and distance_button_control_long == self.button_functions["PERSONALITY_PROFILE"]
-    toggle.traffic_mode_via_distance_long = openpilot_longitudinal and distance_button_control_long == self.button_functions["TRAFFIC_MODE"]
+    toggle.force_coast_via_distance_long = openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pause_lateral_via_distance_long = distance_button_control_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
+    toggle.pause_longitudinal_via_distance_long = openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
+    toggle.personality_profile_via_distance_long = openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
+    toggle.traffic_mode_via_distance_long = openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["TRAFFIC_MODE"]
 
     distance_button_control_very_long = params.get_int("VeryLongDistanceButtonControl") if tuning_level >= level["VeryLongDistanceButtonControl"] else default.get_int("VeryLongDistanceButtonControl")
-    toggle.experimental_mode_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == self.button_functions["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_distance_very_long
-    toggle.force_coast_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == self.button_functions["FORCE_COAST"]
-    toggle.pause_lateral_via_distance_very_long = distance_button_control_very_long == self.button_functions["PAUSE_LATERAL"]
-    toggle.pause_longitudinal_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == self.button_functions["PAUSE_LONGITUDINAL"]
-    toggle.personality_profile_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == self.button_functions["PERSONALITY_PROFILE"]
-    toggle.traffic_mode_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == self.button_functions["TRAFFIC_MODE"]
+    toggle.force_coast_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pause_lateral_via_distance_very_long = distance_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
+    toggle.pause_longitudinal_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
+    toggle.personality_profile_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
+    toggle.traffic_mode_via_distance_very_long = openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["TRAFFIC_MODE"]
 
     toggle.experimental_gm_tune = openpilot_longitudinal and toggle.car_make == "gm" and (params.get_bool("ExperimentalGMTune") if tuning_level >= level["ExperimentalGMTune"] else default.get_bool("ExperimentalGMTune"))
     toggle.stoppingDecelRate = 0.3 if toggle.experimental_gm_tune else toggle.stoppingDecelRate
@@ -791,18 +796,18 @@ class FrogPilotVariables:
     toggle.one_lane_change = lane_change_customizations and (params.get_bool("OneLaneChange") if tuning_level >= level["OneLaneChange"] else default.get_bool("OneLaneChange"))
 
     lateral_tuning = params.get_bool("LateralTune") if tuning_level >= level["LateralTune"] else default.get_bool("LateralTune")
-    toggle.nnff = lateral_tuning and has_nnff and is_torque_car and (params.get_bool("NNFF") if tuning_level >= level["NNFF"] else default.get_bool("NNFF"))
-    toggle.nnff_lite = not toggle.nnff and lateral_tuning and is_torque_car and (params.get_bool("NNFFLite") if tuning_level >= level["NNFFLite"] else default.get_bool("NNFFLite"))
+    toggle.nnff = lateral_tuning and has_nnff and not is_angle_car and (params.get_bool("NNFF") if tuning_level >= level["NNFF"] else default.get_bool("NNFF"))
+    toggle.nnff_lite = not toggle.nnff and lateral_tuning and not is_angle_car and (params.get_bool("NNFFLite") if tuning_level >= level["NNFFLite"] else default.get_bool("NNFFLite"))
     toggle.use_turn_desires = lateral_tuning and (params.get_bool("TurnDesires") if tuning_level >= level["TurnDesires"] else default.get_bool("TurnDesires"))
 
     lkas_button_control = (params.get_int("LKASButtonControl") if tuning_level >= level["LKASButtonControl"] else default.get_int("LKASButtonControl")) if toggle.car_make != "subaru" else 0
-    toggle.experimental_mode_via_lkas = openpilot_longitudinal and lkas_button_control == self.button_functions["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_lkas = openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_lkas
-    toggle.force_coast_via_lkas = openpilot_longitudinal and lkas_button_control == self.button_functions["FORCE_COAST"]
-    toggle.pause_lateral_via_lkas = lkas_button_control == self.button_functions["PAUSE_LATERAL"]
-    toggle.pause_longitudinal_via_lkas = openpilot_longitudinal and lkas_button_control == self.button_functions["PAUSE_LONGITUDINAL"]
-    toggle.personality_profile_via_lkas = openpilot_longitudinal and lkas_button_control == self.button_functions["PERSONALITY_PROFILE"]
-    toggle.traffic_mode_via_lkas = openpilot_longitudinal and lkas_button_control == self.button_functions["TRAFFIC_MODE"]
+    toggle.force_coast_via_lkas = openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pause_lateral_via_lkas = lkas_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
+    toggle.pause_longitudinal_via_lkas = openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
+    toggle.personality_profile_via_lkas = openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
+    toggle.traffic_mode_via_lkas = openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["TRAFFIC_MODE"]
 
     toggle.lock_doors_timer = params.get_int("LockDoorsTimer") if toggle.car_make == "toyota" and tuning_level >= level["LockDoorsTimer"] else default.get_int("LockDoorsTimer")
 
@@ -849,7 +854,6 @@ class FrogPilotVariables:
       toggle.model_name = DEFAULT_CLASSIC_MODEL_NAME
       toggle.model_version = DEFAULT_CLASSIC_MODEL_VERSION
     toggle.classic_model = toggle.model_version in {"v1", "v2", "v3", "v4"}
-    toggle.planner_curvature_model = toggle.model_version not in {"v1", "v2", "v3", "v4", "v5"}
     toggle.tinygrad_model = toggle.model_version in {"v7"}
     toggle.tomb_raider = toggle.model == "tomb-raider"
 

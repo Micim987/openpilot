@@ -466,6 +466,9 @@ def main() -> None:
       frogpilot_toggles = get_frogpilot_toggles()
 
       manual_update_requested = params_memory.get_bool("ManualUpdateInitiated")
+
+      wait_helper.sleep(1)
+
       params_memory.remove("ManualUpdateInitiated")
 
       # Attempt an update

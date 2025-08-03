@@ -386,7 +386,7 @@ class CarState(CarStateBase):
       return CarState.get_cam_can_parser_canfd(CP, FPCP)
 
     messages = [
-      ("LKAS11", 100),
+      ("LKAS11", 100)
     ]
 
     if not CP.openpilotLongitudinalControl and CP.carFingerprint in CAMERA_SCC_CAR:

@@ -219,6 +219,7 @@ void FrogPilotSettingsWindow::updateVariables() {
     hasPedal = CP.getEnableGasInterceptor();
     hasRadar = !CP.getRadarUnavailable();
     hasSNG = CP.getAutoResumeSng();
+    isAngleCar = CP.getSteerControlType() == cereal::CarParams::SteerControlType::ANGLE;
     isBolt = carFingerprint == "CHEVROLET_BOLT_CC" || carFingerprint == "CHEVROLET_BOLT_EUV";
     isGM = carMake == "gm";
     isHKG = carMake == "hyundai";
@@ -336,7 +337,6 @@ void FrogPilotSettingsWindow::updateVariables() {
     cereal::FrogPilotCarParams::Reader FPCP = fpcmsg.getRoot<cereal::FrogPilotCarParams>();
 
     openpilotLongitudinalControlDisabled = FPCP.getOpenpilotLongitudinalControlDisabled();
-    tacoHacksAllowed = isHKGCanFd;
   }
 
   isC3 = util::read_file("/sys/firmware/devicetree/base/model").find("tici") != std::string::npos;

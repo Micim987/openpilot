@@ -21,6 +21,7 @@ public:
   bool hasPedal = false;
   bool hasRadar = true;
   bool hasSNG = false;
+  bool isAngleCar = false;
   bool isBolt = false;
   bool isC3 = false;
   bool isGM = true;
@@ -33,7 +34,6 @@ public:
   bool isVolt = true;
   bool keepScreenOn = false;
   bool openpilotLongitudinalControlDisabled = false;
-  bool tacoHacksAllowed = false;
 
   float friction;
   float latAccelFactor;

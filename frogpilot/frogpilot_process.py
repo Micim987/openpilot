@@ -7,7 +7,7 @@ import time
 import openpilot.system.sentry as sentry
 
 from cereal import messaging
-from openpilot.common.realtime import Priority, config_realtime_process
+from openpilot.common.realtime import DT_MDL, Priority, Ratekeeper, config_realtime_process
 from openpilot.common.time import system_time_valid
 
 from openpilot.frogpilot.assets.model_manager import ModelManager, MODEL_DOWNLOAD_ALL_PARAM, MODEL_DOWNLOAD_PARAM
@@ -18,6 +18,8 @@ from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, Frog
 from openpilot.frogpilot.controls.frogpilot_planner import FrogPilotPlanner
 from openpilot.frogpilot.controls.lib.frogpilot_tracking import FrogPilotTracking
 from openpilot.frogpilot.system.frogpilot_stats import send_stats
+
+ASSET_CHECK_RATE = (1 / DT_MDL)
 
 def assets_checks(model_manager, theme_manager):
   if params_memory.get_bool(MODEL_DOWNLOAD_ALL_PARAM):
@@ -49,7 +51,7 @@ def assets_checks(model_manager, theme_manager):
     if asset_to_download:
       run_thread_with_lock("download_theme", theme_manager.download_theme, (asset_type, asset_to_download, param))
 
-def update_checks(manually_updated, model_manager, now, sm, theme_manager, frogpilot_toggles, boot_run=False):
+def update_checks(manually_updated, model_manager, now, theme_manager, frogpilot_toggles, boot_run=False):
   while not (is_url_pingable("https://github.com") or is_url_pingable("https://gitlab.com")):
     time.sleep(60)
 
@@ -64,6 +66,8 @@ def update_checks(manually_updated, model_manager, now, sm, theme_manager, frogp
   time.sleep(1)
 
 def frogpilot_thread():
+  rate_keeper = Ratekeeper(1 / DT_MDL, None)
+
   config_realtime_process(5, Priority.CTRL_LOW)
 
   frogpilot_toggles = get_frogpilot_toggles()
@@ -85,7 +89,6 @@ def frogpilot_thread():
                             "frogpilotNavigation"],
                             poll="modelV2", ignore_avg_freq=["radarState"])
 
-  assets_checked = False
   run_update_checks = False
   started_previously = False
   time_validated = False
@@ -137,13 +140,8 @@ def frogpilot_thread():
 
     started_previously = started
 
-    if now.second % 2 == 0:
-      if not assets_checked:
-        assets_checks(model_manager, theme_manager)
-
-        assets_checked = True
-    else:
-      assets_checked = False
+    if rate_keeper.frame % ASSET_CHECK_RATE == 0:
+      assets_checks(model_manager, theme_manager)
 
     if params_memory.get_bool("FrogPilotTogglesUpdated") or theme_manager.theme_updated:
       previous_holiday_themes = frogpilot_toggles.holiday_themes
@@ -173,7 +171,7 @@ def frogpilot_thread():
 
     if run_update_checks:
       theme_manager.update_active_theme(time_validated, frogpilot_toggles)
-      run_thread_with_lock("update_checks", update_checks, (manually_updated, model_manager, now, sm, theme_manager, frogpilot_toggles))
+      run_thread_with_lock("update_checks", update_checks, (manually_updated, model_manager, now, theme_manager, frogpilot_toggles))
 
       run_update_checks = False
     elif not time_validated:
@@ -182,7 +180,9 @@ def frogpilot_thread():
         continue
 
       theme_manager.update_active_theme(time_validated, frogpilot_toggles)
-      run_thread_with_lock("update_checks", update_checks, (manually_updated, model_manager, now, sm, theme_manager, frogpilot_toggles, True))
+      run_thread_with_lock("update_checks", update_checks, (manually_updated, model_manager, now, theme_manager, frogpilot_toggles, True))
+
+    rate_keeper.keep_time()
 
 def main():
   frogpilot_thread()

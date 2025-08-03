@@ -97,7 +97,7 @@ FrogPilotVisualsPanel::FrogPilotVisualsPanel(FrogPilotSettingsWindow *parent) : 
     {"SLCMapboxFiller", tr("Show Speed Limits from Mapbox"), tr("Use <b>Mapbox</b> speed limit data when no other sources are available."), ""},
     {"UseVienna", tr("Use Vienna-Style Speed Signs"), tr("Force <b>Vienna-style (EU)</b> speed limit signs instead of <b>MUTCD (US)</b>."), ""},
 
-    {"QOLVisuals", tr("Quality of Life"), tr("Visual features to improve your overall openpilot experience."), "../../frogpilot/assets/toggle_icons/quality_of_life.png"},
+    {"QOLVisuals", tr("Quality of Life"), tr("Visual features to improve your overall openpilot experience."), "../../frogpilot/assets/toggle_icons/icon_quality_of_life.png"},
     {"CameraView", tr("Camera View"), tr("The active camera view display. This is purely a visual change and doesn't impact how openpilot drives!"), ""},
     {"DriverCamera", tr("Show Driver Camera When In Reverse"), tr("Display the driver camera feed when the vehicle is in reverse."), ""},
     {"StandbyMode", tr("Standby Mode"), tr("Turn the screen off when driving and automatically wake it up if engagement state changes or important alerts occur."), ""},
@@ -477,43 +477,43 @@ void FrogPilotVisualsPanel::updateToggles() {
       setVisible &= hasOpenpilotLongitudinal;
     }
 
-    if (key == "AdjacentLeadsUI") {
+    else if (key == "AdjacentLeadsUI") {
       setVisible &= hasRadar && !(params.getBool("AdvancedCustomUI") && params.getBool("HideLeadMarker"));
     }
 
-    if (key == "BlindSpotPath") {
+    else if (key == "BlindSpotPath") {
       setVisible &= hasBSM;
     }
 
-    if (key == "HideLeadMarker") {
+    else if (key == "HideLeadMarker") {
       setVisible &= hasOpenpilotLongitudinal;
     }
 
-    if (key == "LeadInfo") {
+    else if (key == "LeadInfo") {
       setVisible &= hasOpenpilotLongitudinal;
     }
 
-    if (key == "OnroadDistanceButton") {
+    else if (key == "OnroadDistanceButton") {
       setVisible &= hasOpenpilotLongitudinal;
     }
 
-    if (key == "PedalsOnUI") {
+    else if (key == "PedalsOnUI") {
       setVisible &= hasOpenpilotLongitudinal;
     }
 
-    if (key == "RadarTracksUI") {
+    else if (key == "RadarTracksUI") {
       setVisible &= hasRadar;
     }
 
-    if (key == "ShowSpeedLimits") {
+    else if (key == "ShowSpeedLimits") {
       setVisible &= !params.getBool("SpeedLimitController") || !hasOpenpilotLongitudinal;
     }
 
-    if (key == "ShowStoppingPoint") {
+    else if (key == "ShowStoppingPoint") {
       setVisible &= hasOpenpilotLongitudinal;
     }
 
-    if (key == "SLCMapboxFiller") {
+    else if (key == "SLCMapboxFiller") {
       setVisible &= params.getBool("ShowSpeedLimits") && !(hasOpenpilotLongitudinal && params.getBool("SpeedLimitController"));
       setVisible &= !params.get("MapboxSecretKey").empty();
     }

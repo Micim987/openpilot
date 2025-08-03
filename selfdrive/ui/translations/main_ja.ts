@@ -2057,7 +2057,7 @@
     </message>
     <message>
         <source>Automatically slow down for upcoming curves using downloaded maps or the driving model.</source>
-        <translation type="gpt-4o-generated">ダウンロードした地図や運転モデルを使用して、これからのカーブに自動的に減速します。</translation>
+        <translation type="gpt-4o-generated">ダウンロードした地図や運転モデルを使用して、これからのカーブに備えて自動的に減速します。</translation>
     </message>
     <message>
         <source>Curve Detection Method</source>
@@ -2065,7 +2065,7 @@
     </message>
     <message>
         <source>How curves are detected. &lt;b&gt;Map-Based&lt;/b&gt; uses downloaded map data to identify curves and determine the appropriate speed in which to handle them at, while &lt;b&gt;Vision&lt;/b&gt; relies solely on the driving model.</source>
-        <translation type="gpt-4o-generated">カーブの検出方法。&lt;b&gt;地図ベース&lt;/b&gt;はダウンロードされた地図データを使用してカーブを識別し、それに対処するための適切な速度を決定します。一方、&lt;b&gt;ビジョン&lt;/b&gt;は運転モデルのみに依存します。</translation>
+        <translation type="gpt-4o-generated">カーブの検出方法。&lt;b&gt;地図ベース&lt;/b&gt;はダウンロードされた地図データを使用してカーブを特定し、それに対処するための適切な速度を決定します。一方、&lt;b&gt;ビジョン&lt;/b&gt;は運転モデルのみに依存します。</translation>
     </message>
     <message>
         <source>Curve Detection Failsafe</source>
@@ -2073,15 +2073,15 @@
     </message>
     <message>
         <source>Only trigger &lt;b&gt;Curve Speed Control&lt;/b&gt; if a curve is detected with the model while using the &lt;b&gt;Map-Based&lt;/b&gt; method. Useful to help prevent false positives.</source>
-        <translation type="gpt-4o-generated">&lt;b&gt;Map-Based&lt;/b&gt; メソッドを使用している間にモデルでカーブが検出された場合にのみ、&lt;b&gt;Curve Speed Control&lt;/b&gt; をトリガーします。誤検知を防ぐのに役立ちます。</translation>
+        <translation type="gpt-4o-generated">カーブがモデルで検出された場合にのみ、&lt;b&gt;マップベース&lt;/b&gt;の方法を使用して&lt;b&gt;カーブ速度制御&lt;/b&gt;をトリガーします。誤検知を防ぐのに役立ちます。</translation>
     </message>
     <message>
         <source>Curve Detection Sensitivity</source>
-        <translation type="gpt-4o-generated">曲線検出感度</translation>
+        <translation type="gpt-4o-generated">カーブ検出感度</translation>
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">openpilotがカーブを検出する際の感度。高い値は、頻繁にトリガーされるリスクがある一方で、より早い反応を引き起こします。低い値は、トリガーがあまりにも少ないリスクがある一方で、自信を高めます。</translation>
+        <translation type="gpt-4o-generated">openpilotがカーブを検出する際の感度。高い値は、頻繁にトリガーされるリスクがある一方で、早期の反応を引き起こし、低い値は、トリガーがあまりにも少なくなるリスクがある一方で、信頼性を高めます。</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2089,11 +2089,11 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">openpilotがカーブを通過する際の攻撃性。値が高いほど速いターンが可能になるが、快適性や安定性が低下する可能性があり、値が低いほど遅く滑らかなターンになるが、過度に慎重になるリスクがある。</translation>
+        <translation type="gpt-4o-generated">openpilotがカーブを通過する際の攻撃性。値が高いほど速いターンが可能になりますが、快適性や安定性が低下する可能性があります。一方、値が低いと、より慎重になりすぎるリスクがあるものの、より遅く滑らかなターンになります。</translation>
     </message>
     <message>
         <source>Map Based</source>
-        <translation type="gpt-4o-generated">地図ベース</translation>
+        <translation type="gpt-4o-generated">マップベース</translation>
     </message>
     <message>
         <source>Vision</source>
@@ -2289,6 +2289,10 @@
         <source>CANCELLED</source>
         <translation type="gpt-4o-generated">キャンセルされました</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">オフライン...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotModelPanel</name>
@@ -2456,6 +2460,10 @@
         <source>The "Model Randomizer" only works with downloaded models. Do you want to download all the driving models?</source>
         <translation type="gpt-4o-generated">「モデルランダマイザー」はダウンロードされたモデルでのみ動作します。すべてのドライビングモデルをダウンロードしますか？</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">オフライン...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotNavigationPanel</name>
@@ -2486,10 +2494,6 @@
     <message>
         <source>Manage Your Settings At</source>
         <translation type="gpt-4o-generated">設定を管理する場所</translation>
-    </message>
-    <message>
-        <source>Device Offline</source>
-        <translation type="gpt-4o-generated">デバイスがオフラインです</translation>
     </message>
     <message>
         <source>MapBox</source>
@@ -2606,6 +2610,10 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>Completed!</source>
         <translation type="gpt-4o-generated">完了しました！</translation>
+    </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">オフライン...</translation>
     </message>
 </context>
 <context>
@@ -2931,10 +2939,6 @@ Want to submit your own sounds? Share them in the "custom-themes" channel on the
         <translation type="gpt-4o-generated">運転画面の右上にあるハンドルアイコン。</translation>
     </message>
     <message>
-        <source>Turn Signal Animation</source>
-        <translation type="gpt-4o-generated">ターンシグナルアニメーション</translation>
-    </message>
-    <message>
         <source>Themed turn signal animations.
 
 Want to submit your own animations? Share them in the "custom-themes" channel on the FrogPilot Discord!</source>
@@ -3138,6 +3142,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>Are you sure you want to completely reset your startup message?</source>
         <translation type="gpt-4o-generated">スタートアップメッセージを完全にリセットしてもよろしいですか？</translation>
     </message>
+    <message>
+        <source>Turn Signal</source>
+        <translation type="gpt-4o-generated">ターンシグナル</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotUtilitiesPanel</name>
@@ -3218,26 +3226,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">「openpilotがクラッシュしました」というアラートを見ました。</translation>
     </message>
     <message>
-        <source>I'm noticing harsh acceleration</source>
-        <translation type="gpt-4o-generated">急加速に気づいています。</translation>
-    </message>
-    <message>
-        <source>I'm noticing harsh braking</source>
-        <translation type="gpt-4o-generated">急ブレーキに気づいています。</translation>
-    </message>
-    <message>
-        <source>I'm noticing unusual steering</source>
-        <translation type="gpt-4o-generated">異常なステアリングに気づいています。</translation>
-    </message>
-    <message>
-        <source>My car isn't staying in its lane</source>
-        <translation type="gpt-4o-generated">私の車が車線を維持できない</translation>
-    </message>
-    <message>
-        <source>Something else</source>
-        <translation type="gpt-4o-generated">何か他のもの</translation>
-    </message>
-    <message>
         <source>What's going on?</source>
         <translation type="gpt-4o-generated">どうしたの？</translation>
     </message>
@@ -3300,6 +3288,70 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>Ensure your device has an internet connection before sending a report!</source>
         <translation type="gpt-4o-generated">レポートを送信する前に、デバイスがインターネットに接続されていることを確認してください！</translation>
+    </message>
+    <message>
+        <source>Acceleration feels too harsh or jerky</source>
+        <translation type="gpt-4o-generated">加速が強すぎるか、ぎくしゃくしている感じがする</translation>
+    </message>
+    <message>
+        <source>An alert confused me and I didn’t know what it meant</source>
+        <translation type="gpt-4o-generated">アラートに混乱して、その意味がわかりませんでした。</translation>
+    </message>
+    <message>
+        <source>Braking is too sudden or uncomfortable</source>
+        <translation type="gpt-4o-generated">ブレーキが急すぎるか、不快です。</translation>
+    </message>
+    <message>
+        <source>I’m not sure if this is normal or a bug:</source>
+        <translation type="gpt-4o-generated">これが正常なのかバグなのか分かりませんが、</translation>
+    </message>
+    <message>
+        <source>Lane changes don’t work properly or feel unsafe</source>
+        <translation type="gpt-4o-generated">車線変更が正しく機能しない、または安全でないと感じる</translation>
+    </message>
+    <message>
+        <source>My screen froze or got stuck on loading</source>
+        <translation type="gpt-4o-generated">画面がフリーズしたか、読み込み中で止まってしまいました。</translation>
+    </message>
+    <message>
+        <source>My steering wheel buttons aren’t working</source>
+        <translation type="gpt-4o-generated">私のステアリングホイールのボタンが動作しません。</translation>
+    </message>
+    <message>
+        <source>openpilot disengages when I don't expect it</source>
+        <translation type="gpt-4o-generated">openpilotは予期しないときに解除されます。</translation>
+    </message>
+    <message>
+        <source>openpilot doesn’t resume after I stop</source>
+        <translation type="gpt-4o-generated">openpilotは停止後に再開しません</translation>
+    </message>
+    <message>
+        <source>openpilot doesn't react to stopped vehicles ahead</source>
+        <translation type="gpt-4o-generated">openpilotは前方の停止車両に反応しません</translation>
+    </message>
+    <message>
+        <source>openpilot feels sluggish or slow to respond</source>
+        <translation type="gpt-4o-generated">openpilotが鈍く感じる、または反応が遅い</translation>
+    </message>
+    <message>
+        <source>Steering feels twitchy or unnatural</source>
+        <translation type="gpt-4o-generated">ステアリングが敏感または不自然に感じる</translation>
+    </message>
+    <message>
+        <source>The car doesn’t follow curves well</source>
+        <translation type="gpt-4o-generated">その車はカーブをうまく曲がらない</translation>
+    </message>
+    <message>
+        <source>The car isn’t staying centered in its lane</source>
+        <translation type="gpt-4o-generated">車が車線の中央に留まっていない</translation>
+    </message>
+    <message>
+        <source>The speed or display info looks wrong</source>
+        <translation type="gpt-4o-generated">速度または表示情報が間違っているようです。</translation>
+    </message>
+    <message>
+        <source>Something else (please describe)</source>
+        <translation type="gpt-4o-generated">その他（説明してください）</translation>
     </message>
 </context>
 <context>
@@ -4555,10 +4607,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
 <context>
     <name>QObject</name>
     <message>
-        <source>Reboot</source>
-        <translation>再起動</translation>
-    </message>
-    <message>
         <source>Exit</source>
         <translation>閉じる</translation>
     </message>
@@ -4603,6 +4651,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>FrogPilot</source>
         <translation type="gpt-4o-generated">フロッグパイロット</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="gpt-4o-generated">復元</translation>
     </message>
 </context>
 <context>

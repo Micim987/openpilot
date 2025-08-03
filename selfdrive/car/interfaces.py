@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from cereal import car, custom
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.conversions import Conversions as CV
+from openpilot.common.params import Params
 from openpilot.common.simple_kalman import KF1D, get_kalman_gain
 from openpilot.common.numpy_fast import clip
 from openpilot.common.realtime import DT_CTRL
@@ -118,7 +119,7 @@ class CarInterfaceBase(ABC):
     self.can_parsers = [self.cp, self.cp_cam, self.cp_adas, self.cp_body, self.cp_loopback]
 
     dbc_name = "" if self.cp is None else self.cp.dbc_name
-    self.CC: CarControllerBase = CarController(dbc_name, CP, FPCP, self.VM)
+    self.CC: CarControllerBase = CarController(dbc_name, CP, self.VM)
 
     # FrogPilot variables
     self.always_on_lateral_allowed = False
@@ -138,7 +139,7 @@ class CarInterfaceBase(ABC):
     return cls.get_params(candidate, gen_empty_fingerprint(), list(), False, False, False)
 
   @classmethod
-  def get_params(cls, candidate: str, fingerprint: dict[int, dict[int, int]], car_fw: list[car.CarParams.CarFw], experimental_long: bool, frogpilot_toggles: SimpleNamespace, docs: bool):
+  def get_params(cls, candidate: str, fingerprint: dict[int, dict[int, int]], car_fw: list[car.CarParams.CarFw], experimental_long: bool, frogpilot_toggles: SimpleNamespace, params: Params, docs: bool):
     ret = CarInterfaceBase.get_std_params(candidate)
 
     platform = PLATFORMS[candidate]
@@ -162,7 +163,7 @@ class CarInterfaceBase(ABC):
     ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront, ret.tireStiffnessFactor)
 
     # Enable torque controller for all cars that do not use angle based steering
-    if ret.steerControlType != car.CarParams.SteerControlType.angle and (frogpilot_toggles.nnff or frogpilot_toggles.nnff_lite):
+    if ret.steerControlType != car.CarParams.SteerControlType.angle and params.get_bool("LateralTune") and (params.get_bool("NNFF") or params.get_bool("NNFFLite")):
       CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 
     return ret
@@ -540,7 +541,7 @@ SendCan = tuple[int, int, bytes, int]
 
 
 class CarControllerBase(ABC):
-  def __init__(self, dbc_name: str, CP, FPPC, VM):
+  def __init__(self, dbc_name: str, CP, VM):
     pass
 
   @abstractmethod

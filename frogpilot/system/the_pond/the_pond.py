@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Flask, Response, jsonify, render_template, request, send_file, send_from_directory
 from io import BytesIO
 from pathlib import Path
+from werkzeug.utils import secure_filename
 
 import errno
 import json
@@ -16,7 +17,8 @@ import subprocess
 import time
 import traceback
 
-from cereal import car
+from cereal import car, messaging
+from opendbc.can.parser import CANParser
 from openpilot.common.realtime import DT_HW
 from openpilot.selfdrive.car.toyota.carcontroller import LOCK_CMD, UNLOCK_CMD
 from openpilot.system.hardware import HARDWARE, PC
@@ -25,8 +27,9 @@ from openpilot.system.loggerd.deleter import PRESERVE_ATTR_NAME, PRESERVE_ATTR_V
 from openpilot.system.version import get_build_metadata
 from panda import Panda
 
-from openpilot.frogpilot.common.frogpilot_utilities import delete_file, run_cmd
-from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, EXCLUDED_KEYS, SCREEN_RECORDINGS_PATH, frogpilot_default_params, params, update_frogpilot_toggles
+from openpilot.frogpilot.common.frogpilot_utilities import delete_file, get_lock_status, run_cmd
+from openpilot.frogpilot.common.frogpilot_variables import ERROR_LOGS_PATH, EXCLUDED_KEYS, SCREEN_RECORDINGS_PATH,\
+                                                           frogpilot_default_params, params, update_frogpilot_toggles
 from openpilot.frogpilot.system.the_pond import utilities
 
 FOOTAGE_PATHS = [
@@ -62,21 +65,39 @@ def setup(app):
 
   @app.route("/api/doors/lock", methods=["POST"])
   def lock_doors():
-    for _ in range(3):
-      with Panda() as panda:
+    can_parser = CANParser("toyota_nodsu_pt_generated", [("DOOR_LOCKS", 3)], bus=0)
+    can_sock = messaging.sub_sock("can", timeout=100)
+
+    while True:
+      with Panda(disable_checks=True) as panda:
         panda.set_safety_mode(panda.SAFETY_TOYOTA)
         panda.can_send(0x750, LOCK_CMD, 0)
-        panda.send_heartbeat()
-    return { "message": "Doors locked!" }
+
+      time.sleep(1)
+
+      lock_status = get_lock_status(can_parser, can_sock)
+      if lock_status == 0:
+        break
+
+    return {"message": "Doors locked!"}
 
   @app.route("/api/doors/unlock", methods=["POST"])
   def unlock_doors():
-    for _ in range(3):
-      with Panda() as panda:
+    can_parser = CANParser("toyota_nodsu_pt_generated", [("DOOR_LOCKS", 3)], bus=0)
+    can_sock = messaging.sub_sock("can", timeout=100)
+
+    while True:
+      with Panda(disable_checks=True) as panda:
         panda.set_safety_mode(panda.SAFETY_TOYOTA)
         panda.can_send(0x750, UNLOCK_CMD, 0)
-        panda.send_heartbeat()
-    return { "message": "Doors unlocked!" }
+
+      time.sleep(1)
+
+      lock_status = get_lock_status(can_parser, can_sock)
+      if lock_status != 0:
+        break
+
+    return {"message": "Doors unlocked!"}
 
   @app.route("/api/error_logs", methods=["GET"])
   def get_error_logs():
@@ -161,6 +182,7 @@ def setup(app):
     existing = json.loads(params.get("FavoriteDestinations", encoding="utf8") or "[]")
     if new_favorites not in existing:
       existing.append(new_favorites)
+
     params.put("FavoriteDestinations", json.dumps(existing))
     return {"message": "Destination added to favorites!"}
 
@@ -234,7 +256,6 @@ def setup(app):
         return jsonify(error=f"{meta[3]} is invalid or too short..."), 400
 
       params.put(meta[2], full)
-
       saved.append(meta[3])
 
     if not saved:
@@ -254,206 +275,19 @@ def setup(app):
       yield f"data: {json.dumps({'progress': 0, 'total': total})}\n\n"
 
       with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {
-          executor.submit(utilities.process_route, path, name): (path, name)
-          for path, name in routes
-        }
-
+        futures = {executor.submit(utilities.process_route, path, name): (path, name) for path, name in routes}
         for processed, future in enumerate(as_completed(futures), start=1):
-          path, name = futures[future]
           try:
             result = future.result()
             yield f"data: {json.dumps({'routes': [result]})}\n\n"
-          except Exception as e:
-            print(f"Error processing route: {e}")
-
-          progress = json.dumps({"progress": processed, "total": total})
-          yield f"data: {progress}\n\n"
+          except Exception as exception:
+            print(f"Error processing route: {exception}")
+          yield f"data: {json.dumps({'progress': processed, 'total': total})}\n\n"
 
         for path, name in routes:
           utilities.process_route_gif(path, name)
 
     return Response(generate(), mimetype="text/event-stream")
-
-  @app.route("/api/routes/clear_name", methods=["POST"])
-  def clear_route_name():
-    data = request.get_json()
-    route_name = data.get("name")
-
-    if not route_name:
-      return jsonify({"error": "Missing route name"}), 400
-
-    cleared = False
-    original_timestamp = None
-    for footage_path in FOOTAGE_PATHS:
-      if not os.path.exists(footage_path):
-        continue
-
-      segments_to_process = [s for s in os.listdir(footage_path) if s.startswith(route_name) and os.path.isdir(os.path.join(footage_path, s))]
-
-      if not segments_to_process:
-        continue
-
-      for segment in segments_to_process:
-        segment_dir = os.path.join(footage_path, segment)
-        for item in os.listdir(segment_dir):
-          if not item.endswith((".hevc", ".ts", ".png", ".gif")) and item not in utilities.LOG_CANDIDATES:
-            try:
-              os.remove(os.path.join(segment_dir, item))
-              cleared = True
-            except OSError:
-              pass
-        if cleared:
-            rlog_path = f"{segment_dir}/rlog"
-            route_timestamp_dt = utilities.get_route_start_time(rlog_path)
-            original_timestamp = route_timestamp_dt.isoformat() if route_timestamp_dt else None
-
-
-    if cleared:
-      return jsonify({"message": "Route name cleared successfully!", "timestamp": original_timestamp}), 200
-    else:
-      return jsonify({"error": "Route not found or no custom name to clear"}), 404
-
-  @app.route("/api/routes/rename", methods=["POST"])
-  def rename_route():
-    data = request.get_json()
-    old_name = data.get("old")
-    new_name = data.get("new")
-
-    if not old_name or not new_name:
-      return jsonify({"error": "Missing old or new name"}), 400
-
-    renamed = False
-    for footage_path in FOOTAGE_PATHS:
-      if not os.path.exists(footage_path):
-        continue
-
-      segments_to_process = [s for s in os.listdir(footage_path) if s.startswith(old_name) and os.path.isdir(os.path.join(footage_path, s))]
-
-      if not segments_to_process:
-        continue
-
-      for segment in segments_to_process:
-        segment_dir = os.path.join(footage_path, segment)
-        for item in os.listdir(segment_dir):
-          if not item.endswith((".hevc", ".ts", ".png", ".gif", "rlog")):
-            try:
-              os.remove(os.path.join(segment_dir, item))
-            except OSError:
-              pass
-
-      for segment in segments_to_process:
-        segment_dir = os.path.join(footage_path, segment)
-        new_name_file_path = os.path.join(segment_dir, new_name)
-        try:
-          with open(new_name_file_path, "a"):
-            os.utime(new_name_file_path, None)
-          renamed = True
-        except OSError as e:
-          return jsonify({"error": f"Error creating new name file: {e}"}), 500
-
-    if renamed:
-      return jsonify({"message": "Route renamed successfully!"}), 200
-    else:
-      return jsonify({"error": "Route not found"}), 404
-
-  @app.route("/api/screen_recordings/delete/<path:filename>", methods=["DELETE"])
-  def delete_screen_recording(filename):
-    mp4_path = SCREEN_RECORDINGS_PATH / filename
-    if not mp4_path.exists():
-      return {"error": "File not found"}, 404
-
-    delete_file(str(mp4_path))
-
-    for ext in (".png", ".gif"):
-      thumb = mp4_path.with_suffix(ext)
-      if thumb.exists():
-        delete_file(str(thumb))
-
-    return {"message": "Deleted"}, 200
-
-  @app.route("/api/screen_recordings/delete_all", methods=["DELETE"])
-  def delete_all_screen_recordings():
-    def generate():
-      files_to_delete = [f for f in os.listdir(SCREEN_RECORDINGS_PATH) if f.endswith(".mp4")]
-      for filename in files_to_delete:
-        delete_file(os.path.join(SCREEN_RECORDINGS_PATH, filename))
-        for ext in (".png", ".gif"):
-          thumb = os.path.join(SCREEN_RECORDINGS_PATH, filename.replace(".mp4", ext))
-          if os.path.exists(thumb):
-            delete_file(thumb)
-        yield f"data: {json.dumps({'deleted_recording': filename})}\\n\\n"
-        time.sleep(0.1)
-      yield f"data: {json.dumps({'status': 'complete'})}\\n\\n"
-    return Response(generate(), mimetype="text/event-stream")
-
-  @app.route("/api/screen_recordings/download/<path:filename>", methods=["GET"])
-  def download_screen_recording(filename):
-    return send_from_directory(SCREEN_RECORDINGS_PATH, filename, as_attachment=True)
-
-  @app.route("/api/screen_recordings/list", methods=["GET"])
-  def list_screen_recordings():
-    def generate():
-      recordings = sorted(
-        [r for r in SCREEN_RECORDINGS_PATH.glob("*.mp4") if not Path(f"{r}.lock").exists()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True
-      )
-      total = len(recordings)
-      yield f"data: {json.dumps({'progress': 0, 'total': total})}\n\n"
-
-      with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {
-          executor.submit(utilities.process_screen_recording, mp4): mp4
-          for mp4 in recordings
-        }
-
-        for processed, future in enumerate(as_completed(futures), start=1):
-          mp4 = futures[future]
-          try:
-            result = future.result()
-            yield f"data: {json.dumps({'recordings': [result]})}\n\n"
-          except Exception as e:
-            print(f"Error processing recording: {e}")
-
-          progress = json.dumps({"progress": processed, "total": total})
-          yield f"data: {progress}\n\n"
-
-        for recording in recordings:
-          utilities.process_screen_recording_gif(recording)
-
-    return Response(generate(), mimetype="text/event-stream")
-
-  @app.route("/screen_recordings/<path:filename>", methods=["GET"])
-  def serve_screen_recording_asset(filename):
-    return send_from_directory(SCREEN_RECORDINGS_PATH, filename)
-
-  @app.route("/api/screen_recordings/rename", methods=["POST"])
-  def rename_screen_recording():
-    data = request.get_json() or {}
-
-    old = data.get("old")
-    new = data.get("new")
-
-    if not old or not new:
-      return {"error": "Missing filenames"}, 400
-
-    old_path = SCREEN_RECORDINGS_PATH / old
-    new_path = SCREEN_RECORDINGS_PATH / new
-
-    if not old_path.exists():
-      return {"error": "Original file not found"}, 404
-
-    if new_path.exists():
-      return {"error": "Target file already exists"}, 400
-
-    old_path.rename(new_path)
-    for extension in (".png", ".gif"):
-      old = old_path.with_suffix(extension)
-      new = new_path.with_suffix(extension)
-      if old.exists():
-        old.rename(new)
-    return {"message": "Renamed"}, 200
 
   @app.route("/api/routes/<name>", methods=["DELETE"])
   def delete_route(name):
@@ -470,16 +304,17 @@ def setup(app):
       for footage_path in FOOTAGE_PATHS:
         if os.path.exists(footage_path):
           for segment in os.listdir(footage_path):
-            route_names.add(segment.split('--')[0])
+            route_names.add(segment.split("--")[0])
 
       for route_name in sorted(list(route_names)):
         for footage_path in FOOTAGE_PATHS:
           if os.path.exists(footage_path):
             for segment in os.listdir(footage_path):
               if segment.startswith(route_name):
-                  delete_file(os.path.join(footage_path, segment))
-          yield f"data: {json.dumps({'deleted_route': route_name})}\\n\\n"
-          time.sleep(0.1)
+                delete_file(os.path.join(footage_path, segment))
+
+        yield f"data: {json.dumps({'deleted_route': route_name})}\\n\\n"
+        time.sleep(0.1)
 
       yield f"data: {json.dumps({'status': 'complete'})}\\n\\n"
     return Response(generate(), mimetype="text/event-stream")
@@ -524,11 +359,7 @@ def setup(app):
           break
 
         segment_urls = [f"/video/{segment}" for segment in segments]
-        total_duration = 0
-        for i in range(len(segment_urls)):
-          segment_path = f"{footage_path}{name}--{i}/fcamera.hevc"
-          total_duration += utilities.get_video_duration(segment_path)
-
+        total_duration = sum(utilities.get_video_duration(f"{footage_path}{name}--{i}/fcamera.hevc") for i in range(len(segment_urls)))
         return {
           "name": name,
           "segment_urls": segment_urls,
@@ -538,11 +369,194 @@ def setup(app):
         }, 200
     return {"error": "Route not found"}, 404
 
+  @app.route("/api/routes/clear_name", methods=["POST"])
+  def clear_route_name():
+    data = request.get_json()
+    route_name = data.get("name")
+
+    if not route_name:
+      return jsonify({"error": "Missing route name"}), 400
+
+    cleared = False
+    original_timestamp = None
+    for footage_path in FOOTAGE_PATHS:
+      if not os.path.exists(footage_path):
+        continue
+
+      segments_to_process = [s for s in os.listdir(footage_path) if s.startswith(route_name) and os.path.isdir(os.path.join(footage_path, s))]
+      if not segments_to_process:
+        continue
+
+      for segment in segments_to_process:
+        segment_dir = os.path.join(footage_path, segment)
+        for item in os.listdir(segment_dir):
+          if not item.endswith((".hevc", ".ts", ".png", ".gif")) and item not in utilities.LOG_CANDIDATES:
+            try:
+              os.remove(os.path.join(segment_dir, item))
+              cleared = True
+            except OSError:
+              pass
+
+        if cleared:
+          rlog_path = f"{segment_dir}/rlog"
+          route_timestamp_dt = utilities.get_route_start_time(rlog_path)
+          original_timestamp = route_timestamp_dt.isoformat() if route_timestamp_dt else None
+
+    if cleared:
+      return jsonify({"message": "Route name cleared successfully!", "timestamp": original_timestamp}), 200
+    else:
+      return jsonify({"error": "Route not found or no custom name to clear"}), 404
+
+  @app.route("/api/routes/rename", methods=["POST"])
+  def rename_route():
+    data = request.get_json()
+    old_name = data.get("old")
+    new_name_raw = data.get("new")
+
+    if not old_name or not new_name_raw:
+      return jsonify({"error": "Missing old or new name"}), 400
+
+    new_name = secure_filename(new_name_raw)
+    renamed = False
+
+    for footage_path in FOOTAGE_PATHS:
+      if not os.path.exists(footage_path):
+        continue
+
+      segments_to_process = [s for s in os.listdir(footage_path) if s.startswith(old_name) and os.path.isdir(os.path.join(footage_path, s))]
+      if not segments_to_process:
+        continue
+
+      for segment in segments_to_process:
+        segment_dir = os.path.join(footage_path, segment)
+        for item in os.listdir(segment_dir):
+          if not item.endswith((".hevc", ".ts", ".png", ".gif", "rlog")):
+            try:
+              os.remove(os.path.join(segment_dir, item))
+            except OSError:
+              pass
+
+      for segment in segments_to_process:
+        segment_dir = os.path.join(footage_path, segment)
+        new_name_file_path = os.path.join(segment_dir, new_name)
+
+        try:
+          with open(new_name_file_path, "a"):
+            os.utime(new_name_file_path, None)
+          renamed = True
+        except OSError as e:
+          return jsonify({"error": f"Error creating new name file: {e}"}), 500
+
+    if renamed:
+      return jsonify({"message": "Route renamed successfully!"}), 200
+    else:
+      return jsonify({"error": "Route not found"}), 404
+
+  @app.route("/api/screen_recordings/delete/<path:filename>", methods=["DELETE"])
+  def delete_screen_recording(filename):
+    mp4_path = SCREEN_RECORDINGS_PATH / filename
+    if not mp4_path.exists():
+      return {"error": "File not found"}, 404
+
+    delete_file(str(mp4_path))
+
+    for ext in (".png", ".gif"):
+      thumb = mp4_path.with_suffix(ext)
+      if thumb.exists():
+        delete_file(str(thumb))
+
+    return {"message": "Deleted"}, 200
+
+  @app.route("/api/screen_recordings/delete_all", methods=["DELETE"])
+  def delete_all_screen_recordings():
+    def generate():
+      files_to_delete = [f for f in os.listdir(SCREEN_RECORDINGS_PATH) if f.endswith(".mp4")]
+      for filename in files_to_delete:
+        delete_file(os.path.join(SCREEN_RECORDINGS_PATH, filename))
+        for ext in (".png", ".gif"):
+          thumb = os.path.join(SCREEN_RECORDINGS_PATH, filename.replace(".mp4", ext))
+          if os.path.exists(thumb):
+            delete_file(thumb)
+
+        yield f"data: {json.dumps({'deleted_recording': filename})}\\n\\n"
+
+        time.sleep(0.1)
+
+      yield f"data: {json.dumps({'status': 'complete'})}\\n\\n"
+
+    return Response(generate(), mimetype="text/event-stream")
+
+  @app.route("/api/screen_recordings/download/<path:filename>", methods=["GET"])
+  def download_screen_recording(filename):
+    return send_from_directory(SCREEN_RECORDINGS_PATH, filename, as_attachment=True)
+
+  @app.route("/api/screen_recordings/list", methods=["GET"])
+  def list_screen_recordings():
+    def generate():
+      recordings = sorted(
+        [recording for recording in SCREEN_RECORDINGS_PATH.glob("*.mp4") if not Path(f"{recording}.lock").exists()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+      )
+      total = len(recordings)
+
+      yield f"data: {json.dumps({'progress': 0, 'total': total})}\n\n"
+
+      with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(utilities.process_screen_recording, mp4): mp4 for mp4 in recordings}
+        for processed, future in enumerate(as_completed(futures), start=1):
+          try:
+            result = future.result()
+            yield f"data: {json.dumps({'recordings': [result]})}\n\n"
+          except Exception as exception:
+            print(f"Error processing recording: {exception}")
+
+          yield f"data: {json.dumps({'progress': processed, 'total': total})}\n\n"
+
+        for recording in recordings:
+          utilities.process_screen_recording_gif(recording)
+
+    return Response(generate(), mimetype="text/event-stream")
+
+  @app.route("/screen_recordings/<path:filename>", methods=["GET"])
+  def serve_screen_recording_asset(filename):
+    return send_from_directory(SCREEN_RECORDINGS_PATH, filename)
+
+  @app.route("/api/screen_recordings/rename", methods=["POST"])
+  def rename_screen_recording():
+    data = request.get_json() or {}
+    old = data.get("old")
+    new_raw = data.get("new")
+
+    if not old or not new_raw:
+      return {"error": "Missing filenames"}, 400
+
+    new = secure_filename(new_raw)
+    old_path = SCREEN_RECORDINGS_PATH / old
+    new_path = SCREEN_RECORDINGS_PATH / new
+
+    if not old_path.exists():
+      return {"error": "Original file not found"}, 404
+
+    if new_path.exists():
+      return {"error": "Target file already exists"}, 400
+
+    old_path.rename(new_path)
+    for extension in (".png", ".gif"):
+      old_thumb = old_path.with_suffix(extension)
+      new_thumb = new_path.with_suffix(extension)
+
+      if old_thumb.exists():
+        old_thumb.rename(new_thumb)
+
+    return {"message": "Renamed"}, 200
+
   @app.route("/api/speed_limits", methods=["GET"])
   def speed_limits():
     data = json.loads(params.get("SpeedLimitsFiltered") or "[]")
     current_time = (datetime.now(timezone.utc) - timedelta(days=6, hours=23)).isoformat()
     data = [{**e, "last_vetted": current_time} for e in data]
+
     params.put("SpeedLimitsFiltered", json.dumps(data))
 
     buffer = BytesIO(json.dumps(data, indent=2).encode())
@@ -591,6 +605,7 @@ def setup(app):
     base = "/data/tailscale"
     tailscale_binary = f"{base}/tailscale"
     tailscaled_binary = f"{base}/tailscaled"
+
     systemd_unit = "/etc/systemd/system/tailscaled.service"
 
     if os.path.exists(tailscale_binary) and os.path.exists(tailscaled_binary) and os.path.exists(systemd_unit):
@@ -611,12 +626,14 @@ def setup(app):
       "curl -s https://pkgs.tailscale.com/stable/ | grep -oP 'tailscale_\\K[0-9]+\\.[0-9]+\\.[0-9]+' | sort -V | tail -1",
       shell=True, capture_output=True, text=True
     )
+
     version = result.stdout.strip() or "1.84.0"
 
     bin_dir = f"{base}/tailscale_{version}_{arch}"
     state = f"{base}/state"
     socket = f"{base}/tailscaled.sock"
     tgz_path = f"{base}/tailscale.tgz"
+
     tgz_url = f"https://pkgs.tailscale.com/stable/tailscale_{version}_{arch}.tgz"
 
     os.makedirs(state, exist_ok=True)
@@ -719,12 +736,11 @@ def setup(app):
     log_path = TMUX_LOGS_PATH / log_filename
 
     run_cmd(["tmux", "capture-pane", "-J", "-S", "-"], "Captured tmux pane.", "Failed to capture tmux pane.")
-    result = subprocess.run(["tmux", "show-buffer"], capture_output=True, text=True, check=True)
 
+    result = subprocess.run(["tmux", "show-buffer"], capture_output=True, text=True, check=True)
     log_path.write_text(result.stdout, encoding="utf-8")
 
     run_cmd(["tmux", "delete-buffer"], "Deleted tmux buffer.", "Failed to delete tmux buffer.")
-
     return jsonify({"message": "Captured console log successfully!", "log_file": log_filename}), 200
 
   @app.route("/api/tmux_log/delete/<filename>", methods=["DELETE"])
@@ -732,18 +748,18 @@ def setup(app):
     file_path = TMUX_LOGS_PATH / filename
     if file_path.exists():
       delete_file(file_path)
-      return jsonify({"message": f"{filename} deleted"}), 200
+      return jsonify({"message": f"{filename} deleted!"}), 200
 
     return jsonify({"error": "File not found"}), 404
 
   @app.route("/api/tmux_log/delete_all", methods=["DELETE"])
   def delete_all_tmux_logs():
     if TMUX_LOGS_PATH.exists():
+
       delete_file(TMUX_LOGS_PATH)
 
     TMUX_LOGS_PATH.mkdir(parents=True, exist_ok=True)
-
-    return jsonify({"message": "All tmux logs deleted and folder recreated"}), 200
+    return jsonify({"message": "All tmux logs deleted!"}), 200
 
   @app.route("/api/tmux_log/download/<path:filename>", methods=["GET"])
   def download_tmux_log(filename):
@@ -753,14 +769,7 @@ def setup(app):
   def list_tmux_logs():
     TMUX_LOGS_PATH.mkdir(parents=True, exist_ok=True)
     files = sorted(TMUX_LOGS_PATH.glob("*.json"), key=lambda file: file.stat().st_mtime, reverse=True)
-
-    return jsonify([
-      {
-        "filename": file.name,
-        "timestamp": file.stat().st_mtime
-      }
-      for file in files
-    ])
+    return jsonify([{"filename": file.name, "timestamp": file.stat().st_mtime} for file in files])
 
   @app.route("/api/tmux_log/live", methods=["GET"])
   def stream_tmux_log():
@@ -772,16 +781,17 @@ def setup(app):
     def generate():
       while True:
         output = subprocess.check_output(["tmux", "capture-pane", "-t", "comma:0", "-p", "-S", "-1000"], text=True)
+
         yield "data: " + "\n".join(reversed(output.splitlines())).replace("\n", "\ndata: ") + "\n\n"
 
         time.sleep(0.1)
-
     return Response(generate(), mimetype="text/event-stream")
 
   @app.route("/api/tmux_log/rename/<old>/<new>", methods=["PUT"])
   def rename_tmux_log_path_params(old, new):
     old_path = TMUX_LOGS_PATH / old
-    new_path = TMUX_LOGS_PATH / new
+    new_safe = secure_filename(new)
+    new_path = TMUX_LOGS_PATH / new_safe
 
     if not old_path.exists():
       return jsonify({"error": "Original file not found"}), 404
@@ -790,7 +800,8 @@ def setup(app):
       return jsonify({"error": "Target file already exists"}), 400
 
     old_path.rename(new_path)
-    return jsonify({"message": f"Renamed {old} to {new}"}), 200
+
+    return jsonify({"message": f"Renamed {old} to {new_safe}!"}), 200
 
   @app.route("/api/tsk_available", methods=["GET"])
   def tsk_available():
@@ -815,6 +826,7 @@ def setup(app):
   def save_secoc_keys():
     keys = request.get_json() or []
     params.put("SecOCKeys", json.dumps(keys))
+
     return jsonify(keys)
 
   @app.route("/api/tsk_key_set", methods=["POST"])
@@ -828,6 +840,7 @@ def setup(app):
       return jsonify({"error": "Key value must be a string"}), 400
 
     params.put("SecOCKey", value)
+
     return "", 204
 
   @app.route("/api/toggles/backup", methods=["POST"])
@@ -850,14 +863,14 @@ def setup(app):
 
     buffer = BytesIO(wrapped.encode("utf-8"))
     buffer.seek(0)
+
     return send_file(buffer, as_attachment=True, download_name="toggle_backup.json", mimetype="application/json")
 
   @app.route("/api/toggles/restore", methods=["POST"])
   def restore_toggle_values():
     request_data = request.get_json()
-
     if not request_data or "data" not in request_data:
-      return jsonify({ "success": False, "message": "Missing 'data' in request." }), 400
+      return jsonify({"success": False, "message": "Missing 'data' in request."}), 400
 
     allowed_keys = {key for key, _, _, _ in frogpilot_default_params if key not in EXCLUDED_KEYS}
 
@@ -867,7 +880,7 @@ def setup(app):
         params.put(key, value)
 
     update_frogpilot_toggles()
-    return jsonify({ "success": True, "message": "Toggles restored!" })
+    return jsonify({"success": True, "message": "Toggles restored!"})
 
   @app.route("/api/toggles/reset_default", methods=["POST"])
   def reset_toggle_values():

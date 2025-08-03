@@ -2057,7 +2057,7 @@
     </message>
     <message>
         <source>Automatically slow down for upcoming curves using downloaded maps or the driving model.</source>
-        <translation type="gpt-4o-generated">ชะลอความเร็วโดยอัตโนมัติสำหรับโค้งที่กำลังจะมาถึงโดยใช้แผนที่ที่ดาวน์โหลดหรือโมเดลการขับขี่</translation>
+        <translation type="gpt-4o-generated">ชะลอความเร็วอัตโนมัติสำหรับโค้งที่กำลังจะมาถึงโดยใช้แผนที่ที่ดาวน์โหลดหรือโมเดลการขับขี่</translation>
     </message>
     <message>
         <source>Curve Detection Method</source>
@@ -2089,11 +2089,11 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">ความก้าวร้าวของ openpilot เมื่อขับผ่านโค้ง ค่าที่สูงขึ้นจะทำให้เลี้ยวได้เร็วขึ้นแต่ก็อาจลดความสบายหรือความเสถียร ขณะที่ค่าที่ต่ำกว่าจะทำให้เลี้ยวได้ช้าลงและนุ่มนวลขึ้นแต่เสี่ยงต่อการระมัดระวังเกินไป</translation>
+        <translation type="gpt-4o-generated">ความก้าวร้าวของ openpilot เมื่อขับผ่านโค้ง ค่าที่สูงขึ้นจะทำให้เลี้ยวได้เร็วขึ้นแต่ก็อาจลดความสบายหรือความเสถียร ในขณะที่ค่าที่ต่ำกว่าจะทำให้เลี้ยวได้ช้าลงและนุ่มนวลขึ้นแต่เสี่ยงต่อการระมัดระวังเกินไป</translation>
     </message>
     <message>
         <source>Map Based</source>
-        <translation type="gpt-4o-generated">ตามแผนที่</translation>
+        <translation type="gpt-4o-generated">แผนที่เป็นพื้นฐาน</translation>
     </message>
     <message>
         <source>Vision</source>
@@ -2289,6 +2289,10 @@
         <source>CANCELLED</source>
         <translation type="gpt-4o-generated">ยกเลิก</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">ออฟไลน์...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotModelPanel</name>
@@ -2456,6 +2460,10 @@
         <source>The "Model Randomizer" only works with downloaded models. Do you want to download all the driving models?</source>
         <translation type="gpt-4o-generated">"Model Randomizer" ใช้งานได้เฉพาะกับโมเดลที่ดาวน์โหลดแล้วเท่านั้น คุณต้องการดาวน์โหลดโมเดลการขับขี่ทั้งหมดหรือไม่?</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">ออฟไลน์...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotNavigationPanel</name>
@@ -2486,10 +2494,6 @@
     <message>
         <source>Manage Your Settings At</source>
         <translation type="gpt-4o-generated">จัดการการตั้งค่าของคุณที่</translation>
-    </message>
-    <message>
-        <source>Device Offline</source>
-        <translation type="gpt-4o-generated">อุปกรณ์ออฟไลน์</translation>
     </message>
     <message>
         <source>MapBox</source>
@@ -2606,6 +2610,10 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>Completed!</source>
         <translation type="gpt-4o-generated">เสร็จสิ้น!</translation>
+    </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">ออฟไลน์...</translation>
     </message>
 </context>
 <context>
@@ -2927,10 +2935,6 @@ Want to submit your own sounds? Share them in the "custom-themes" channel on the
         <translation type="gpt-4o-generated">ไอคอนพวงมาลัยที่มุมขวาบนของหน้าจอการขับขี่</translation>
     </message>
     <message>
-        <source>Turn Signal Animation</source>
-        <translation type="gpt-4o-generated">แอนิเมชันสัญญาณไฟเลี้ยว</translation>
-    </message>
-    <message>
         <source>Themed turn signal animations.
 
 Want to submit your own animations? Share them in the "custom-themes" channel on the FrogPilot Discord!</source>
@@ -3134,6 +3138,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>Are you sure you want to completely reset your startup message?</source>
         <translation type="gpt-4o-generated">คุณแน่ใจหรือว่าต้องการรีเซ็ตข้อความเริ่มต้นของคุณทั้งหมด?</translation>
     </message>
+    <message>
+        <source>Turn Signal</source>
+        <translation type="gpt-4o-generated">ไฟเลี้ยว</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotUtilitiesPanel</name>
@@ -3214,26 +3222,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">ฉันเห็นการแจ้งเตือนที่บอกว่า "openpilot crashed"</translation>
     </message>
     <message>
-        <source>I'm noticing harsh acceleration</source>
-        <translation type="gpt-4o-generated">ฉันสังเกตเห็นการเร่งความเร็วที่รุนแรง</translation>
-    </message>
-    <message>
-        <source>I'm noticing harsh braking</source>
-        <translation type="gpt-4o-generated">ฉันสังเกตเห็นการเบรกที่รุนแรง</translation>
-    </message>
-    <message>
-        <source>I'm noticing unusual steering</source>
-        <translation type="gpt-4o-generated">ฉันสังเกตเห็นการบังคับเลี้ยวที่ผิดปกติ</translation>
-    </message>
-    <message>
-        <source>My car isn't staying in its lane</source>
-        <translation type="gpt-4o-generated">รถของฉันไม่อยู่ในเลนของมัน</translation>
-    </message>
-    <message>
-        <source>Something else</source>
-        <translation type="gpt-4o-generated">อย่างอื่น</translation>
-    </message>
-    <message>
         <source>What's going on?</source>
         <translation type="gpt-4o-generated">เกิดอะไรขึ้น?</translation>
     </message>
@@ -3296,6 +3284,70 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>Ensure your device has an internet connection before sending a report!</source>
         <translation type="gpt-4o-generated">ตรวจสอบให้แน่ใจว่าอุปกรณ์ของคุณเชื่อมต่ออินเทอร์เน็ตก่อนส่งรายงาน!</translation>
+    </message>
+    <message>
+        <source>Acceleration feels too harsh or jerky</source>
+        <translation type="gpt-4o-generated">การเร่งความเร็วรู้สึกกระชากหรือกระตุกเกินไป</translation>
+    </message>
+    <message>
+        <source>An alert confused me and I didn’t know what it meant</source>
+        <translation type="gpt-4o-generated">การแจ้งเตือนทำให้ฉันสับสนและฉันไม่รู้ว่ามันหมายถึงอะไร</translation>
+    </message>
+    <message>
+        <source>Braking is too sudden or uncomfortable</source>
+        <translation type="gpt-4o-generated">การเบรกกะทันหันหรือไม่สบาย</translation>
+    </message>
+    <message>
+        <source>I’m not sure if this is normal or a bug:</source>
+        <translation type="gpt-4o-generated">ฉันไม่แน่ใจว่านี่เป็นเรื่องปกติหรือข้อบกพร่อง:</translation>
+    </message>
+    <message>
+        <source>Lane changes don’t work properly or feel unsafe</source>
+        <translation type="gpt-4o-generated">การเปลี่ยนเลนทำงานไม่ถูกต้องหรือรู้สึกไม่ปลอดภัย</translation>
+    </message>
+    <message>
+        <source>My screen froze or got stuck on loading</source>
+        <translation type="gpt-4o-generated">หน้าจอของฉันค้างหรือค้างอยู่ที่การโหลด</translation>
+    </message>
+    <message>
+        <source>My steering wheel buttons aren’t working</source>
+        <translation type="gpt-4o-generated">ปุ่มบนพวงมาลัยของฉันไม่ทำงาน</translation>
+    </message>
+    <message>
+        <source>openpilot disengages when I don't expect it</source>
+        <translation type="gpt-4o-generated">openpilot ยกเลิกการทำงานเมื่อฉันไม่คาดคิด</translation>
+    </message>
+    <message>
+        <source>openpilot doesn’t resume after I stop</source>
+        <translation type="gpt-4o-generated">openpilot ไม่กลับมาทำงานหลังจากที่ฉันหยุด</translation>
+    </message>
+    <message>
+        <source>openpilot doesn't react to stopped vehicles ahead</source>
+        <translation type="gpt-4o-generated">openpilot ไม่ตอบสนองต่อยานพาหนะที่หยุดอยู่ข้างหน้า</translation>
+    </message>
+    <message>
+        <source>openpilot feels sluggish or slow to respond</source>
+        <translation type="gpt-4o-generated">openpilot รู้สึกช้าในการตอบสนอง</translation>
+    </message>
+    <message>
+        <source>Steering feels twitchy or unnatural</source>
+        <translation type="gpt-4o-generated">พวงมาลัยรู้สึกกระตุกหรือไม่เป็นธรรมชาติ</translation>
+    </message>
+    <message>
+        <source>The car doesn’t follow curves well</source>
+        <translation type="gpt-4o-generated">รถไม่เข้าโค้งได้ดี</translation>
+    </message>
+    <message>
+        <source>The car isn’t staying centered in its lane</source>
+        <translation type="gpt-4o-generated">รถไม่อยู่ตรงกลางเลน</translation>
+    </message>
+    <message>
+        <source>The speed or display info looks wrong</source>
+        <translation type="gpt-4o-generated">ความเร็วหรือข้อมูลการแสดงผลดูผิด</translation>
+    </message>
+    <message>
+        <source>Something else (please describe)</source>
+        <translation type="gpt-4o-generated">อย่างอื่น (โปรดอธิบาย)</translation>
     </message>
 </context>
 <context>
@@ -4551,10 +4603,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
 <context>
     <name>QObject</name>
     <message>
-        <source>Reboot</source>
-        <translation>รีบูต</translation>
-    </message>
-    <message>
         <source>Exit</source>
         <translation>ปิด</translation>
     </message>
@@ -4599,6 +4647,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>FrogPilot</source>
         <translation type="gpt-4o-generated">FrogPilot</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="gpt-4o-generated">คืนค่า</translation>
     </message>
 </context>
 <context>

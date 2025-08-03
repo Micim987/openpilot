@@ -1055,7 +1055,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.greenLight: {
-    ET.WARNING: Alert(
+    ET.PERMANENT: Alert(
       "Light turned green",
       "",
       AlertStatus.frogpilot, AlertSize.small,
@@ -1075,7 +1075,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.leadDeparting: {
-    ET.WARNING: Alert(
+    ET.PERMANENT: Alert(
       "Lead departed",
       "",
       AlertStatus.frogpilot, AlertSize.small,
@@ -1109,7 +1109,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.speedLimitChanged: {
-    ET.WARNING: Alert(
+    ET.PERMANENT: Alert(
       "Speed limit changed",
       "",
       AlertStatus.frogpilot, AlertSize.small,
@@ -1186,7 +1186,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.dejaVuCurve: {
-    ET.WARNING: Alert(
+    ET.PERMANENT: Alert(
       "♬♪ Deja vu! ᕕ(⌐■_■)ᕗ ♪♬",
       "🏎️",
       AlertStatus.frogpilot, AlertSize.mid,
@@ -1224,7 +1224,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.toBeContinued: {
-    ET.WARNING: Alert(
+    ET.PERMANENT: Alert(
       "To be continued...",
       "⬅️",
       AlertStatus.frogpilot, AlertSize.mid,
@@ -1240,7 +1240,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.yourFrogTriedToKillMe: {
-    ET.WARNING: Alert(
+    ET.PERMANENT: Alert(
       "Your Frog tried to kill me...",
       "👺",
       AlertStatus.frogpilot, AlertSize.mid,

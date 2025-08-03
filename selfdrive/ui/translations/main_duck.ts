@@ -2053,7 +2053,7 @@
     </message>
     <message>
         <source>Curve Speed Control</source>
-        <translation type="gpt-4o-generated">Curve Speed Quack</translation>
+        <translation type="gpt-4o-generated">Curve Speed Adjustment</translation>
     </message>
     <message>
         <source>Automatically slow down for upcoming curves using downloaded maps or the driving model.</source>
@@ -2061,11 +2061,11 @@
     </message>
     <message>
         <source>Curve Detection Method</source>
-        <translation type="gpt-4o-generated">Curve Detection Technique</translation>
+        <translation type="gpt-4o-generated">Curve Identification Technique</translation>
     </message>
     <message>
         <source>How curves are detected. &lt;b&gt;Map-Based&lt;/b&gt; uses downloaded map data to identify curves and determine the appropriate speed in which to handle them at, while &lt;b&gt;Vision&lt;/b&gt; relies solely on the driving model.</source>
-        <translation type="gpt-4o-generated">How curves are detected. &lt;b&gt;Map-Based&lt;/b&gt; utilizes downloaded map data to identify curves and determine the suitable speed for navigating them, while &lt;b&gt;Vision&lt;/b&gt; depends entirely on the driving model.</translation>
+        <translation type="gpt-4o-generated">How curves are detected. &lt;b&gt;Map-Based&lt;/b&gt; uses downloaded map data to identify curves and determine the appropriate speed to navigate them, while &lt;b&gt;Vision&lt;/b&gt; relies solely on the driving model.</translation>
     </message>
     <message>
         <source>Curve Detection Failsafe</source>
@@ -2077,11 +2077,11 @@
     </message>
     <message>
         <source>Curve Detection Sensitivity</source>
-        <translation type="gpt-4o-generated">Curve Detection Acuity</translation>
+        <translation type="gpt-4o-generated">Curve Detection Precision</translation>
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">How sensitive openpilot is when detecting curves. Higher values prompt earlier responses, risking more frequent triggers, while lower values boost confidence but risk triggering too infrequently.</translation>
+        <translation type="gpt-4o-generated">How sensitive openpilot is in detecting curves. Higher values prompt earlier responses but may trigger too often, while lower values boost confidence but risk triggering too infrequently.</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2089,11 +2089,11 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">How aggressive openpilot is when navigating curves. Higher values lead to quicker turns but may reduce comfort or stability, while lower values result in slower, smoother turns, risking excessive caution.</translation>
+        <translation type="gpt-4o-generated">How aggressive openpilot is when navigating curves. Higher values lead to quicker turns but may reduce comfort or stability, while lower values result in slower, smoother turns, risking being overly cautious.</translation>
     </message>
     <message>
         <source>Map Based</source>
-        <translation type="gpt-4o-generated">Map-Centric</translation>
+        <translation type="gpt-4o-generated">Map-Oriented</translation>
     </message>
     <message>
         <source>Vision</source>
@@ -2101,7 +2101,7 @@
     </message>
     <message>
         <source>The &lt;b&gt;Map Based&lt;/b&gt; option is only available when some &lt;b&gt;Map Data&lt;/b&gt; has been downloaded!</source>
-        <translation type="gpt-4o-generated">The &lt;b&gt;Map Based&lt;/b&gt; option is available only when some &lt;b&gt;Map Data&lt;/b&gt; has been downloaded!</translation>
+        <translation type="gpt-4o-generated">The &lt;b&gt;Map Based&lt;/b&gt; option is available only after some &lt;b&gt;Map Data&lt;/b&gt; has been downloaded!</translation>
     </message>
 </context>
 <context>
@@ -2289,6 +2289,10 @@
         <source>CANCELLED</source>
         <translation type="gpt-4o-generated">CANCELLED</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">Disconnected...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotModelPanel</name>
@@ -2456,6 +2460,10 @@
         <source>The "Model Randomizer" only works with downloaded models. Do you want to download all the driving models?</source>
         <translation type="gpt-4o-generated">The "Model Randomizer" functions solely with downloaded models. Would you like to download all the driving models?</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">Disconnected...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotNavigationPanel</name>
@@ -2486,10 +2494,6 @@
     <message>
         <source>Manage Your Settings At</source>
         <translation type="gpt-4o-generated">Adjust Your Settings At</translation>
-    </message>
-    <message>
-        <source>Device Offline</source>
-        <translation type="gpt-4o-generated">Device Not Connected</translation>
     </message>
     <message>
         <source>MapBox</source>
@@ -2606,6 +2610,10 @@ It will reset in %1 hours and %2 minutes.</translation>
     <message>
         <source>Completed!</source>
         <translation type="gpt-4o-generated">All done!</translation>
+    </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">Disconnected...</translation>
     </message>
 </context>
 <context>
@@ -2931,10 +2939,6 @@ Interested in submitting your own sounds? Share them in the "custom-themes" chan
         <translation type="gpt-4o-generated">The steering wheel icon is in the top right corner of the driving screen.</translation>
     </message>
     <message>
-        <source>Turn Signal Animation</source>
-        <translation type="gpt-4o-generated">Blinker Animation</translation>
-    </message>
-    <message>
         <source>Themed turn signal animations.
 
 Want to submit your own animations? Share them in the "custom-themes" channel on the FrogPilot Discord!</source>
@@ -3138,6 +3142,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <source>CANCEL</source>
         <translation type="gpt-4o-generated">CANCEL</translation>
     </message>
+    <message>
+        <source>Turn Signal</source>
+        <translation type="gpt-4o-generated">Indicator</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotUtilitiesPanel</name>
@@ -3222,26 +3230,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">I saw an alert stating "openpilot crashed."</translation>
     </message>
     <message>
-        <source>I'm noticing harsh acceleration</source>
-        <translation type="gpt-4o-generated">I'm noticing rapid acceleration.</translation>
-    </message>
-    <message>
-        <source>I'm noticing harsh braking</source>
-        <translation type="gpt-4o-generated">I'm noticing abrupt braking.</translation>
-    </message>
-    <message>
-        <source>I'm noticing unusual steering</source>
-        <translation type="gpt-4o-generated">I'm detecting odd steering.</translation>
-    </message>
-    <message>
-        <source>My car isn't staying in its lane</source>
-        <translation type="gpt-4o-generated">My car isn't keeping to its lane.</translation>
-    </message>
-    <message>
-        <source>Something else</source>
-        <translation type="gpt-4o-generated">Another option</translation>
-    </message>
-    <message>
         <source>What's going on?</source>
         <translation type="gpt-4o-generated">What's happening?</translation>
     </message>
@@ -3300,6 +3288,70 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
     <message>
         <source>Are you sure you want to reset all toggles to match stock openpilot?</source>
         <translation type="gpt-4o-generated">Are you certain you want to reset all toggles to match the default openpilot settings?</translation>
+    </message>
+    <message>
+        <source>Acceleration feels too harsh or jerky</source>
+        <translation type="gpt-4o-generated">Acceleration feels too abrupt or jerky.</translation>
+    </message>
+    <message>
+        <source>An alert confused me and I didn’t know what it meant</source>
+        <translation type="gpt-4o-generated">An alert quacked at me, and I didn’t know what it meant.</translation>
+    </message>
+    <message>
+        <source>Braking is too sudden or uncomfortable</source>
+        <translation type="gpt-4o-generated">Braking is too abrupt or uncomfortable</translation>
+    </message>
+    <message>
+        <source>I’m not sure if this is normal or a bug:</source>
+        <translation type="gpt-4o-generated">I'm unsure if this is normal or a glitch:</translation>
+    </message>
+    <message>
+        <source>Lane changes don’t work properly or feel unsafe</source>
+        <translation type="gpt-4o-generated">Lane changes either malfunction or feel unsafe.</translation>
+    </message>
+    <message>
+        <source>My screen froze or got stuck on loading</source>
+        <translation type="gpt-4o-generated">My screen froze or is stuck loading.</translation>
+    </message>
+    <message>
+        <source>My steering wheel buttons aren’t working</source>
+        <translation type="gpt-4o-generated">The buttons on my steering wheel aren't working.</translation>
+    </message>
+    <message>
+        <source>openpilot disengages when I don't expect it</source>
+        <translation type="gpt-4o-generated">openpilot disengages unexpectedly</translation>
+    </message>
+    <message>
+        <source>openpilot doesn’t resume after I stop</source>
+        <translation type="gpt-4o-generated">openpilot doesn't restart after I stop</translation>
+    </message>
+    <message>
+        <source>openpilot doesn't react to stopped vehicles ahead</source>
+        <translation type="gpt-4o-generated">openpilot doesn't respond to stationary vehicles ahead</translation>
+    </message>
+    <message>
+        <source>openpilot feels sluggish or slow to respond</source>
+        <translation type="gpt-4o-generated">openpilot seems sluggish or slow to react</translation>
+    </message>
+    <message>
+        <source>Steering feels twitchy or unnatural</source>
+        <translation type="gpt-4o-generated">Steering feels twitchy or awkward</translation>
+    </message>
+    <message>
+        <source>The car doesn’t follow curves well</source>
+        <translation type="gpt-4o-generated">The car doesn't handle curves well.</translation>
+    </message>
+    <message>
+        <source>The car isn’t staying centered in its lane</source>
+        <translation type="gpt-4o-generated">The car isn't keeping centered in its lane.</translation>
+    </message>
+    <message>
+        <source>The speed or display info looks wrong</source>
+        <translation type="gpt-4o-generated">The speed or display information seems incorrect.</translation>
+    </message>
+    <message>
+        <source>Something else (please describe)</source>
+        <translation type="gpt-4o-generated">Another option (please specify)</translation>
     </message>
 </context>
 <context>
@@ -4572,10 +4624,6 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
         <translation type="gpt-4o-generated">ft</translation>
     </message>
     <message>
-        <source>Reboot</source>
-        <translation type="gpt-4o-generated">Restart</translation>
-    </message>
-    <message>
         <source>Exit</source>
         <translation type="gpt-4o-generated">Leave</translation>
     </message>
@@ -4607,6 +4655,10 @@ Want to submit your own animations? Share them in the "custom-themes" channel on
             <numerusform>%n day past</numerusform>
             <numerusform>%n days past</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="gpt-4o-generated">Reinstate</translation>
     </message>
 </context>
 <context>

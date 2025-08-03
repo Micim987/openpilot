@@ -2069,7 +2069,7 @@
     </message>
     <message>
         <source>Curve Detection Failsafe</source>
-        <translation type="gpt-4o-generated">Eğri Algılama Emniyeti</translation>
+        <translation type="gpt-4o-generated">Eğri Tespit Emniyeti</translation>
     </message>
     <message>
         <source>Only trigger &lt;b&gt;Curve Speed Control&lt;/b&gt; if a curve is detected with the model while using the &lt;b&gt;Map-Based&lt;/b&gt; method. Useful to help prevent false positives.</source>
@@ -2081,7 +2081,7 @@
     </message>
     <message>
         <source>How sensitive openpilot is when detecting curves. Higher values trigger earlier responses at the risk of triggering too often, while lower values increase confidence at the risk of triggering too infrequently.</source>
-        <translation type="gpt-4o-generated">openpilot'ın virajları algılarken ne kadar hassas olduğu. Daha yüksek değerler, daha sık tetikleme riskiyle birlikte daha erken tepkiler tetiklerken, daha düşük değerler, daha az sıklıkta tetikleme riskiyle birlikte güveni artırır.</translation>
+        <translation type="gpt-4o-generated">openpilot'ın virajları algılarken ne kadar hassas olduğu. Daha yüksek değerler, daha sık tetikleme riskiyle birlikte daha erken tepkiler tetiklerken, daha düşük değerler, daha az sıklıkla tetikleme riskiyle birlikte güveni artırır.</translation>
     </message>
     <message>
         <source>Curve Speed Aggressiveness</source>
@@ -2089,7 +2089,7 @@
     </message>
     <message>
         <source>How aggressive openpilot is when navigating through curves. Higher values result in faster turns but may reduce comfort or stability, while lower values result in slower, smoother turns at the risk of being overly cautious.</source>
-        <translation type="gpt-4o-generated">openpilot'ın virajlarda ne kadar agresif olduğu. Daha yüksek değerler, daha hızlı dönüşler sağlar ancak konfor veya stabiliteyi azaltabilirken, daha düşük değerler, aşırı temkinli olma riskiyle daha yavaş ve daha yumuşak dönüşler sağlar.</translation>
+        <translation type="gpt-4o-generated">openpilot'ın virajlarda ne kadar agresif olduğu. Daha yüksek değerler, daha hızlı dönüşler sağlar ancak konfor veya stabiliteyi azaltabilir, daha düşük değerler ise daha yavaş, daha yumuşak dönüşler sağlar ancak aşırı temkinli olma riski taşır.</translation>
     </message>
     <message>
         <source>Map Based</source>
@@ -2289,6 +2289,10 @@
         <source>CANCELLED</source>
         <translation type="gpt-4o-generated">İPTAL EDİLDİ</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">Çevrimdışı...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotModelPanel</name>
@@ -2456,6 +2460,10 @@
         <source>The "Model Randomizer" only works with downloaded models. Do you want to download all the driving models?</source>
         <translation type="gpt-4o-generated">"Model Randomizer" yalnızca indirilen modellerle çalışır. Tüm sürüş modellerini indirmek istiyor musunuz?</translation>
     </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">Çevrimdışı...</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotNavigationPanel</name>
@@ -2486,10 +2494,6 @@
     <message>
         <source>Manage Your Settings At</source>
         <translation type="gpt-4o-generated">Ayarlarınızı Yönetin</translation>
-    </message>
-    <message>
-        <source>Device Offline</source>
-        <translation type="gpt-4o-generated">Cihaz Çevrimdışı</translation>
     </message>
     <message>
         <source>MapBox</source>
@@ -2606,6 +2610,10 @@ It will reset in %1 hours and %2 minutes.</source>
     <message>
         <source>Completed!</source>
         <translation type="gpt-4o-generated">Tamamlandı!</translation>
+    </message>
+    <message>
+        <source>Offline...</source>
+        <translation type="gpt-4o-generated">Çevrimdışı...</translation>
     </message>
 </context>
 <context>
@@ -2929,10 +2937,6 @@ Kendi seslerinizi göndermek mi istiyorsunuz? FrogPilot Discord'daki "custom-the
         <translation type="gpt-4o-generated">Sürüş ekranının sağ üst köşesindeki direksiyon simgesi.</translation>
     </message>
     <message>
-        <source>Turn Signal Animation</source>
-        <translation type="gpt-4o-generated">Dönüş Sinyali Animasyonu</translation>
-    </message>
-    <message>
         <source>Themed turn signal animations.
 
 Want to submit your own animations? Share them in the "custom-themes" channel on the FrogPilot Discord!</source>
@@ -3136,6 +3140,10 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
         <source>Are you sure you want to completely reset your startup message?</source>
         <translation type="gpt-4o-generated">Başlangıç mesajınızı tamamen sıfırlamak istediğinizden emin misiniz?</translation>
     </message>
+    <message>
+        <source>Turn Signal</source>
+        <translation type="gpt-4o-generated">Sinyal Lambası</translation>
+    </message>
 </context>
 <context>
     <name>FrogPilotUtilitiesPanel</name>
@@ -3216,26 +3224,6 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
         <translation type="gpt-4o-generated">"openpilot çöktü" diyen bir uyarı gördüm.</translation>
     </message>
     <message>
-        <source>I'm noticing harsh acceleration</source>
-        <translation type="gpt-4o-generated">Sert hızlanma fark ediyorum.</translation>
-    </message>
-    <message>
-        <source>I'm noticing harsh braking</source>
-        <translation type="gpt-4o-generated">Sert frenleme fark ediyorum.</translation>
-    </message>
-    <message>
-        <source>I'm noticing unusual steering</source>
-        <translation type="gpt-4o-generated">Olağandışı direksiyon fark ediyorum.</translation>
-    </message>
-    <message>
-        <source>My car isn't staying in its lane</source>
-        <translation type="gpt-4o-generated">Arabam şeridinde kalmıyor.</translation>
-    </message>
-    <message>
-        <source>Something else</source>
-        <translation type="gpt-4o-generated">Başka bir şey</translation>
-    </message>
-    <message>
         <source>What's going on?</source>
         <translation type="gpt-4o-generated">Ne oluyor?</translation>
     </message>
@@ -3298,6 +3286,70 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
     <message>
         <source>Ensure your device has an internet connection before sending a report!</source>
         <translation type="gpt-4o-generated">Rapor göndermeden önce cihazınızın internet bağlantısına sahip olduğundan emin olun!</translation>
+    </message>
+    <message>
+        <source>Acceleration feels too harsh or jerky</source>
+        <translation type="gpt-4o-generated">Hızlanma çok sert veya sarsıntılı geliyor.</translation>
+    </message>
+    <message>
+        <source>An alert confused me and I didn’t know what it meant</source>
+        <translation type="gpt-4o-generated">Bir uyarı beni şaşırttı ve ne anlama geldiğini bilmiyordum.</translation>
+    </message>
+    <message>
+        <source>Braking is too sudden or uncomfortable</source>
+        <translation type="gpt-4o-generated">Frenleme çok ani veya rahatsız edici.</translation>
+    </message>
+    <message>
+        <source>I’m not sure if this is normal or a bug:</source>
+        <translation type="gpt-4o-generated">Bunun normal mi yoksa bir hata mı olduğundan emin değilim:</translation>
+    </message>
+    <message>
+        <source>Lane changes don’t work properly or feel unsafe</source>
+        <translation type="gpt-4o-generated">Şerit değişiklikleri düzgün çalışmıyor veya güvensiz hissediliyor.</translation>
+    </message>
+    <message>
+        <source>My screen froze or got stuck on loading</source>
+        <translation type="gpt-4o-generated">Ekranım dondu veya yükleme sırasında takıldı.</translation>
+    </message>
+    <message>
+        <source>My steering wheel buttons aren’t working</source>
+        <translation type="gpt-4o-generated">Direksiyon simidi düğmelerim çalışmıyor.</translation>
+    </message>
+    <message>
+        <source>openpilot disengages when I don't expect it</source>
+        <translation type="gpt-4o-generated">openpilot beklemediğimde devreden çıkıyor</translation>
+    </message>
+    <message>
+        <source>openpilot doesn’t resume after I stop</source>
+        <translation type="gpt-4o-generated">openpilot durduktan sonra devam etmiyor</translation>
+    </message>
+    <message>
+        <source>openpilot doesn't react to stopped vehicles ahead</source>
+        <translation type="gpt-4o-generated">openpilot, öndeki duran araçlara tepki vermiyor.</translation>
+    </message>
+    <message>
+        <source>openpilot feels sluggish or slow to respond</source>
+        <translation type="gpt-4o-generated">openpilot yavaş veya tepkisiz hissediyor</translation>
+    </message>
+    <message>
+        <source>Steering feels twitchy or unnatural</source>
+        <translation type="gpt-4o-generated">Direksiyon tepkileri titrek veya doğal değil gibi geliyor.</translation>
+    </message>
+    <message>
+        <source>The car doesn’t follow curves well</source>
+        <translation type="gpt-4o-generated">Araba virajları iyi takip etmiyor.</translation>
+    </message>
+    <message>
+        <source>The car isn’t staying centered in its lane</source>
+        <translation type="gpt-4o-generated">Araba şeridinde ortalanmış kalmıyor.</translation>
+    </message>
+    <message>
+        <source>The speed or display info looks wrong</source>
+        <translation type="gpt-4o-generated">Hız veya görüntüleme bilgileri yanlış görünüyor.</translation>
+    </message>
+    <message>
+        <source>Something else (please describe)</source>
+        <translation type="gpt-4o-generated">Başka bir şey (lütfen açıklayın)</translation>
     </message>
 </context>
 <context>
@@ -4553,10 +4605,6 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
 <context>
     <name>QObject</name>
     <message>
-        <source>Reboot</source>
-        <translation>Yeniden başlat</translation>
-    </message>
-    <message>
         <source>Exit</source>
         <translation>Çık</translation>
     </message>
@@ -4601,6 +4649,10 @@ Kendi animasyonlarınızı göndermek mi istiyorsunuz? Onları FrogPilot Discord
     <message>
         <source>FrogPilot</source>
         <translation type="gpt-4o-generated">FrogPilot</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="gpt-4o-generated">Geri yükle</translation>
     </message>
 </context>
 <context>
