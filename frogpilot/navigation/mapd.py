@@ -5,6 +5,7 @@ import os
 import shutil
 import stat
 import subprocess
+import tempfile
 import time
 import urllib.request
 
@@ -19,6 +20,16 @@ GITHUB_VERSION_URL = f"https://github.com/{RESOURCES_REPO}/raw/Versions/mapd_ver
 GITLAB_VERSION_URL = f"https://gitlab.com/{RESOURCES_REPO}/-/raw/Versions/mapd_version_{VERSION}.json"
 
 VERSION_PATH = Path("/data/media/0/osm/mapd_version")
+
+def cleanup_temp_files():
+  for file in MAPD_PATH.parent.glob("mapd*"):
+    if file == MAPD_PATH or file == VERSION_PATH:
+      continue
+    if file.is_file():
+      try:
+        file.unlink()
+      except Exception as exception:
+        print(f"Failed to delete leftover file {file}: {exception}")
 
 def download():
   Path(MAPD_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -36,18 +47,23 @@ def download():
   for url in urls:
     try:
       with urllib.request.urlopen(url) as response:
-        with open(MAPD_PATH, "wb") as mapd:
-          shutil.copyfileobj(response, mapd)
+        with tempfile.NamedTemporaryFile("wb", delete=False, dir=MAPD_PATH.parent) as temp_file:
+          shutil.copyfileobj(response, temp_file)
+          temp_file_path = Path(temp_file.name)
+          os.fsync(temp_file.fileno())
 
-          os.fsync(mapd.fileno())
-          os.chmod(MAPD_PATH, os.stat(MAPD_PATH).st_mode | stat.S_IEXEC)
+      os.chmod(temp_file_path, os.stat(temp_file_path).st_mode | stat.S_IEXEC)
+      os.rename(temp_file_path, MAPD_PATH)
+
       with open(VERSION_PATH, "w") as version_file:
         version_file.write(latest_version)
-
         os.fsync(version_file.fileno())
+
       return
     except Exception as exception:
       print(f"Failed to download mapd from {url}: {exception}")
+      if "temp_file_path" in locals() and temp_file_path.exists():
+        temp_file_path.unlink(missing_ok=True)
 
 def get_latest_version():
   while not (is_url_pingable("https://github.com") or is_url_pingable("https://gitlab.com")):
@@ -61,32 +77,48 @@ def get_latest_version():
       print(f"Error fetching mapd version from {url}: {exception}")
   return "v0"
 
+def update_mapd():
+  if not MAPD_PATH.exists():
+    print(f"{MAPD_PATH} not found. Downloading...")
+    download()
+    return False
+
+  if not VERSION_PATH.exists():
+    print(f"{VERSION_PATH} not found. Downloading mapd...")
+    download()
+    return False
+
+  if is_url_pingable("https://github.com") or is_url_pingable("https://gitlab.com"):
+    try:
+      with open(VERSION_PATH) as version_file:
+        local_version = version_file.read().strip()
+      if local_version != get_latest_version():
+        print("New mapd version available. Updating...")
+        download()
+        return False
+      else:
+        return True
+    except Exception as exception:
+      print(f"Error checking version: {exception}")
+      return False
+
+  if not os.access(MAPD_PATH, os.X_OK):
+    print(f"{MAPD_PATH} is not executable. Fixing permissions...")
+    try:
+      os.chmod(MAPD_PATH, os.stat(MAPD_PATH).st_mode | stat.S_IEXEC)
+    except Exception as exception:
+      print(f"Failed to set executable permissions on {MAPD_PATH}: {exception}")
+    return False
+
+  return True
+
 def mapd_thread():
   while True:
-    if not MAPD_PATH.exists():
-      print(f"{MAPD_PATH} not found. Downloading...")
-      download()
+    cleanup_temp_files()
+
+    while not update_mapd():
+      time.sleep(60)
       continue
-
-    if not VERSION_PATH.exists():
-      print(f"{VERSION_PATH} not found. Downloading mapd...")
-      download()
-      continue
-
-    with open(VERSION_PATH) as version_file:
-      if is_url_pingable("https://github.com") or is_url_pingable("https://gitlab.com"):
-        if version_file.read().strip() != get_latest_version():
-          print("New mapd version available. Updating...")
-          download()
-          continue
-
-    if not os.access(MAPD_PATH, os.X_OK):
-      print(f"{MAPD_PATH} is not executable. Fixing permissions...")
-      try:
-        os.chmod(MAPD_PATH, os.stat(MAPD_PATH).st_mode | stat.S_IEXEC)
-      except Exception as exception:
-        print(f"Failed to set executable permissions on {MAPD_PATH}: {exception}")
-        continue
 
     try:
       process = subprocess.Popen(str(MAPD_PATH))
