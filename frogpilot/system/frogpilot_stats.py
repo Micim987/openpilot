@@ -27,8 +27,10 @@ def get_city_center(latitude, longitude):
       location_data = json.load(response)
 
     address = location_data.get("address", {})
-    city = address.get("city") or address.get("hamlet") or address.get("town") or address.get("village")
+    city = address.get("city") or address.get("hamlet") or address.get("town") or address.get("village", "Unknown")
+    country = address.get("country", "United States")
     country_code = address.get("country_code", "US").upper()
+    state = address.get("state", "N/A") if country_code == "US" else "N/A"
 
     if city:
       try:
@@ -40,8 +42,8 @@ def get_city_center(latitude, longitude):
         if city_data:
           center_lat = float(city_data[0]["lat"])
           center_lon = float(city_data[0]["lon"])
-          print(f"Using city center for {city}, {country_code} → ({center_lat}, {center_lon})")
-          return center_lat, center_lon
+          print(f"Using city center for {city}, {state}, {country} → ({center_lat}, {center_lon})")
+          return center_lat, center_lon, city, state, country
         else:
           sentry.capture_exception(Exception(f"City lookup returned no results for {city}, {country_code}"))
       except Exception as city_error:
@@ -50,14 +52,20 @@ def get_city_center(latitude, longitude):
     print(f"Falling back to fuzzed GPS for {latitude}, {longitude}")
     return (
       round(latitude + random.uniform(-0.1, 0.1), 6),
-      round(longitude + random.uniform(-0.1, 0.1), 6)
+      round(longitude + random.uniform(-0.1, 0.1), 6),
+      "Unknown",
+      "N/A",
+      "Unknown"
     )
 
   except (urllib.error.URLError, urllib.error.HTTPError, socket.gaierror, socket.timeout, TimeoutError, Exception) as error:
     print(f"Falling back due to geocoding error: {error}")
     return (
       round(latitude + random.uniform(-0.1, 0.1), 6),
-      round(longitude + random.uniform(-0.1, 0.1), 6)
+      round(longitude + random.uniform(-0.1, 0.1), 6),
+      "Unknown",
+      "N/A",
+      "Unknown"
     )
 
 def install_influxdb_client():
@@ -94,7 +102,7 @@ def send_stats():
   location = json.loads(params.get("LastGPSPosition") or "{}")
   original_latitude = location.get("latitude")
   original_longitude = location.get("longitude")
-  latitude, longitude = get_city_center(original_latitude, original_longitude)
+  latitude, longitude, city, state, country = get_city_center(original_latitude, original_longitude)
 
   theme_sources = [
     frogpilot_toggles.icon_pack.replace("-animated", ""),
@@ -113,13 +121,18 @@ def send_stats():
   point = (Point("user_stats")
     .field("car_make", "GM" if frogpilot_toggles.car_make == "gm" else frogpilot_toggles.car_make.title())
     .field("car_model", frogpilot_toggles.car_model)
+    .field("city", city)
+    .field("country", country)
     .field("driving_model", frogpilot_toggles.model_name.replace("🗺️", "").replace("📡", "").replace("👀", "").replace("(Default)", "").strip())
     .field("event", 1)
     .field("frogpilot_drives", params_tracking.get_int("FrogPilotDrives"))
     .field("frogpilot_hours", params_tracking.get_int("FrogPilotMinutes") / 60)
     .field("frogpilot_miles", params_tracking.get_int("FrogPilotKilometers") * CV.KPH_TO_MPH)
+    .field("has_pedal", frogpilot_toggles.has_pedal)
+    .field("has_sdsu", frogpilot_toggles.has_sdsu)
     .field("latitude", latitude)
     .field("longitude", longitude)
+    .field("state", state)
     .field("theme", selected_theme.title())
 
     .tag("branch", get_build_metadata().channel)

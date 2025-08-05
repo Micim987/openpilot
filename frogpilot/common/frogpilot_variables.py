@@ -17,6 +17,7 @@ from openpilot.selfdrive.car.gm.values import GMFlags
 from openpilot.selfdrive.car.interfaces import CarInterfaceBase
 from openpilot.selfdrive.car.mock.interface import CarInterface
 from openpilot.selfdrive.car.mock.values import CAR as MOCK
+from openpilot.selfdrive.car.toyota.values import ToyotaFlags
 from openpilot.selfdrive.controls.lib.desire_helper import LANE_CHANGE_SPEED_MIN
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.system.hardware import HARDWARE
@@ -549,8 +550,9 @@ class FrogPilotVariables:
     has_bsm = CP.enableBsm
     toggle.has_cc_long = bool(CP.flags & GMFlags.CC_LONG.value)
     has_nnff = not comma_nnff_supported(toggle.car_model) and nnff_supported(toggle.car_model)
-    has_pedal = CP.enableGasInterceptor
+    toggle.has_pedal = CP.enableGasInterceptor
     has_radar = not CP.radarUnavailable
+    toggle.has_sdsu = bool(CP.flags & ToyotaFlags.SMART_DSU.value)
     has_sng = CP.autoResumeSng
     is_angle_car = CP.steerControlType == car.CarParams.SteerControlType.angle
     latAccelFactor = CP.lateralTuning.torque.latAccelFactor
@@ -873,7 +875,7 @@ class FrogPilotVariables:
     toggle.show_speed_limits = toggle.navigation_ui and (params.get_bool("ShowSpeedLimits") if tuning_level >= level["ShowSpeedLimits"] else default.get_bool("ShowSpeedLimits"))
     toggle.speed_limit_vienna = toggle.navigation_ui and (params.get_bool("UseVienna") if tuning_level >= level["UseVienna"] else default.get_bool("UseVienna"))
 
-    toggle.old_long_api = openpilot_longitudinal and toggle.car_make == "gm" and toggle.has_cc_long and not has_pedal
+    toggle.old_long_api = openpilot_longitudinal and toggle.car_make == "gm" and toggle.has_cc_long and not toggle.has_pedal
     toggle.old_long_api |= openpilot_longitudinal and toggle.car_make == "hyundai" and not (params.get_bool("NewLongAPI") if tuning_level >= level["NewLongAPI"] else default.get_bool("NewLongAPI"))
 
     personalize_openpilot = params.get_bool("PersonalizeOpenpilot") if tuning_level >= level["PersonalizeOpenpilot"] else default.get_bool("PersonalizeOpenpilot")
@@ -922,7 +924,7 @@ class FrogPilotVariables:
     toggle.screen_timeout = params.get_int("ScreenTimeout") if screen_management and tuning_level >= level["ScreenTimeout"] else default.get_int("ScreenTimeout")
     toggle.screen_timeout_onroad = params.get_int("ScreenTimeoutOnroad") if screen_management and tuning_level >= level["ScreenTimeoutOnroad"] else default.get_int("ScreenTimeoutOnroad")
 
-    toggle.sng_hack = openpilot_longitudinal and toggle.car_make == "toyota" and not has_pedal and not has_sng and (params.get_bool("SNGHack") if tuning_level >= level["SNGHack"] else default.get_bool("SNGHack"))
+    toggle.sng_hack = openpilot_longitudinal and toggle.car_make == "toyota" and not toggle.has_pedal and not has_sng and (params.get_bool("SNGHack") if tuning_level >= level["SNGHack"] else default.get_bool("SNGHack"))
 
     toggle.speed_limit_controller = openpilot_longitudinal and (params.get_bool("SpeedLimitController") if tuning_level >= level["SpeedLimitController"] else default.get_bool("SpeedLimitController"))
     toggle.force_mph_dashboard = toggle.speed_limit_controller and (params.get_bool("ForceMPHDashboard") if tuning_level >= level["ForceMPHDashboard"] else default.get_bool("ForceMPHDashboard"))
