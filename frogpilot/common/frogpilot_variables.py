@@ -531,7 +531,7 @@ class FrogPilotVariables:
         CP = cp_reader.as_builder()
     else:
       CarInterface, _, _ = interfaces[MOCK.MOCK]
-      CP = CarInterface.get_params(MOCK.MOCK, gen_empty_fingerprint(), [], False, toggle, False)
+      CP = CarInterface.get_params(MOCK.MOCK, gen_empty_fingerprint(), [], False, toggle, params, False)
       CarInterface.configure_torque_tune(MOCK.MOCK, CP.lateralTuning)
 
       safety_config = car.CarParams.SafetyConfig.new_message()
