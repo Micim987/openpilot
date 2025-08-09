@@ -60,6 +60,7 @@ class FrogPilotTracking:
 
       params.put("FrogPilotStats", json.dumps(self.frogpilot_stats))
 
+      self.aol_engaged_time = 0
       self.drive_time = 0
       self.lateral_engaged_time = 0
       self.longitudinal_engaged_time = 0

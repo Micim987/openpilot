@@ -76,8 +76,8 @@ DEFAULT_MODEL = "national-public-radio"
 DEFAULT_MODEL_NAME = "National Public Radio 👀📡"
 DEFAULT_MODEL_VERSION = "v6"
 
-DEFAULT_TINYGRAD_MODEL = "tomb-raider"
-DEFAULT_TINYGRAD_MODEL_NAME = "Tomb Raider 👀📡"
+DEFAULT_TINYGRAD_MODEL = "space-lab"
+DEFAULT_TINYGRAD_MODEL_NAME = "Space Lab 👀📡"
 DEFAULT_TINYGRAD_MODEL_VERSION = "v7"
 
 BUTTON_FUNCTIONS = {
@@ -858,7 +858,7 @@ class FrogPilotVariables:
       toggle.model_version = DEFAULT_CLASSIC_MODEL_VERSION
     toggle.classic_model = toggle.model_version in {"v1", "v2", "v3", "v4"}
     toggle.tinygrad_model = toggle.model_version in {"v7"}
-    toggle.tomb_raider = toggle.model == "tomb-raider"
+    toggle.tomb_raider = toggle.model == "space-lab"
 
     toggle.model_ui = params.get_bool("ModelUI") if tuning_level >= level["ModelUI"] else default.get_bool("ModelUI")
     toggle.dynamic_path_width = toggle.model_ui and (params.get_bool("DynamicPathWidth") if tuning_level >= level["DynamicPathWidth"] else default.get_bool("DynamicPathWidth"))
