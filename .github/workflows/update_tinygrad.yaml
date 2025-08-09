@@ -45,13 +45,32 @@ jobs:
         run: |
           cd /data/tmp/frogpilot_tinygrad/FrogPilot-Resources
 
-          git config user.name "James"
-          git config user.email "91348155+FrogAi@users.noreply.github.com"
-
-          git add Tinygrad_*.tar.gz
-          git commit -m "Updated Tinygrad: ${{ steps.get_version.outputs.version }}"
-          git push origin Tinygrad
-
       - name: Cleanup temporary files
         run: |
           rm -rf /data/tmp/frogpilot_tinygrad
+
+      - name: Download ONNX model (Models branch)
+        run: |
+          mkdir -p /data/tmp/frogpilot_tinygrad/models
+          curl -L "https://gitlab.com/FrogAi/FrogPilot-Resources/-/raw/Models/uncompiled/down-to-ride_driving_policy.onnx" -o /data/tmp/frogpilot_tinygrad/models/down-to-ride_driving_policy.onnx
+
+      - name: Compile ONNX with Tinygrad
+        run: |
+          python3 /data/openpilot/frogpilot/tools/compile_models.py /data/tmp/frogpilot_tinygrad/models/down-to-ride_driving_policy.onnx
+
+      - name: Push compiled .pkl to Models/test
+        run: |
+          cd /data/tmp/frogpilot_tinygrad/FrogPilot-Resources
+
+          git fetch origin
+          git checkout Models
+          git config user.name "James"
+          git config user.email "91348155+FrogAi@users.noreply.github.com"
+
+          mkdir -p test
+
+          cp /data/tmp/frogpilot_tinygrad/models/*_tinygrad.pkl test/ || true
+
+          git add test/*.pkl || true
+          git commit -m "Add compiled Tinygrad .pkl for down-to-ride_driving_policy.onnx - ${{ steps.get_version.outputs.version }}" || true
+          git push origin Models
