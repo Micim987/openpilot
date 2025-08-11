@@ -21,114 +21,84 @@ from openpilot.frogpilot.common.frogpilot_variables import get_frogpilot_toggles
 BASE_URL = "https://nominatim.openstreetmap.org"
 MINIMUM_POPULATION = 100_000
 
-def get_county_center(latitude, longitude):
+def get_city_center(latitude, longitude):
   try:
     with requests.Session() as session:
       session.headers.update({"Accept-Language": "en"})
-      session.headers.update({"User-Agent": "frogpilot-county-center-checker/1.0 (https://github.com/FrogAi/FrogPilot)"})
+      session.headers.update({"User-Agent": "frogpilot-city-center-checker/1.0 (https://github.com/FrogAi/FrogPilot)"})
 
-      location_data = session.get(f"{BASE_URL}/reverse", params={"format": "jsonv2", "lat": latitude, "lon": longitude, "addressdetails": 1, "extratags": 1}, timeout=10).json()
-      address = location_data.get("address", {})
-      city = address.get("city") or address.get("hamlet") or address.get("municipality") or address.get("town") or address.get("village")
-      county = address.get("county", "Unknown")
-      country = address.get("country", "United States")
-      country_code = address.get("country_code", "US").upper()
-      state = address.get("state", "N/A") if country_code == "US" else "N/A"
+      response = session.get(f"{BASE_URL}/reverse", params={"addressdetails": 1, "extratags": 0, "format": "jsonv2", "lat": latitude, "lon": longitude, "namedetails": 0, "zoom": 14}, timeout=10)
+      response.raise_for_status()
+      data = response.json() or {}
 
-      if city:
-        try:
-          city_params = {"city": city, "country": country_code, "format": "json", "limit": 1, "extratags": 1}
-          if country_code == "US" and state != "N/A":
-            city_params["state"] = state
-          city_data = session.get(f"{BASE_URL}/search", params=city_params, timeout=10).json()
+      address = data.get("address") or {}
+      city_name = address.get("city") or address.get("hamlet") or address.get("town") or address.get("village")
+      country_code = (address.get("country_code") or "").lower()
+      country_name = address.get("country") or "N/A"
+      state_name = address.get("province") or address.get("region") or address.get("state") or address.get("state_district") or "N/A"
 
-          if city_data:
-            population_string = (city_data[0].get("extratags", {}) or {}).get("population")
+      if city_name:
+        response = session.get(f"{BASE_URL}/search", params={"addressdetails": 1, "extratags": 1, "format": "jsonv2", "limit": 1, "q": f"{city_name}, {state_name}, {country_name}"}, timeout=10)
+        response.raise_for_status()
+        data = response.json() or []
+
+        if data:
+          tags = data[0]
+          population = (tags.get("extratags") or {}).get("population")
+
+          population_value = None
+          if population is not None:
             try:
-              city_population = int(str(population_string).replace(",", "").strip()) if population_string else 0
+              population_value = int(str(population).replace(",", "").split(";")[0].strip())
             except Exception:
-              city_population = 0
+              population_value = None
 
-            if city_population >= MINIMUM_POPULATION:
-              center_latitude = float(city_data[0]["lat"])
-              center_longitude = float(city_data[0]["lon"])
-              print(f"Using city center for {city}, {state}, {country} → ({center_latitude}, {center_longitude})")
-              return center_latitude, center_longitude, city, state, country
-        except Exception as city_error:
-          if not isinstance(city_error, (ConnectTimeoutError, NewConnectionError, ReadTimeoutError, TimeoutError, socket.gaierror, socket.timeout)):
-            sentry.capture_exception(city_error, crash_log=False)
+          if population_value is not None and population_value >= MINIMUM_POPULATION:
+            latitude_value = float(tags["lat"])
+            longitude_value = float(tags["lon"])
 
-      try:
-        if country_code == "US" and state != "N/A":
-          state_capital_data = session.get(f"{BASE_URL}/search", params={"q": f"capital city of {state}, United States", "countrycodes": country_code.lower(), "format": "json", "limit": 5, "addressdetails": 1}, timeout=10).json()
+            resolved_address = tags.get("address") or {}
+            city_label = resolved_address.get("city") or resolved_address.get("town") or city_name
 
-          candidate = None
-          for entry in state_capital_data or []:
-            if entry.get("class") == "place" and entry.get("type") in ("city", "municipality", "town"):
-              address_info = entry.get("address", {}) or {}
-              if (state in entry.get("display_name", "")) or (address_info.get("state") == state):
-                candidate = entry
-                break
+            return latitude_value, longitude_value, city_label, state_name, country_name
 
-          if not candidate:
-            for entry in state_capital_data or []:
-              if entry.get("class") in ("boundary", "place") and entry.get("type") in ("administrative",):
-                if ("Capitol" not in entry.get("display_name", "")) and (state in entry.get("display_name", "")):
-                  candidate = entry
-                  break
+      query = f"{state_name}, United States" if country_code == "us" else f"capital of {state_name}, {country_name}"
+      response = session.get(f"{BASE_URL}/search", params={"addressdetails": 1, "extratags": 1, "format": "jsonv2", "limit": 5, "q": query}, timeout=10)
+      response.raise_for_status()
+      candidates = response.json() or []
 
-          if candidate:
-            capital_latitude = float(candidate["lat"])
-            capital_longitude = float(candidate["lon"])
-            capital_name = candidate.get("display_name", "").split(",")[0] or "Unknown"
-            print(f"City < {MINIMUM_POPULATION}. Using state capital for {state} → ({capital_latitude}, {capital_longitude})")
-            return capital_latitude, capital_longitude, capital_name, state, country
+      chosen_candidate = None
+      for candidate in candidates:
+        address = candidate.get("address") or {}
+        capital = (candidate.get("extratags") or {}).get("capital")
+        country = address.get("country")
+        state = address.get("province") or address.get("region") or address.get("state") or address.get("state_district")
 
-        country_capital_data = None
-        for query in (f"capital city of {country}", f"capital of {country}", f"{country} capital city"):
-          country_capital_data = session.get(f"{BASE_URL}/search", params={"q": query, "countrycodes": country_code.lower(), "format": "json", "limit": 10, "addressdetails": 1}, timeout=10).json()
-          if country_capital_data:
-            break
+        if (state == state_name or state_name == "N/A") and country == country_name and (capital in ("administrative", "state", "yes") or address.get("city") or address.get("town")):
+          chosen_candidate = candidate
+          break
 
-        candidate = None
-        for entry in country_capital_data or []:
-          if entry.get("class") in ("boundary", "place") and entry.get("type") in ("administrative", "city", "municipality", "town"):
-            address_info = entry.get("address", {}) or {}
-            if (address_info.get("country_code", "").upper() == country_code) or (country in entry.get("display_name", "")):
-              candidate = entry
-              break
+      if not chosen_candidate and candidates:
+        chosen_candidate = candidates[0]
 
-        if not candidate and country_capital_data:
-          for entry in country_capital_data:
-            if entry.get("class") in ("boundary", "place") and entry.get("type") in ("administrative", "city", "municipality", "town"):
-              candidate = entry
-              break
+      if chosen_candidate:
+        latitude_value = float(chosen_candidate["lat"])
+        longitude_value = float(chosen_candidate["lon"])
 
-        if not candidate and not country_capital_data:
-          country_capital_data = session.get(f"{BASE_URL}/search", params={"q": f"capital city of {country}", "format": "json", "limit": 10, "addressdetails": 1}, timeout=10).json()
-          for entry in country_capital_data or []:
-            if entry.get("class") in ("boundary", "place") and entry.get("type") in ("administrative", "city", "municipality", "town"):
-              candidate = entry
-              break
+        chosen_address = chosen_candidate.get("address") or {}
+        city_label = chosen_address.get("city") or chosen_address.get("town") or (chosen_candidate.get("display_name") or "").split(",")[0]
 
-        if candidate:
-          capital_latitude = float(candidate["lat"])
-          capital_longitude = float(candidate["lon"])
-          capital_name = candidate.get("display_name", "").split(",")[0] or "Unknown"
-          print(f"City < {MINIMUM_POPULATION}. Using country capital for {country} → ({capital_latitude}, {capital_longitude})")
-          return capital_latitude, capital_longitude, capital_name, state, country
-
-        sentry.capture_exception(Exception(f"Capital lookup returned no results for {state}/{country_code}"), crash_log=False)
-      except Exception as capital_error:
-        if not isinstance(capital_error, (ConnectTimeoutError, NewConnectionError, ReadTimeoutError, TimeoutError, socket.gaierror, socket.timeout)):
-          sentry.capture_exception(capital_error, crash_log=False)
+        return latitude_value, longitude_value, city_label, state_name, country_name
 
       print(f"Falling back to (0, 0) for {latitude}, {longitude}")
-      return float(0.0), float(0.0), city or "Unknown", state if country_code == "US" else "N/A", country
+      return float(0.0), float(0.0), "N/A", "N/A", "N/A"
 
-  except (requests.RequestException, socket.gaierror, socket.timeout, TimeoutError, Exception) as error:
-    print(f"Falling back due to geocoding error: {error}")
-    return float(0.0), float(0.0), "Unknown", "N/A", "Unknown"
+  except Exception as exception:
+    if not isinstance(exception, (ConnectTimeoutError, NewConnectionError, ReadTimeoutError, TimeoutError, socket.gaierror, socket.timeout)):
+      sentry.capture_exception(exception, crash_log=False)
+
+    print(f"Falling back to (0, 0) for {latitude}, {longitude}")
+    return float(0.0), float(0.0), "N/A", "N/A", "N/A"
 
 def install_influxdb_client():
   try:
@@ -168,7 +138,7 @@ def send_stats():
     return
   original_latitude = location.get("latitude")
   original_longitude = location.get("longitude")
-  latitude, longitude, city, state, country = get_county_center(original_latitude, original_longitude)
+  latitude, longitude, city, state, country = get_city_center(original_latitude, original_longitude)
 
   theme_sources = [
     frogpilot_toggles.icon_pack.replace("-animated", ""),
