@@ -6,11 +6,11 @@ Directories are listed in order of how they are processed.
 
 ---
 
-## tinygrad/schedule
+## tinygrad/kernelize
 
 Group UOps into kernels.
 
-::: tinygrad.schedule.kernelize.get_kernelize_map
+::: tinygrad.kernelize.kernelize.get_kernelize_map
     options:
         members: false
         show_labels: false
