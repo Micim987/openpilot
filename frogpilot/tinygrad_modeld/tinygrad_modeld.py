@@ -53,7 +53,17 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
                                                                  action_t=long_action_t)
     desired_accel = smooth_value(desired_accel, prev_action.desiredAcceleration, LONG_SMOOTH_SECONDS)
 
-    desired_curvature = model_output['desired_curvature'][0, 0]
+    # Some generations do not emit 'desired_curvature'; fall back to curvature computed from plan
+    if 'desired_curvature' in model_output:
+      desired_curvature = model_output['desired_curvature'][0, 0]
+    else:
+      desired_curvature = get_curvature_from_plan(
+        plan[:, Plan.VELOCITY][:, 0],
+        plan[:, Plan.ACCELERATION][:, 0],
+        ModelConstants.T_IDXS,
+        v_ego,
+        lat_action_t,
+      )
     if v_ego > MIN_LAT_CONTROL_SPEED:
       desired_curvature = smooth_value(desired_curvature, prev_action.desiredCurvature, LAT_SMOOTH_SECONDS)
     else:
@@ -123,10 +133,11 @@ class ModelState:
 
     self.full_features_buffer = np.zeros((1, ModelConstants.FULL_HISTORY_BUFFER_LEN,  ModelConstants.FEATURE_LEN), dtype=np.float32)
     self.full_desire = np.zeros((1, ModelConstants.FULL_HISTORY_BUFFER_LEN, ModelConstants.DESIRE_LEN), dtype=np.float32)
-    # Optional temporal buffer for previous desired curvature
-    if hasattr(self, "prev_desired_curv_key") and self.prev_desired_curv_key is not None:
-      self.full_prev_desired_curv = np.zeros((1, ModelConstants.FULL_HISTORY_BUFFER_LEN, ModelConstants.PREV_DESIRED_CURV_LEN), dtype=np.float32)
     self.temporal_idxs = slice(-1-(ModelConstants.TEMPORAL_SKIP*(ModelConstants.INPUT_HISTORY_BUFFER_LEN-1)), None, ModelConstants.TEMPORAL_SKIP)
+
+    # Optional temporal buffer for previous desired curvature (allocate only if the policy expects it)
+    if getattr(self, 'prev_desired_curv_key', None) is not None:
+      self.full_prev_desired_curv = np.zeros((1, ModelConstants.FULL_HISTORY_BUFFER_LEN, ModelConstants.PREV_DESIRED_CURV_LEN), dtype=np.float32)
 
     # policy inputs (built dynamically to support all generations)
     self.numpy_inputs = {}
@@ -211,7 +222,7 @@ class ModelState:
     policy_outputs_dict = self.parser.parse_policy_outputs(self.slice_outputs(self.policy_output, self.policy_output_slices))
 
     # TODO model only uses last value now
-    if hasattr(self, 'full_prev_desired_curv'):
+    if hasattr(self, 'full_prev_desired_curv') and 'desired_curvature' in policy_outputs_dict:
       self.full_prev_desired_curv[0,:-1] = self.full_prev_desired_curv[0,1:]
       self.full_prev_desired_curv[0,-1,:] = policy_outputs_dict['desired_curvature'][0, :]
 
