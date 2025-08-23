@@ -1,5 +1,21 @@
 #include "frogpilot/ui/qt/offroad/model_settings.h"
 
+bool hasAllTinygradFiles(const QDir &modelDir, const QString &modelKey) {
+  QStringList tinygradSuffixes = {
+    "_driving_policy_metadata.pkl",
+    "_driving_policy_tinygrad.pkl",
+    "_driving_vision_metadata.pkl",
+    "_driving_vision_tinygrad.pkl"
+  };
+
+  for (const QString &suffix : tinygradSuffixes) {
+    if (!modelDir.exists(modelKey + suffix)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 FrogPilotModelPanel::FrogPilotModelPanel(FrogPilotSettingsWindow *parent) : FrogPilotListWidget(parent), parent(parent) {
   QStackedLayout *modelLayout = new QStackedLayout();
   addItem(modelLayout);
@@ -336,7 +352,7 @@ void FrogPilotModelPanel::showEvent(QShowEvent *event) {
   noModelsDownloaded = deletableModels.isEmpty();
 
   QString modelKey = QString::fromStdString(params.get("Model"));
-  if (!modelDir.exists(modelKey + ".thneed")) {
+  if (!modelDir.exists(modelKey + ".thneed") && !hasAllTinygradFiles(modelDir, modelKey)) {
     modelKey = QString::fromStdString(params_default.get("Model"));
   }
   currentModel = modelFileToNameMap.value(modelKey);
@@ -365,7 +381,7 @@ void FrogPilotModelPanel::updateState(const UIState &s, const FrogPilotUIState &
 
   if (allModelsDownloading || modelDownloading) {
     QString progress = QString::fromStdString(params_memory.get("ModelDownloadProgress"));
-    bool downloadFailed = progress.contains(QRegularExpression("cancelled|exists|failed|offline", QRegularExpression::CaseInsensitiveOption));
+    bool downloadFailed = progress.contains(QRegularExpression("cancelled|exists|failed|missing|offline", QRegularExpression::CaseInsensitiveOption));
 
     if (progress != "Downloading...") {
       downloadModelBtn->setValue(progress);
@@ -400,8 +416,8 @@ void FrogPilotModelPanel::updateState(const UIState &s, const FrogPilotUIState &
   downloadModelBtn->setText(0, modelDownloading ? tr("CANCEL") : tr("DOWNLOAD"));
   downloadModelBtn->setText(1, allModelsDownloading ? tr("CANCEL") : tr("DOWNLOAD ALL"));
 
-  downloadModelBtn->setEnabledButtons(0, !allModelsDownloaded && !allModelsDownloading && !cancellingDownload && fs.frogpilot_scene.online && parked);
-  downloadModelBtn->setEnabledButtons(1, !allModelsDownloaded && !modelDownloading && !cancellingDownload && fs.frogpilot_scene.online && parked);
+  downloadModelBtn->setEnabledButtons(0, !allModelsDownloaded && !allModelsDownloading && !cancellingDownload && !finalizingDownload && fs.frogpilot_scene.online && parked);
+  downloadModelBtn->setEnabledButtons(1, !allModelsDownloaded && !modelDownloading && !cancellingDownload && !finalizingDownload && fs.frogpilot_scene.online && parked);
 
   downloadModelBtn->setVisibleButton(0, !allModelsDownloading);
   downloadModelBtn->setVisibleButton(1, !modelDownloading);
