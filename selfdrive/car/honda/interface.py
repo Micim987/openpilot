@@ -206,15 +206,36 @@ class CarInterface(CarInterfaceBase):
       if ret.flags & HondaFlagsFP.EPS_MODIFIED:
         for fw in car_fw:
           if fw.ecu == "eps" and b"-" not in fw.fwVersion and b"," in fw.fwVersion:
-            ret.lateralTuning.pid.kf = 0.00004
             ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 5760, 15360], [0, 2560, 3840]]
-            ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.1575], [0.05175]]
+            if ret.lateralTuning.which() != "torque":
+              ret.lateralTuning.pid.kf = 0.00004
+              ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.1575], [0.05175]]
+            else:
+              ret.lateralTuning.torque.useSteeringAngle = True
+              ret.lateralTuning.torque.kp = 1.0
+              ret.lateralTuning.torque.kf = 1.0
+              ret.lateralTuning.torque.ki = 0.3
+              ret.lateralTuning.torque.friction = 0.11
+              ret.lateralTuning.torque.latAccelFactor = 2.21
+              ret.lateralTuning.torque.latAccelOffset = 0.0
+              ret.lateralTuning.torque.steeringAngleDeadzoneDeg = 0.0
           elif fw.ecu == "eps" and b"-" in fw.fwVersion and b"," in fw.fwVersion:
             ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 5760, 10240], [0, 2560, 3840]]
-            ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3], [0.1]]
+            if ret.lateralTuning.which() != "torque":
+              ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3], [0.1]]
+            else:
+              ret.lateralTuning.torque.useSteeringAngle = True
+              ret.lateralTuning.torque.kp = 1.0
+              ret.lateralTuning.torque.kf = 1.0
+              ret.lateralTuning.torque.ki = 0.3
+              ret.lateralTuning.torque.friction = 0.17
+              ret.lateralTuning.torque.latAccelFactor = 1.86
+              ret.lateralTuning.torque.latAccelOffset = 0.0
+              ret.lateralTuning.torque.steeringAngleDeadzoneDeg = 0.0
       else:
         ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 2560], [0, 2560]]
-        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.8], [0.24]]
+        if ret.lateralTuning.which() != "torque":
+          ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.8], [0.24]]
 
     else:
       raise ValueError(f"unsupported car {candidate}")
