@@ -106,11 +106,24 @@ class CarInterface(CarInterfaceBase):
         # stock filter output values:     0x009F, 0x0108, 0x0108, 0x0108, 0x0108, 0x0108, 0x0108, 0x0108, 0x0108
         # modified filter output values:  0x009F, 0x0108, 0x0108, 0x0108, 0x0108, 0x0108, 0x0108, 0x0400, 0x0480
         # note: max request allowed is 4096, but request is capped at 3840 in firmware, so modifications result in 2x max
-        ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 2560, 8000], [0, 2560, 3840]]
-        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3], [0.1]]
+        ret.lateralParams.torqueV = [0, 3072, 6144, 9216, 14400, 18432, 21504, 24576, 28800]  # Actual EPS Values
+        ret.lateralParams.torqueBP = [0, 192, 512, 1024, 1920, 2560, 3072, 3584, 3840]
+        if ret.lateralTuning.which() != "torque":
+          ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3], [0.1]]
+        else:
+          ret.lateralTuning.torque.useSteeringAngle = True
+          ret.lateralTuning.torque.kp = 1.0
+          ret.lateralTuning.torque.kf = 1.0
+          ret.lateralTuning.torque.ki = 0.3
+          ret.lateralTuning.torque.friction = 0.125
+          ret.lateralTuning.torque.latAccelFactor = 3.01
+          ret.lateralTuning.torque.latAccelOffset = 0.0
+          ret.lateralTuning.torque.steeringAngleDeadzoneDeg = 0.0
       else:
-        ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 2560], [0, 2560]]
-        ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[1.1], [0.33]]
+        ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 2560], [0, 2560]]  # Stock Honda EPS Firmware
+        if ret.lateralTuning.which() != "torque":
+          ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[1.1], [0.33]]  # Stock Honda EPS Firmware
+          ret.lateralTuning.pid.kf = 0.00006  # Default feed-forward
 
     elif candidate in (CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CIVIC_BOSCH_DIESEL, CAR.HONDA_CIVIC_2022):
       if ret.flags & HondaFlagsFP.EPS_MODIFIED:
