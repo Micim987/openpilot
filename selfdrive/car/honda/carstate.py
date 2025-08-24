@@ -9,6 +9,7 @@ from openpilot.selfdrive.car.honda.hondacan import CanBus, get_cruise_speed_conv
 from openpilot.selfdrive.car.honda.values import CAR, DBC, STEER_THRESHOLD, HONDA_BOSCH, \
                                                  HONDA_NIDEC_ALT_SCM_MESSAGES, HONDA_BOSCH_RADARLESS, \
                                                  HondaFlags
+from openpilot.frogpilot.car.honda.values_ext import HONDA_NIDEC_PEDAL_DEADZONE
 from openpilot.selfdrive.car.interfaces import CarStateBase
 
 TransmissionType = car.CarParams.TransmissionType
@@ -201,7 +202,7 @@ class CarState(CarStateBase):
     if self.CP.enableGasInterceptor:
       # Same threshold as panda, equivalent to 1e-5 with previous DBC scaling
       ret.gas = (cp.vl["GAS_SENSOR"]["INTERCEPTOR_GAS"] + cp.vl["GAS_SENSOR"]["INTERCEPTOR_GAS2"]) // 2
-      ret.gasPressed = ret.gas > 492
+      ret.gasPressed = ret.gas > 512 if self.CP.carFingerprint in HONDA_NIDEC_PEDAL_DEADZONE else ret.gas > 492
     else:
       ret.gas = cp.vl["POWERTRAIN_DATA"]["PEDAL_GAS"]
       ret.gasPressed = ret.gas > 1e-5
