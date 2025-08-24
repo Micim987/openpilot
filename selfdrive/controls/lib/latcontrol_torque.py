@@ -3,6 +3,7 @@ import math
 from cereal import log
 from openpilot.common.numpy_fast import interp
 from openpilot.selfdrive.car.interfaces import LatControlInputs
+from openpilot.selfdrive.car.honda.values import CAR
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.pid import PIDController
 from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
@@ -22,6 +23,8 @@ from openpilot.frogpilot.controls.lib.neural_network_feedforward import LOW_SPEE
 
 LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [15, 13, 10, 5]
+LOW_SPEED_Y_CLARITY = [30, 15, 10, 5]
+LOW_SPEED_Y_CIVIC = [40, 20, 10, 5]
 
 
 class LatControlTorque(LatControl):
@@ -33,6 +36,9 @@ class LatControlTorque(LatControl):
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.use_steering_angle = self.torque_params.useSteeringAngle
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
+
+    # specific car fingerprint
+    self.carFingerprint = CP.carFingerprint
 
     # FrogPilot variables
     self.nnff = NeuralNetworkFeedforward(CP, CI, self)
@@ -66,7 +72,15 @@ class LatControlTorque(LatControl):
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
-      low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
+      if frogpilot_toggles.nnff:
+        low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN)**2
+      elif self.carFingerprint == CAR.HONDA_CLARITY:
+        low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_CLARITY)**2
+      elif self.carFingerprint == CAR.HONDA_CIVIC:
+        low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_CIVIC)**2
+      else:
+        low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
+
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
       gravity_adjusted_lateral_accel = desired_lateral_accel - roll_compensation
