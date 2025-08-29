@@ -42,7 +42,8 @@ class CarInterface(CarInterfaceBase):
 
   def torque_from_lateral_accel_modded(self, latcontrol_inputs: LatControlInputs, torque_params: car.CarParams.LateralTorqueTuning,
                                        lateral_accel_error: float, lateral_accel_deadzone: float, friction_compensation: bool, gravity_adjusted: bool) -> float:
-    threshold = 0.8
+    threshold = 0.9
+    # 0.8 is intuitive since modded torque only occurs after 80% of max torque, but due to total system lag, 0.9 seems to trace curves the smoothest without going into too much steering
     threshold_lat_accel = 1/torque_params.latAccelFactor * threshold
     # as per Aragon, raise lateral acceleration factor = torque gets spread out over a larger surface area
     # lowering = it’s reduced over the surface area and thus you turn early
