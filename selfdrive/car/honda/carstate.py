@@ -81,6 +81,7 @@ def get_can_messages(CP, gearbox_msg):
     messages.append(("CRUISE_FAULT_STATUS", 50))
   elif CP.carFingerprint == CAR.HONDA_CLARITY:
     messages.append(("BRAKE_ERROR", 100)),
+    messages.append(("BRAKE_HOLD", 25)),
   elif CP.openpilotLongitudinalControl:
     messages.append(("STANDSTILL", 50))
 
