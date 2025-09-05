@@ -191,11 +191,11 @@ class CarState(CarStateBase):
 
     ret.leftBlinker, ret.rightBlinker = self.update_blinker_from_stalk(
       250, cp.vl["SCM_FEEDBACK"]["LEFT_BLINKER"], cp.vl["SCM_FEEDBACK"]["RIGHT_BLINKER"])
-    if self.CP.carFingerprint in HONDA_BOSCH_RADARLESS:
-      ret.brakeHoldActive = cp.vl["VSA_STATUS"]["BRAKE_HOLD_ACTIVE"] == 1
-    elif self.CP.carFingerprint == CAR.HONDA_CLARITY:
+    if self.CP.carFingerprint == CAR.HONDA_CLARITY:
       ret.brakeHoldActive = cp.vl["BRAKE_HOLD"]["BRAKE_HOLD_ACTIVE"] == 1
-    
+    else
+      ret.brakeHoldActive = cp.vl["VSA_STATUS"]["BRAKE_HOLD_ACTIVE"] == 1
+      
     # TODO: set for all cars
     if self.CP.carFingerprint in (HONDA_BOSCH | {CAR.HONDA_CIVIC, CAR.HONDA_CLARITY, CAR.HONDA_ODYSSEY, CAR.HONDA_ODYSSEY_CHN}):
       ret.parkingBrake = cp.vl["EPB_STATUS"]["EPB_STATE"] != 0
