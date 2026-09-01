@@ -523,6 +523,14 @@ def hardware_thread(end_event, hw_queue, telemetry_queue) -> None:
                            chestnut_state if chestnut_valid else None, set_offroad_alert_if_changed)
     stage_started = log_slow_hardware_stage("main", "display_usb_chestnut", stage_started, last_slow_stage_log,
                                             started_ts is not None, sm.frame)
+
+    # jetlink sets up its USB gadget at boot, as root, from launch_chffrplus.sh.
+    # A kernel without the gadget drivers, or a missing package, would otherwise
+    # leave the feature silently absent for a user who has switched it on.
+    from openpilot.sunnypilot.jetlink.helpers import gadget_alert
+    jetlink_error = gadget_alert()
+    set_offroad_alert_if_changed("Offroad_JetlinkGadget", jetlink_error is not None,
+                                 extra_text=jetlink_error)
     # this subset is only used for offroad
     temp_sources = [
       msg.deviceState.memoryTempC,
