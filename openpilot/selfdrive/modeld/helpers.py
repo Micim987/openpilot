@@ -48,6 +48,10 @@ def load_oob(f):
   return pickle.load(io.BytesIO(opcodes), buffers=buffers())
 
 def chestnut_present() -> bool:
+  # Strictly "is chestnut hardware attached". Do NOT widen this to mean "an
+  # accelerator is available": SConscript and modeld_v2 use it to decide
+  # whether to build and load a tinygrad pkl against the AMD GPU, which an
+  # attached Jetson does not have. See sunnypilot/jetlink/helpers.py.
   for d in USB_DEVICES_PATH.glob("*"):
     try:
       usb_id = (int((d / "idVendor").read_text(), 16), int((d / "idProduct").read_text(), 16))
@@ -60,7 +64,6 @@ def chestnut_present() -> bool:
 
 def chestnut_compiled() -> bool:
   return Path(get_manifest_path(modeld_pkl_path(chestnut=True))).is_file()
-
 
 def chestnut_ready(state) -> bool:
   return state.supplyVoltage >= CHESTNUT_POWERED_VOLTAGE and not state.supplyFault and state.pcieLtssm == CHESTNUT_PCIE_READY

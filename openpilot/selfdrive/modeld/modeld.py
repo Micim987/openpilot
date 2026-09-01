@@ -35,6 +35,7 @@ from openpilot.common.hardware.usb import CHESTNUT_USB_IDS
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 from openpilot.selfdrive.modeld.helpers import chestnut_present, chestnut_compiled, chestnut_ready, modeld_pkl_path, load_oob
 
+from openpilot.sunnypilot.jetlink import hook as jetlink
 from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
 from openpilot.sunnypilot.selfdrive.controls.lib.relc import RoadEdgeLaneChangeController
@@ -251,9 +252,14 @@ class ModelState(ModelStateBase):
 def main(demo=False):
   cloudlog.warning("modeld init")
 
+  # A provisioned jetlink Jetson stands in for chestnut: same big model, same
+  # params, same chestnutState. See sunnypilot/jetlink/.
+  JETLINK = jetlink.available()
   chestnut_available = chestnut_present() and chestnut_compiled()
   CHESTNUT = False
-  if chestnut_available:
+  if JETLINK:
+    CHESTNUT = True
+  elif chestnut_available:
     poller = messaging.Poller()
     sock = messaging.sub_sock("chestnutState", poller=poller, conflate=True)
     deadline = time.monotonic() + 4. / SERVICE_LIST['deviceState'].frequency
@@ -262,7 +268,8 @@ def main(demo=False):
         break
       msg = messaging.recv_one_or_none(sock)
       CHESTNUT = msg is not None and msg.valid and chestnut_ready(msg.chestnutState)
-  if CHESTNUT:
+
+  if CHESTNUT and not JETLINK:
     os.environ['HCQDEV_WAIT_TIMEOUT_MS'] = '3000'
   params = Params()
   params.put_bool("ChestnutLoading", CHESTNUT)
@@ -304,7 +311,8 @@ def main(demo=False):
     def load_big():
       nonlocal big_model
       try:
-        m = ModelState(vipc_client_main.width, vipc_client_main.height, True)
+        m = (jetlink.make_model_state(vipc_client_main.width, vipc_client_main.height) if JETLINK
+             else ModelState(vipc_client_main.width, vipc_client_main.height, True))
         m.warmup()
         big_model = m
       except Exception:
@@ -333,7 +341,7 @@ def main(demo=False):
 
   publish_state = PublishState()
   params = Params()
-  chestnut_state = ChestnutState(pm, model.chestnut) if CHESTNUT else None
+  chestnut_state = model.make_chestnut_state(pm) if CHESTNUT else None
 
   # setup filter to track dropped frames
   frame_dropped_filter = FirstOrderFilter(0., 10., 1. / ModelConstants.MODEL_RUN_FREQ)
