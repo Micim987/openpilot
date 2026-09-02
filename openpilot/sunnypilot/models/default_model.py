@@ -12,7 +12,7 @@ from openpilot.sunnypilot.models.fetcher import ModelFetcher
 
 
 def get_default_model() -> str:
-  show_big_model = (ui_state.chestnut_present
+  show_big_model = (ui_state.chestnut_catalog
                     and (ui_state.chestnut_active or ui_state.chestnut_loading or ui_state.is_offroad()))
 
   return DEFAULT_BIG_MODEL if show_big_model else DEFAULT_MODEL
