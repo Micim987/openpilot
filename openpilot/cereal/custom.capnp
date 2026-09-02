@@ -42,6 +42,11 @@ struct IntelligentCruiseButtonManagement {
     none @0;
     increase @1;
     decrease @2;
+    # sustained button stream at the message's native rate: the fast walk for large
+    # moves (interleaved with the wheel's own frames it registers as paced presses,
+    # never as a held button)
+    increaseHold @3;
+    decreaseHold @4;
   }
 }
 
@@ -228,6 +233,9 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
       maxPredictedLateralAccel @4 :Float32;
       enabled @5 :Bool;
       active @6 :Bool;
+      # lowest planned speed on the model horizon, m/s; 0 = no lookahead (feature off,
+      # long disabled, or no model), 255 caps "nothing binding ahead"
+      vAheadMin @7 :Float32;
     }
 
     struct Map {
@@ -354,6 +362,7 @@ struct OnroadEventSP @0xda96579883444c35 {
     e2eChime @23;
     laneChangeRoadEdge @24;
     bigModelReady @25;
+    controlsMismatchLateralWarning @26;
   }
 }
 
@@ -383,6 +392,13 @@ struct CarControlSP @0xa5cd762cd951a455 {
   leadOne @2 :LeadData;
   leadTwo @3 :LeadData;
   intelligentCruiseButtonManagement @4 :IntelligentCruiseButtonManagement;
+  turnAssistDEPRECATED @5 :TurnAssistDEPRECATED;  # low-speed turn assist removed 2026-09; ordinal kept for old logs
+  zoompilot @6 :CarControlZP;
+
+  struct TurnAssistDEPRECATED {
+    holdCurvature @0 :Float32;
+    leadCurvature @1 :Float32;
+  }
 
   struct Param {
     key @0 :Text;
@@ -448,6 +464,7 @@ struct BackupManagerSP @0xf98d843bfd7004a3 {
 struct CarStateSP @0xb86e6369214c01c8 {
   speedLimit @0 :Float32;
   gasInterceptorState @1 :UInt8;
+  zoompilot @2 :CarStateZP;
 }
 
 struct LiveMapDataSP @0xf416ec09499d9d19 {
@@ -537,5 +554,55 @@ struct CustomReserved17 @0xa30662f84033036c {
 struct CustomReserved18 @0xc86a3d38d13eb3ef {
 }
 
+# zoompilot: the liveTorqueParametersSP message (torqued_ext), on the last of sunnypilot's
+# reserved slots so log.capnp's Event union stays untouched. The service is customReserved19.
 struct CustomReserved19 @0xa4f1eb3323f5f582 {
+  version @0 :Int32;               # torqued VERSION, keys the cache restore with CarParamsPrevRoute
+  speedBinCenters @1 :List(Float32);
+  speedBinLatAccelFactors @2 :List(Float32);
+  speedBinFrictions @3 :List(Float32);
+  speedBinValid @4 :List(Bool);
+  # cache-only: empty on the published message; the per-bin buckets are thousands of
+  # points and only the restore path reads them (LiveTorqueParametersSP param)
+  speedBinPoints @5 :List(List(List(Float32)));
+}
+
+# ---- zoompilot -----------------------------------------------------------------------------
+# Fork structs. Each sunnypilot struct above carries at most one fork field, a nested
+# `zoompilot` struct defined here, so an upstream append to those structs never lands on a
+# fork ordinal.
+
+struct CarStateZP @0xc879af11c43cb400 {
+  cruiseSession @0 :CruiseSession;
+
+  # The card-side cruise arbiter's session, published at carState rate. On non-pcm
+  # cars this is the authoritative SLA session: plannerd mirrors it into
+  # longitudinalPlanSP.speedLimit.assist for the UI, and the ICBM servo freezes while
+  # a confirm prompt is pending. announceCounter lets 20 Hz consumers see 100 Hz
+  # alert-worthy transitions without sampling loss.
+  struct CruiseSession {
+    state @0 :LongitudinalPlanSP.SpeedLimit.AssistState;
+    # plan cap in m/s: the session target while active, the frozen hold while
+    # prompting, V_CRUISE_UNSET (255) otherwise
+    vCap @1 :Float32;
+    lastIntent @2 :CruiseIntent;
+    announceCounter @3 :UInt32;     # bumps when an activation must raise the alert
+
+    enum CruiseIntent {
+      none @0;
+      increment @1;
+      decrement @2;
+      confirm @3;
+      decline @4;
+      dismiss @5;
+    }
+  }
+}
+
+struct CarControlZP @0xaadf9bc39b7bd41e {
+  laneChangeSmoothing @0 :LaneChangeSmoothing;
+
+  struct LaneChangeSmoothing {
+    jerkFactor @0 :Float32;
+  }
 }
