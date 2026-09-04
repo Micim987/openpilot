@@ -32,13 +32,14 @@ the Jetson re-enumerates, which both ends handle.
 from __future__ import annotations
 
 import signal
+import threading
 import time
 
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot import accelerators
-from openpilot.sunnypilot.accelerators.jetlink import helpers, spec_cache
+from openpilot.sunnypilot.accelerators.jetlink import helpers, spec_cache, warp_cache
 
 POLL_HZ = 2.0
 RETRY_BACKOFF = 30.0       # after a failed provision
@@ -71,6 +72,8 @@ class Jetlinkd:
     self.fetch_failed = False
     self.verified = False   # the server has confirmed the ready param this attach
     self._identity: tuple | None = None   # (source, sha256, nbytes) of the hashed file
+    self.warp_built = False  # tried the comma-side warp this run
+    self.warp_thread: threading.Thread | None = None
 
   # -- lifecycle ------------------------------------------------------------
 
@@ -126,6 +129,37 @@ class Jetlinkd:
       self.fetch_failed = True
       return None
     return path
+
+  def build_warp(self) -> None:
+    """Compile the comma-side warp, once per run, while we are parked.
+
+    Not part of provision(): the warp depends only on this device's camera and
+    the small model's input size, not on which large model is selected or on
+    the Jetson answering. A Jetson that never provisions still leaves a warp
+    ready for the next one, and a warp that cannot be built costs the large
+    model, not the drive - modeld falls back exactly as it does for any other
+    big-model load failure.
+
+    On a thread, because the compile is ~9 s of GPU work with nothing in it
+    that can poll `stop`, and manager SIGKILLs this daemon 5 s after the SIGINT
+    it sends at the onroad transition. Blocking the loop here meant the link
+    was still open when the kill landed - observed twice in one evening, 7.5 s
+    and 5 s - which is exactly the mid-transfer kill the module docstring says
+    to avoid. Abandoning the compile is safe: it touches no link, and it writes
+    the pickle and its metadata through temporaries, so a killed build leaves
+    nothing half-written for the next run to find.
+    """
+    if self.warp_built:
+      return
+    self.warp_built = True
+    accelerators.report_progress('warp', 0.0, 'compiling the camera warp')
+
+    def build() -> None:
+      if warp_cache.ensure(*warp_cache.device_geometry()):
+        accelerators.clear_progress()
+
+    self.warp_thread = threading.Thread(target=build, daemon=True, name='jetlink_warp')
+    self.warp_thread.start()
 
   def provision(self) -> bool:
     """Make the Jetson ready for the selected model. Host must be attached."""
@@ -204,6 +238,12 @@ class Jetlinkd:
         self.close_link()
       return
 
+    # Before the link and before the attach gate: the warp needs neither, and
+    # it is the one thing modeld refuses to start the large model without. It
+    # used to sit below `if not attached: return`, so a Jetson that was slow to
+    # enumerate delayed the compile as well, and the compile is the long pole.
+    self.build_warp()
+
     if time.monotonic() < self.next_attempt:
       return
     if not self.open_link():
@@ -224,9 +264,11 @@ class Jetlinkd:
         # It powered down or rebooted. Readiness is about the engine on the
         # Jetson, which survives, so keep it; modeld reconnects on its own.
         self.ready = False
+    if not attached:
+      return
     # Provisioning backs off on its own timer, so that a long wait for an
     # unresponsive server still leaves us watching for one that reappears.
-    if not attached or time.monotonic() < self.next_provision:
+    if time.monotonic() < self.next_provision:
       return
 
     try:
@@ -258,6 +300,8 @@ class Jetlinkd:
         self.close_link()
         self.next_attempt = time.monotonic() + RECONNECT_BACKOFF
     self.close_link()
+    if self.warp_thread is not None and self.warp_thread.is_alive():
+      cloudlog.warning("jetlink: stopped with the warp still compiling; it will rebuild next time")
     cloudlog.warning("jetlink: stopped")
 
 
