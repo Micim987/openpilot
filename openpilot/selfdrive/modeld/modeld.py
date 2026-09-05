@@ -164,22 +164,11 @@ def main(demo=False):
   # Whatever runs the large model here: comma's chestnut board, an attached
   # Jetson, nothing. See sunnypilot/accelerators/.
   accel = accelerators.active()
-  if accel and accel.name == "chestnut":
-    poller = messaging.Poller()
-    sock = messaging.sub_sock("chestnutState", poller=poller, conflate=True)
-    deadline = time.monotonic() + 4. / SERVICE_LIST['deviceState'].frequency
-    ready = False
-    while not ready and (remaining := deadline - time.monotonic()) > 0.:
-      if not poller.poll(round(remaining * 1000)):
-        break
-      msg = messaging.recv_one_or_none(sock)
-      ready = msg is not None and msg.valid and chestnut_ready(msg.chestnutState)
-    if not ready:
-      accel = None
-
-  CHESTNUT = accel is not None
-  if CHESTNUT:
-    accel.prepare()
+  # Fitted is not the same as ready to load on. A chestnut can enumerate before
+  # its PCIe link is trained and before 12V is up; a jetlink can be mid-attach.
+  # prepare() is where a backend waits for the real thing and may still say no,
+  # because active() has to stay cheap enough for the UI to call it.
+  CHESTNUT = accel is not None and accelerators.prepare(accel)
   params = Params()
   params.put_bool("ChestnutLoading", CHESTNUT)
   chestnut_available = chestnut_present() and chestnut_compiled()
