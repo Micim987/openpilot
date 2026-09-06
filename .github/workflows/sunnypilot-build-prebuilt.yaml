@@ -240,18 +240,25 @@ jobs:
           TINYGRAD_REF=$(gh api "repos/${GH_REPO}/contents/tinygrad_repo?ref=${REF}" --jq '.sha')
           echo "tinygrad ref: $TINYGRAD_REF"
 
+          # the pkl schema follows the compile scripts as much as tinygrad: sync-20260902 changed
+          # compile_modeld.py with neither the ONNX nor tinygrad moving, and HF served the old pkl
+          COMPILE_REF=$(for f in openpilot/selfdrive/modeld/compile_modeld.py openpilot/selfdrive/modeld/get_model_metadata.py openpilot/selfdrive/modeld/compile_dm_warp.py openpilot/system/camerad/cameras/nv12_info.py; do gh api "repos/${GH_REPO}/contents/${f}?ref=${REF}" --jq '.sha'; done | sha256sum | cut -d' ' -f1)
+          echo "compile ref: $COMPILE_REF"
+
           JSON_URL="https://huggingface.co/datasets/${HF_REPO}/resolve/main/${HF_DEFAULTS_PATH}/default_models.json"
 
           check_defaults() {
             DEFAULTS=$(curl -fsSL "${JSON_URL}?t=$(date +%s)" 2>/dev/null) || return 1
             TINYGRAD_MATCH=$(echo "$DEFAULTS" | jq -r --arg ref "$TINYGRAD_REF" '.tinygrad_ref == $ref' 2>/dev/null)
             [ "$TINYGRAD_MATCH" = "true" ] || return 1
+            COMPILE_MATCH=$(echo "$DEFAULTS" | jq -r --arg ref "$COMPILE_REF" '.compile_ref == $ref' 2>/dev/null)
+            [ "$COMPILE_MATCH" = "true" ] || return 1
             BUNDLE=$(echo "$DEFAULTS" | jq --arg hash "$ONNX_HASH" '.bundles[] | select(.onnx_sha256 == $hash)' 2>/dev/null)
             [ -n "$BUNDLE" ] && [ "$BUNDLE" != "null" ]
           }
 
           if check_defaults; then
-            echo "HF defaults match repo ONNX hash and tinygrad ref"
+            echo "HF defaults match repo ONNX hash, tinygrad ref and compile ref"
             exit 0
           fi
 
@@ -323,18 +330,25 @@ jobs:
           TINYGRAD_REF=$(gh api "repos/${GH_REPO}/contents/tinygrad_repo?ref=${REF}" --jq '.sha')
           echo "tinygrad ref: $TINYGRAD_REF"
 
+          # the pkl schema follows the compile scripts as much as tinygrad: sync-20260902 changed
+          # compile_modeld.py with neither the ONNX nor tinygrad moving, and HF served the old pkl
+          COMPILE_REF=$(for f in openpilot/selfdrive/modeld/compile_modeld.py openpilot/selfdrive/modeld/get_model_metadata.py openpilot/selfdrive/modeld/compile_dm_warp.py openpilot/system/camerad/cameras/nv12_info.py; do gh api "repos/${GH_REPO}/contents/${f}?ref=${REF}" --jq '.sha'; done | sha256sum | cut -d' ' -f1)
+          echo "compile ref: $COMPILE_REF"
+
           JSON_URL="https://huggingface.co/datasets/${HF_REPO}/resolve/main/${HF_DEFAULTS_PATH}/default_models.json"
 
           check_defaults() {
             DEFAULTS=$(curl -fsSL "${JSON_URL}?t=$(date +%s)" 2>/dev/null) || return 1
             TINYGRAD_MATCH=$(echo "$DEFAULTS" | jq -r --arg ref "$TINYGRAD_REF" '.tinygrad_ref == $ref' 2>/dev/null)
             [ "$TINYGRAD_MATCH" = "true" ] || return 1
+            COMPILE_MATCH=$(echo "$DEFAULTS" | jq -r --arg ref "$COMPILE_REF" '.compile_ref == $ref' 2>/dev/null)
+            [ "$COMPILE_MATCH" = "true" ] || return 1
             DRIVING=$(echo "$DEFAULTS" | jq --arg hash "$DRIVING_HASH" '.bundles[] | select(.onnx_sha256 == $hash)' 2>/dev/null)
             [ -n "$DRIVING" ] && [ "$DRIVING" != "null" ] || return 1
           }
 
           if check_defaults; then
-            echo "HF defaults match repo ONNX hash and tinygrad ref"
+            echo "HF defaults match repo ONNX hash, tinygrad ref and compile ref"
             exit 0
           fi
 
@@ -406,18 +420,25 @@ jobs:
           TINYGRAD_REF=$(gh api "repos/${GH_REPO}/contents/tinygrad_repo?ref=${REF}" --jq '.sha')
           echo "tinygrad ref: $TINYGRAD_REF"
 
+          # the pkl schema follows the compile scripts as much as tinygrad: sync-20260902 changed
+          # compile_modeld.py with neither the ONNX nor tinygrad moving, and HF served the old pkl
+          COMPILE_REF=$(for f in openpilot/selfdrive/modeld/compile_modeld.py openpilot/selfdrive/modeld/get_model_metadata.py openpilot/selfdrive/modeld/compile_dm_warp.py openpilot/system/camerad/cameras/nv12_info.py; do gh api "repos/${GH_REPO}/contents/${f}?ref=${REF}" --jq '.sha'; done | sha256sum | cut -d' ' -f1)
+          echo "compile ref: $COMPILE_REF"
+
           JSON_URL="https://huggingface.co/datasets/${HF_REPO}/resolve/main/${HF_DEFAULTS_PATH}/default_models.json"
 
           check_defaults() {
             DEFAULTS=$(curl -fsSL "${JSON_URL}?t=$(date +%s)" 2>/dev/null) || return 1
             TINYGRAD_MATCH=$(echo "$DEFAULTS" | jq -r --arg ref "$TINYGRAD_REF" '.tinygrad_ref == $ref' 2>/dev/null)
             [ "$TINYGRAD_MATCH" = "true" ] || return 1
+            COMPILE_MATCH=$(echo "$DEFAULTS" | jq -r --arg ref "$COMPILE_REF" '.compile_ref == $ref' 2>/dev/null)
+            [ "$COMPILE_MATCH" = "true" ] || return 1
             DM=$(echo "$DEFAULTS" | jq --arg hash "$DM_HASH" '.bundles[] | select(.onnx_sha256 == $hash)' 2>/dev/null)
             [ -n "$DM" ] && [ "$DM" != "null" ] || return 1
           }
 
           if check_defaults; then
-            echo "HF defaults match DM ONNX hash and tinygrad ref"
+            echo "HF defaults match DM ONNX hash, tinygrad ref and compile ref"
             exit 0
           fi
 
