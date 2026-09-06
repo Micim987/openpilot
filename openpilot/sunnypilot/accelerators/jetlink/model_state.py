@@ -143,6 +143,7 @@ class JetlinkModelState(ModelStateBase):
     # Publish health while the Jetson works, exactly where modeld puts it.
     if after_enqueue is not None:
       after_enqueue()
+    callback_done = time.perf_counter()
     # Blocks like a chestnut frame does. A long frame is a dropped camera
     # frame, which modeld counts; only a stall past the client's FRAME_TIMEOUT
     # raises, and that lands in modeld's fallback to the small model.
@@ -161,6 +162,12 @@ class JetlinkModelState(ModelStateBase):
                        + "server gpu %.1f queue %.1f total %.1f ms", self._frame_id,
                        (t1 - t0) * 1e3, (t2 - t1) * 1e3, (t3 - t2) * 1e3, (t4 - t3) * 1e3,
                        gpu_us / 1e3, queue_us / 1e3, total_us / 1e3)
+      receive = getattr(self.client.t, 'last_receive', {})
+      cloudlog.warning("jetlink: frame %d health %.1f wait %.1f ms; "
+                       + "ffs maxima prepare %.1f read_wait %.1f handoff %.1f ms", self._frame_id,
+                       (callback_done - t3) * 1e3, (t4 - callback_done) * 1e3,
+                       receive.get('prepare', 0.0) * 1e3, receive.get('read_wait', 0.0) * 1e3,
+                       receive.get('handoff', 0.0) * 1e3)
 
     # The non-finite guard that upstream's ModelState.run does here runs on the
     # server instead (session.on_infer), which reports Status.NOT_FINITE; the

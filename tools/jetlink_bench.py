@@ -24,6 +24,8 @@ def main():
   parser.add_argument('--seconds', type=float, default=180)
   parser.add_argument('--output', type=Path, required=True)
   parser.add_argument('--small', action='store_true')
+  parser.add_argument('--write-chunk', type=int, choices=[16384, 32768, 65536, 131072, 262144, 524288],
+                      help='bench-only FunctionFS write quantum override, in bytes')
   args = parser.parse_args()
   if args.seconds <= 0:
     parser.error('--seconds must be positive')
@@ -70,9 +72,15 @@ def main():
     print(f'isolated prefix={prefix.prefix} output={args.output}', flush=True)
     HARDWARE.set_power_save(False)
     try:
+      model_command = [sys.executable, '-m', 'openpilot.selfdrive.modeld.modeld']
+      if args.write_chunk is not None:
+        model_command = [sys.executable, '-c',
+                         'from jetlink.transport.ffs import FfsTransport; '
+                         + f'FfsTransport.write_chunk={args.write_chunk}; '
+                         + 'import runpy; runpy.run_module("openpilot.selfdrive.modeld.modeld", run_name="__main__")']
       for name, command in (
         ('camerad', [str(Path(BASEDIR) / 'openpilot/system/camerad/camerad')]),
-        ('modeld', [sys.executable, '-m', 'openpilot.selfdrive.modeld.modeld'])):
+        ('modeld', model_command)):
         log = (args.output / f'{name}.log').open('w')
         files.append(log)
         children.append(subprocess.Popen(command, cwd=BASEDIR, stdout=log, stderr=subprocess.STDOUT))

@@ -40,4 +40,21 @@ fi
 # the offroad alert reads.
 sudo -n bash "$REPO/scripts/setup_gadget.sh" >/dev/null ||
   echo "jetlink: USB gadget setup failed" >&2
+
+# Keep a recording-writeback storm from stalling the gadget read path.
+# loggerd/encoderd write video continuously; on a memory-tight comma (stock
+# min_free_kbytes ~7 MB, ~40 MB free) a segment's dirty pages pile up until the
+# kernel has to reclaim them synchronously - write them back before it can
+# evict them - exactly while a FunctionFS transfer is allocating its buffer.
+# Measured on the 2026-09-06 bench: nr_dirty to 108 MB, direct reclaim, and the
+# gadget read stalled 200-350 ms, past backend.INFERENCE_TIMEOUT, so the big
+# model fell back and rejoined (91 lagging frames, three losses in 15 min).
+# Capping dirty memory (so reclaim finds clean, evictable pages) and holding a
+# real free-memory floor (so allocations do not reclaim at all) removed it:
+# dirty peak 7 MB, worst frame 244 -> 72 ms, zero lagging frames over 20 min;
+# under a 500 MB memory hog plus CPU contention, 128 MB/16 MB held it too.
+# System-wide on purpose - the gadget read shares the kernel with every writer.
+for kv in vm.dirty_bytes=16777216 vm.dirty_background_bytes=8388608 vm.min_free_kbytes=131072; do
+  sudo -n sysctl -w "$kv" >/dev/null 2>&1 || echo "jetlink: could not set $kv" >&2
+done
 exit 0
