@@ -282,6 +282,12 @@ class UIState(UIStateSP):
         self.usb_unknown = not (self.chestnut_present or
                                 any(is_chestnut_usb_id(d["vendorId"], d["productId"], True) for d in get_usb_state()))
         self.usb_connected_ts = None
+      elif self.usb_unknown and self.chestnut_present:
+        # An accelerator on its own supply is a cable long before it is a
+        # device: the Jetson's port has VBUS up from power-on, but it does not
+        # configure the gadget until its kernel is up, ~25 s after this UI
+        # started on a cold boot. Recognising it late still clears "unknown".
+        self.usb_unknown = False
     elif self.usb_connected:
       if self.usb_disconnected_ts is None:
         self.usb_disconnected_ts = now
