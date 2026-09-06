@@ -259,6 +259,14 @@ EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 0.1),
   },
 
+  EventNameSP.bigModelAvailable: {
+    ET.PERMANENT: Alert(
+      "Model Available" if IS_MICI else "Big Model Available",
+      "Disengage to switch",
+      AlertStatus.normal, AlertSize.mid,
+      Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 3.),
+  },
+
   EventNameSP.bigModelReady: {
     ET.PERMANENT: Alert(
       "Big Model Ready",

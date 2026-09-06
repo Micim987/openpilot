@@ -363,6 +363,8 @@ struct OnroadEventSP @0xda96579883444c35 {
     laneChangeRoadEdge @24;
     bigModelReady @25;
     controlsMismatchLateralWarning @26;
+    silentPedalPressed @27;
+    bigModelAvailable @28;
   }
 }
 
@@ -484,6 +486,11 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
   # Scalar zero is the unavailable value when reading messages from older builds.
   modelMonoTime @3 :UInt64;       # Exact logMonoTime of the corresponding modelV2 event.
   lateralActionTime @4 :Float32;  # Seconds from the source vision frame to the lateral action target.
+
+  # A late-loading big model is connected and waiting for disengagement.
+  # This is availability, not proof of inference; modelV2.big reports execution.
+  # Startup-only runners and older logs leave this false.
+  bigModelAvailable @3 :Bool;
 
   enum TurnDirection {
     none @0;

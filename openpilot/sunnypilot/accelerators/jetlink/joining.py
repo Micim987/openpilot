@@ -127,6 +127,8 @@ class JoiningModelState:
     # Handed over by the joining thread, consumed by whichever modeld frame
     # first finds it safe to swap. Only ever assigned under the lock.
     self._joined: tuple[object, object] | None = None
+    # Kept true during a keepalive ping, which temporarily takes _joined.
+    self._available = False
     self._retired = None
     self._lock = threading.Lock()
     self._rejoin = threading.Event()
@@ -156,9 +158,9 @@ class JoiningModelState:
     # alone while it is true.
     #
     # ChestnutLoading is true while this proxies and false while the large
-    # model runs. selfdrived rings "Big Model Ready" on its falling edge, so
-    # that lands on the swap and nowhere else, and it only holds the driver out
-    # while nothing is publishing modelV2, which for us is never. It used to
+    # model runs. selfdrived rings "Big Model Ready" on the first valid big
+    # model frame. Loading only holds the driver out while nothing publishes
+    # modelV2, which for us is never. It used to
     # be bounded at 60 s because it was a NO_ENTRY: a Jetson that took longer
     # than that was a drive that could not engage, and the timeout read as
     # "ready" to selfdrived and "unavailable" to the UI, both false, while
@@ -181,6 +183,11 @@ class JoiningModelState:
       t.start()
 
   # -- what modeld reads ------------------------------------------------------
+
+  @property
+  def big_model_available(self) -> bool:
+    """Connected and waiting to switch; published with each small-model frame."""
+    return not self._stop.is_set() and self._available and self._active is self._small
 
   @property
   def chestnut(self) -> bool:
@@ -279,6 +286,8 @@ class JoiningModelState:
       return
     with self._lock:
       joined, self._joined = self._joined, None
+      if joined is not None:
+        self._available = False
     if joined is None:
       return
     client, spec = joined
@@ -380,6 +389,7 @@ class JoiningModelState:
         if self._stop.is_set():
           client.close()
           return
+        self._available = True
         self._joined = (client, spec)
       cloudlog.warning("jetlink: link ready, waiting for a window to swap")
       self._report('connect', 'ready; disengage to switch models')
@@ -411,6 +421,7 @@ class JoiningModelState:
       try:
         joined[0].ping(timeout=PING_TIMEOUT)
       except Exception as e:
+        self._available = False
         cloudlog.warning("jetlink: the link died before it could be used (%s), reopening", e)
         try:
           joined[0].close()
@@ -445,6 +456,7 @@ class JoiningModelState:
 
   def close(self) -> None:
     self._stop.set()
+    self._available = False
     self._rejoin.set()
     accelerators.clear_progress()
     with self._lock:

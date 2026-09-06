@@ -168,6 +168,75 @@ class JoiningTest(unittest.TestCase):
     s._engaged, s._standstill = True, False
     self.assertEqual(self._run(s), {'from': 'small'})
 
+  def test_late_boot_announces_availability_without_switching(self):
+    booted = threading.Event()
+    connect = self._connect
+
+    def after_boot():
+      if not booted.wait(5):
+        raise RuntimeError('test boot timeout')
+      return connect()
+
+    self._connect = after_boot
+    s = self._state()
+    self.addCleanup(booted.set)
+    self.assertFalse(s.big_model_available)
+    self.assertEqual(self._run(s), {'from': 'small'})
+    booted.set()
+    self._wait_joined(s)
+    self.assertTrue(s.big_model_available)
+    self.assertEqual(self._run(s), {'from': 'small'})
+    self.assertTrue(s.loading)
+    self.assertNotIn('ChestnutActive', self.params)
+    s._engaged = False
+    self.assertEqual(self._run(s), {'from': 'big'})
+    self.assertFalse(s.big_model_available)
+    self.assertIs(self.params['ChestnutActive'], True)
+
+  def test_availability_survives_ping_but_not_link_loss(self):
+    pinging, release = threading.Event(), threading.Event()
+    client = mock.MagicMock()
+
+    def ping(**kwargs):
+      pinging.set()
+      release.wait(5)
+      raise RuntimeError('link lost while waiting to switch')
+
+    client.ping.side_effect = ping
+    self._connect = lambda: (client, 'spec')
+    with mock.patch('openpilot.sunnypilot.accelerators.jetlink.joining.KEEPALIVE_PERIOD', 0.01):
+      s = self._state()
+      self.addCleanup(release.set)
+      self.assertTrue(pinging.wait(5))
+      self.assertIsNone(s._joined)
+      self.assertTrue(s.big_model_available)
+      self.assertEqual(self._run(s), {'from': 'small'})
+      release.set()
+      deadline = time.monotonic() + 2
+      while s.big_model_available and time.monotonic() < deadline:
+        time.sleep(0.001)
+      self.assertFalse(s.big_model_available)
+      self.assertFalse(s.chestnut)
+
+  def test_ping_taking_the_pending_link_during_swap_check_keeps_availability(self):
+    s = self._state()
+    self._wait_joined(s)
+    joined = s._joined
+    s._engaged = False
+    # The frame sees _joined before locking, then the keepalive takes it.
+    with mock.patch.object(s, '_lock') as lock:
+      lock.__enter__.side_effect = lambda: setattr(s, '_joined', None)
+      self.assertEqual(self._run(s), {'from': 'small'})
+      self.assertTrue(s.big_model_available)
+    s._joined = joined
+
+  def test_close_with_pending_model_clears_availability(self):
+    s = self._state()
+    self._wait_joined(s)
+    self.assertTrue(s.big_model_available)
+    s.close()
+    self.assertFalse(s.big_model_available)
+
   def test_swaps_on_a_disengaged_frame(self):
     s = self._state()
     self._wait_joined(s)
@@ -206,6 +275,7 @@ class JoiningTest(unittest.TestCase):
     self.assertEqual(self._run(s), {'from': 'small'})
     self.assertIs(self.params.get('ChestnutLoading'), True)
     self.assertNotIn('ChestnutActive', self.params)
+    self.assertFalse(s.big_model_available)
 
   def test_fallback_resets_history_without_waiting_for_teardown(self):
     entered, release = threading.Event(), threading.Event()

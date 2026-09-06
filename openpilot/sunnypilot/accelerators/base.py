@@ -78,6 +78,11 @@ class Accelerator(Protocol):
     main thread. A backend that only needs the warp borrows it rather than
     loading a second copy of the same pkl on the same device from a thread the
     main thread is racing.
+
+    A state that supports late joining may expose `big_model_available`: true
+    while a connected big model waits for disengagement, false while loading,
+    running or failed. modeld publishes it for informational alerts; it must
+    not perform IO or alter the switching policy. Absent means false.
     """
 
   def make_health_publisher(self, pm, model):

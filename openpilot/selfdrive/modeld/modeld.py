@@ -406,6 +406,7 @@ def main(demo=False):
       lane_change_prob = l_lane_change_prob + r_lane_change_prob
       mdv2sp_send = messaging.new_message('modelDataV2SP')
       set_lateral_action_timing(modelv2_send, mdv2sp_send, lat_action_t)
+      mdv2sp_send.modelDataV2SP.bigModelAvailable = getattr(model, 'big_model_available', False)
       left_edge, right_edge = RELC.update_and_fill(modelv2_send.modelV2, mdv2sp_send.modelDataV2SP, v_ego)
       DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, left_edge, right_edge)
       modelv2_send.modelV2.meta.laneChangeState = DH.lane_change_state

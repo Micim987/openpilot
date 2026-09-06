@@ -84,6 +84,7 @@ class SelfdriveD(CruiseHelper):
     self.excessive_actuation_check = ExcessiveActuationCheck()
     self.excessive_actuation = self.params.get("Offroad_ExcessiveActuation") is not None
     self.big_model_running = False
+    self.big_model_available = False
     self.big_model_blocking = False
     self.big_model_active = False
     self.big_model_failed = False
@@ -187,6 +188,16 @@ class SelfdriveD(CruiseHelper):
     self.button_state_tracker = ButtonStateTracker()
     self.nrdr = NrdrSelfdrive()
 
+  def update_big_model_availability(self):
+    # Ignore missing/stale status without rearming the chime. Only a fresh
+    # unavailable state (or successful activation) permits another announcement.
+    if not all(self.sm.seen[s] and self.sm.alive[s] and self.sm.valid[s] for s in ("modelV2", "modelDataV2SP")):
+      return
+    available = self.sm["modelDataV2SP"].bigModelAvailable and not self.sm["modelV2"].big
+    if available and not self.big_model_available:
+      self.events_sp.add(custom.OnroadEventSP.EventName.bigModelAvailable)
+    self.big_model_available = available
+
   def update_events(self, CS):
     """Compute onroadEvents from carState"""
 
@@ -202,6 +213,7 @@ class SelfdriveD(CruiseHelper):
     if running_big and not self.big_model_running:
       self.events_sp.add(custom.OnroadEventSP.EventName.bigModelReady)
     self.big_model_running = running_big
+    self.update_big_model_availability()
     # A load that holds modelV2 back keeps the driver out. One that joins onto
     # a model already publishing (an accelerator on its own power, which can
     # take a whole drive to arrive) does not; see sunnypilot/accelerators/.
