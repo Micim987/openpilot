@@ -4,128 +4,109 @@ Copyright (c) 2026-, Zeph Leggett.
 This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Which accelerator runs the large model, if any.
+An accelerator that runs the large driving model off the comma: jetlink.
 
-Backends are discovered, not hardcoded, and every call here is guarded: a
-backend that is missing or broken costs the large model, never the calling
-process. modeld, manager, hardwared and the UI all come through this module,
-so adding one is a directory plus a line in _BACKENDS.
+comma's chestnut board is not one of these. modeld, hardwared and the UI
+handle it natively, at upstream's lines, and only ask here when no board is
+fitted. That is what keeps the two from answering the same question two ways:
+selection is `if chestnut_present(): native elif accelerators.ready(): jetlink`
+and nothing in between.
+
+Every function here is a thin call into accelerators.jetlink.backend and is
+safe on any device: with the feature off it costs a param read; with the
+`jetlink` package absent the expensive ones answer their negative default and
+say so once in the log. present(), ready(), progress() and uses_stock_runner()
+are polled by the UI at 5 Hz and must stay cheap.
 """
 from __future__ import annotations
+
+import threading
+from collections.abc import Callable
+from typing import NamedTuple
 
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 
-from openpilot.sunnypilot.accelerators.base import Accelerator, Daemon
+from openpilot.sunnypilot.accelerators.jetlink import backend
 
-# Priority order: the first backend that is ready runs the large model. Local
-# hardware first, so a chestnut with a Jetson also attached still uses the board.
-_BACKENDS = (
-  "openpilot.sunnypilot.accelerators.chestnut:ChestnutAccelerator",
-  "openpilot.sunnypilot.accelerators.jetlink.backend:JetlinkAccelerator",
-)
-
-# Written by whichever backend is provisioning, read by the UI. A param rather
-# than a field because the writer is an offroad daemon in another process.
+# Written by jetlinkd while it provisions and by the joining state while it
+# waits for a window, read by the UI. A param rather than a field because the
+# writer is an offroad daemon in another process.
 P_PROGRESS = "AcceleratorProgress"
 
-_cache: list[Accelerator] | None = None
 
+class Daemon(NamedTuple):
+  """An offroad process the accelerator needs.
 
-def backends() -> list[Accelerator]:
-  """Every backend this install carries. Cached: the set cannot change at runtime."""
-  global _cache
-  if _cache is None:
-    found = []
-    for spec in _BACKENDS:
-      module, _, cls = spec.partition(':')
-      try:
-        found.append(getattr(__import__(module, fromlist=[cls]), cls)())
-      except ImportError:
-        pass  # a backend this fork does not ship, or whose package is absent
-      except Exception:
-        cloudlog.exception("accelerators: %s failed to load", spec)
-    _cache = found
-  return _cache
-
-
-def _ask(backend: Accelerator, question: str, default=None):
-  try:
-    return getattr(backend, question)()
-  except Exception:
-    cloudlog.exception("accelerators: %s.%s failed", backend.name, question)
-    return default
+  A description rather than a PythonProcess so this package does not import
+  manager, which imports it. process_config builds the real process and owns
+  the onroad/offroad gating.
+  """
+  name: str
+  module: str
+  should_run: Callable[..., bool]
 
 
 def present() -> bool:
-  """Is any accelerator attached? Answers deviceState.chestnutPresent."""
-  return any(_ask(b, 'present', False) for b in backends())
-
-
-def active() -> Accelerator | None:
-  """The backend that should run the large model now, or None for the small one."""
-  return next((b for b in backends() if _ask(b, 'ready', False)), None)
+  """Is a Jetson attached, or asleep and known to be there? USB-independent."""
+  return backend.present()
 
 
 def ready() -> bool:
-  """Can something run the large model right now? What the UI calls 'compiled'."""
-  return active() is not None
-
-
-def prepare(backend: Accelerator) -> bool:
-  """An optional device failing initialization must not cost the small model."""
-  return bool(_ask(backend, 'prepare', False))
-
-
-def model_choices() -> list[dict]:
-  """Optional backend-owned models, separate from model-manager bundles."""
-  return [dict(choice, backend=b.name) for b in backends()
-          if hasattr(b, 'model_choices') for choice in _ask(b, 'model_choices', [])]
-
-
-def uses_stock_runner() -> bool:
-  """Backend-owned models bypass bundles without deleting stored selections."""
-  if catalog() is not None:
-    return False  # Preserve Chestnut's catalog/runner selection.
-  return any(_ask(b, 'uses_stock_runner', False) for b in backends() if hasattr(b, 'uses_stock_runner'))
-
-
-def select_model(backend: str, name: str) -> None:
-  for b in backends():
-    if b.name == backend and hasattr(b, 'select_model'):
-      b.select_model(name)
-      return
-  raise ValueError(f'unknown accelerator: {backend}')
-
-
-def active_model_name() -> str | None:
-  backend = active()
-  if backend is None or not hasattr(backend, 'model_choices'):
-    return None
-  return next((m['name'] for m in _ask(backend, 'model_choices', []) if m['selected']), None)
-
-
-def catalog() -> str | None:
-  """The model-manager catalog the attached accelerator draws from, if any.
-
-  Only a present backend gets a say, and the first one wins like everywhere
-  else here. None means the manager stays on the small-model catalog.
-  """
-  return next((c for b in backends() if _ask(b, 'present', False) and (c := _ask(b, 'catalog'))), None)
+  """Can the large model run right now? Params only, what the UI calls 'compiled'."""
+  return backend.ready()
 
 
 def unavailable_reason() -> str | None:
-  """The first backend complaint worth showing offroad, if any."""
-  return next((r for b in backends() if (r := _ask(b, 'unavailable_reason'))), None)
+  """Why the link the user asked for cannot run, for the offroad alert. None unless enabled."""
+  return backend.unavailable_reason()
+
+
+def prepare() -> bool:
+  """Process-wide setup modeld must do before going realtime, and a last veto. modeld only."""
+  return backend.prepare()
+
+
+def make_model_state(cam_w: int, cam_h: int, small=None):
+  """The joining ModelState: the small model driving now, the Jetson swapped in later."""
+  return backend.make_model_state(cam_w, cam_h, small)
+
+
+def make_status_publisher(pm, model):
+  """modeld's after_enqueue callback. Publishes nothing; logs telemetry at 1 Hz."""
+  return backend.make_status_publisher(pm, model)
+
+
+def uses_stock_runner() -> bool:
+  """Should manager run stock modeld regardless of the stored bundle?
+
+  Configuration only: JetlinkEnabled is true and a model is selected. Never
+  link state and never ready(), so a Jetson that boots late cannot change
+  which modeld manager runs in the middle of a drive.
+  """
+  return backend.uses_stock_runner()
+
+
+def model_choices() -> list[dict]:
+  return backend.model_choices()
+
+
+def select_model(name: str) -> None:
+  backend.select_model(name)
+
+
+def active_model_name() -> str | None:
+  return backend.active_model_name()
 
 
 def daemons() -> list[Daemon]:
-  """Offroad processes the backends need, for process_config to build."""
-  return [d for b in backends() if (d := _ask(b, 'daemon')) is not None]
+  """Offroad processes for process_config to build."""
+  return [Daemon("jetlinkd", "openpilot.sunnypilot.accelerators.jetlink.jetlinkd",
+                 lambda started, params, CP: backend.enabled())]
 
 
 def progress() -> dict | None:
-  """{stage, frac, msg} while a backend provisions, else None.
+  """{stage, frac, msg} while something provisions, else None.
 
   Read from the UI's param thread, so nothing may escape - including
   UnknownKeyName on a build whose params library predates this key.
@@ -138,7 +119,7 @@ def progress() -> dict | None:
 
 
 def report_progress(stage: str, frac: float, msg: str = '') -> None:
-  """For backends. Never raises: called from except handlers."""
+  """Never raises: called from except handlers."""
   try:
     Params().put(P_PROGRESS, {'stage': stage, 'frac': round(frac, 4), 'msg': msg})
   except Exception:
@@ -152,17 +133,25 @@ def clear_progress() -> None:
     cloudlog.exception("accelerators: could not clear progress")
 
 
-def shutdown(reason: str = '') -> None:
-  """The device is about to power off. Every backend that cares gets told.
+def shutdown(reason: str = '', timeout: float = 25.0) -> None:
+  """The device is powering off for good. Tell the Jetson, within `timeout`.
 
-  Optional on the protocol: comma's board dies with the device and has no
-  say. Nothing may escape, this runs on hardwared's way out.
+  hardwared calls this before it sets DoShutdown, and deviceState is not
+  published for as long as this takes, so the bound is enforced here rather
+  than trusted to the backend: the request runs on a thread and is abandoned
+  at the deadline. With jetlink disabled it costs one param read.
   """
-  for b in backends():
-    fn = getattr(b, 'shutdown', None)
-    if fn is None:
-      continue
+  if not backend.enabled():
+    return
+
+  def request():
     try:
-      fn(reason)
+      backend.shutdown(reason, timeout)
     except Exception:
-      cloudlog.exception("accelerators: %s.shutdown failed", b.name)
+      cloudlog.exception("accelerators: shutdown request failed")
+
+  t = threading.Thread(target=request, name='accelerator-shutdown', daemon=True)
+  t.start()
+  t.join(timeout)
+  if t.is_alive():
+    cloudlog.warning("accelerators: shutdown request still pending after %.0f s, going on without it", timeout)

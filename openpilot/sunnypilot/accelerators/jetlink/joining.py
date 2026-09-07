@@ -35,9 +35,8 @@ Two rules the swap has to respect, both learned the hard way:
 - **Never swap while the plan is steering the car.** The two models disagree
   about the world by ~195 m of planned path, and stepping between them is a
   step in the lateral and longitudinal targets. It also covers the swap's own
-  cost: the warmup frame goes over the link and can block up to the client's
-  FRAME_TIMEOUT, and a stall that long is enough dropped frames to raise
-  modeldLagging, which is a soft disable.
+  cost: building the large model state is a frame or two, and the first frame
+  over the link carries the queue reset.
 
   Require fresh, fully disengaged controls. Standstill alone is insufficient:
   longitudinal control may still hold the brake or request a restart. A driver
@@ -51,7 +50,6 @@ import time
 
 import openpilot.cereal.messaging as messaging
 from openpilot.sunnypilot import accelerators
-from openpilot.common.params import Params
 from openpilot.common.realtime import drop_realtime, set_core_affinity
 from openpilot.common.swaglog import cloudlog
 
@@ -152,30 +150,13 @@ class JoiningModelState:
     self._engagement_updated = 0.0
     self._stop = threading.Event()
 
-    # The two params modeld normally writes once the load is over are ours for
-    # the life of the drive, because for us the load is never over: the Jetson
-    # can join, leave and join again. modeld reads `loading` and leaves both
-    # alone while it is true.
-    #
-    # ChestnutLoading is true while this proxies and false while the large
-    # model runs. selfdrived rings "Big Model Ready" on the first valid big
-    # model frame. Loading only holds the driver out while nothing publishes
-    # modelV2, which for us is never. It used to
-    # be bounded at 60 s because it was a NO_ENTRY: a Jetson that took longer
-    # than that was a drive that could not engage, and the timeout read as
-    # "ready" to selfdrived and "unavailable" to the UI, both false, while
-    # this thread was still joining.
-    #
-    # ChestnutActive is absent while proxying (a big model that is neither
-    # active nor failed: selfdrived and the UI both take None as "still
-    # coming"), true at the swap, false at a demote. False is what a chestnut
-    # writes when it dies mid-drive and gets the same soft disable: the two
-    # models plan ~195 m apart and the driver should know the plan just
-    # changed under them. Re-engaging on the small model is allowed at once.
-    self._params = Params()
-    self._loading: bool | None = None
-    self._params.remove("ChestnutActive")
-    self._set_loading(True)
+    # Whether the large model has produced a frame. True while proxying and
+    # false while the large model runs; a first inference that fails never
+    # gets to announce readiness. It travels to selfdrived and the UI in
+    # modelV2.big and modelDataV2SP, never in a param: a chestnut writes
+    # ChestnutLoading and ChestnutActive because its load is over once, and
+    # ours never is.
+    self._loading = True
 
     self._threads = [threading.Thread(target=self._join_loop, daemon=True),
                      threading.Thread(target=self._watch_engagement, daemon=True)]
@@ -197,9 +178,17 @@ class JoiningModelState:
 
   @property
   def loading(self) -> bool:
-    # Still bringing the accelerator up. modeld reads this once, after the
-    # load, to know it must not write ChestnutLoading and ChestnutActive itself.
+    """Still bringing the accelerator up: the small model is driving."""
     return self._active is self._small
+
+  @property
+  def big_model_state(self) -> str:
+    """modelDataV2SP.acceleratorState, one of its enum names."""
+    if self._stop.is_set():
+      return 'unavailable'
+    if self._active is not self._small:
+      return 'running'
+    return 'retrying' if self._failures else 'joining'
 
   @property
   def vision_input_names(self):
@@ -207,8 +196,8 @@ class JoiningModelState:
 
   @property
   def client(self):
-    # The health publisher reads this every time it sends, so chestnutState
-    # starts reporting the moment the Jetson joins and stops if it leaves.
+    # The status publisher reads this every time it sends, so the telemetry
+    # starts the moment the Jetson joins and stops if it leaves.
     return getattr(self._active, 'client', None)
 
   @property
@@ -242,14 +231,13 @@ class JoiningModelState:
       # same decision and make it permanent; this one is retryable, which is
       # what a Jetson that rebooted or a cable that was nudged actually needs.
       # after_enqueue is dropped: the large model may already have called it,
-      # and chestnutState is published once per frame at most.
+      # and the status callback runs once per frame at most.
       return self._small.run(bufs, transforms, inputs, None)
     if active is not self._small and self._loading:
       # A connected engine can still fail its first inference. Only announce
       # readiness after it has produced a frame the caller can publish.
       self._joined_at = time.monotonic()
-      self._set_active(True)
-      self._set_loading(False)
+      self._loading = False
       accelerators.clear_progress()
       cloudlog.warning("jetlink: large model joined mid-drive, modelV2.big is now true")
     return result
@@ -257,23 +245,13 @@ class JoiningModelState:
   def warmup(self) -> None:
     """modeld warms whatever make_model_state returned. Nothing to do here.
 
-    The small model is already warm: modeld built and warmed it on the main
-    thread before this object existed. The Jetson's model is warmed at the
-    swap instead, on modeld's thread, which is where the tinygrad work has to
-    happen anyway. So this is a no-op, but it has to exist - modeld calls it
-    unconditionally, and an AttributeError is caught as "big model load failed"
-    and costs the whole drive.
+    Nobody warms the small model: modeld builds it and starts running frames,
+    on stock and here alike. The large model's warp is warmed in __init__ by
+    `prepare`, and its first real frame carries the reset, which is the
+    cheapest warm-up there is. So this is a no-op, but it has to exist -
+    modeld calls it unconditionally on the chestnut path, and an
+    AttributeError there is caught as "big model load failed".
     """
-
-  def _set_loading(self, loading: bool) -> None:
-    if loading != self._loading:
-      self._loading = loading
-      self._params.put_bool("ChestnutLoading", loading)
-
-  def _set_active(self, active: bool) -> None:
-    # Before loading goes false at the swap, so that when selfdrived sees the
-    # ready edge the active flag it reads in the same tick is already true.
-    self._params.put_bool("ChestnutActive", active)
 
   @property
   def _window_open(self) -> bool:
@@ -312,9 +290,7 @@ class JoiningModelState:
 
   def _demote(self) -> None:
     big, self._active = self._active, self._small
-    if not self._loading:
-      self._set_active(False)
-    self._set_loading(True)
+    self._loading = True
     self._report('connect', 'lost the jetson, reconnecting')
     with self._lock:
       self._retired = big

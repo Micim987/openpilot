@@ -492,6 +492,19 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
   # Startup-only runners and older logs leave this false.
   bigModelAvailable @3 :Bool;
 
+  # Runtime state of an off-board accelerator (sunnypilot/accelerators). Offroad
+  # progress stays in the AcceleratorProgress param; telemetry waits for a customReserved slot.
+  acceleratorState @4 :AcceleratorState;
+  acceleratorName @5 :Text;
+
+  enum AcceleratorState {
+    none @0;
+    joining @1;
+    running @2;
+    retrying @3;
+    unavailable @4;
+  }
+
   enum TurnDirection {
     none @0;
     turnLeft @1;

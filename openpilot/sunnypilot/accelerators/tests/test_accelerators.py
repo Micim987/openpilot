@@ -4,190 +4,135 @@ Copyright (c) 2026-, Zeph Leggett.
 This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The guarantee core openpilot relies on: no backend can take down its caller.
+The answers core openpilot gets from the accelerators module.
 
-modeld, manager, hardwared and the UI all reach hardware through this module,
-so a backend that is absent, half-installed or simply broken must cost the
-large model and nothing else. Fakes rather than hardware, so this runs anywhere.
+modeld, manager, hardwared and the UI all reach the Jetson through this
+module, so what is pinned here is selection: what a device with the feature
+off, on but not provisioned, and ready gets told, and that a missing package
+or a backend that hangs costs the large model and nothing else. No hardware.
 """
-import importlib
 import sys
-import types
+import threading
+import time
 import unittest
-from collections import namedtuple
+from types import SimpleNamespace
 from unittest import mock
 
 from openpilot.sunnypilot import accelerators
-from openpilot.sunnypilot.accelerators.base import Daemon
+from openpilot.sunnypilot.accelerators import Daemon
+from openpilot.sunnypilot.accelerators.jetlink import backend, helpers
 
 
-class FakeAccelerator:
-  def __init__(self, name, present=False, ready=False, reason=None, daemon=None, raises=()):
-    self.name = name
-    self._present, self._ready, self._reason, self._daemon = present, ready, reason, daemon
-    self._raises = raises
+class SelectionTest(unittest.TestCase):
+  """ready() is params only, and every answer follows from three params."""
 
-  def _check(self, question):
-    if question in self._raises:
-      raise RuntimeError(f"{self.name}.{question} exploded")
+  def configure(self, enabled=None, model=None, ready_sha=None, spec_sha=None, gadget_error=None):
+    params = {helpers.P_ENABLED: enabled, helpers.P_MODEL: model, helpers.P_READY: ready_sha}
+    for p in (mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: params.get(k, d)),
+              mock.patch.object(helpers, 'gadget_error', return_value=gadget_error),
+              mock.patch.object(helpers, 'host_attached', return_value=False),
+              mock.patch.object(helpers, 'dormant', return_value=False),
+              mock.patch.object(helpers, 'selected_model',
+                                return_value={'name': model, 'oid': 'a' * 64} if model else None),
+              mock.patch.object(backend.spec_cache, 'load',
+                                return_value=SimpleNamespace(sha256=spec_sha) if spec_sha else None)):
+      p.start()
+      self.addCleanup(p.stop)
+    helpers._last_configured = 0.0
 
-  def present(self):
-    self._check('present')
-    return self._present
-
-  def ready(self):
-    self._check('ready')
-    return self._ready
-
-  def unavailable_reason(self):
-    self._check('unavailable_reason')
-    return self._reason
-
-  def daemon(self):
-    self._check('daemon')
-    return self._daemon
-
-
-class AcceleratorTest(unittest.TestCase):
-  def test_chestnut_catalog_keeps_its_runner_precedence(self):
-    backend = mock.Mock()
-    backend.uses_stock_runner.return_value = True
-    with mock.patch.object(accelerators, '_cache', [backend]), \
-         mock.patch.object(accelerators, 'catalog', return_value='chestnut'):
-      self.assertFalse(accelerators.uses_stock_runner())
-      backend.uses_stock_runner.assert_not_called()
-
-  def test_prepare_failure_preserves_the_small_model_path(self):
-    backend = mock.Mock(name='backend')
-    backend.name = 'broken'
-    backend.prepare.side_effect = RuntimeError('device initialization failed')
-    with mock.patch.object(accelerators.cloudlog, 'exception'):
-      self.assertFalse(accelerators.prepare(backend))
-    backend.prepare.side_effect = None
-    backend.prepare.return_value = True
-    self.assertTrue(accelerators.prepare(backend))
-
-  def install(self, *backends):
-    patcher = mock.patch.object(accelerators, '_cache', list(backends))
-    patcher.start()
-    self.addCleanup(patcher.stop)
-
-
-class TestDiscovery(AcceleratorTest):
-  def setUp(self):
-    patcher = mock.patch.object(accelerators, '_cache', None)
-    patcher.start()
-    self.addCleanup(patcher.stop)
-
-  def _module(self, name, attr, value):
-    mod = types.ModuleType(name)
-    setattr(mod, attr, value)
-    sys.modules[name] = mod
-    self.addCleanup(sys.modules.pop, name, None)
-
-  def test_a_backend_this_fork_does_not_ship_is_skipped(self):
-    with mock.patch.object(accelerators, '_BACKENDS', ("nonexistent.module:Thing",)):
-      self.assertEqual(accelerators.backends(), [])
-
-  def test_a_backend_that_fails_to_construct_does_not_propagate(self):
-    def boom():
-      raise RuntimeError("no driver")
-    self._module('fake_broken_accel', 'Boom', boom)
-    with mock.patch.object(accelerators, '_BACKENDS', ("fake_broken_accel:Boom",)):
-      self.assertEqual(accelerators.backends(), [])
-
-  def test_a_working_backend_is_constructed(self):
-    self._module('fake_good_accel', 'Good', lambda: FakeAccelerator('good'))
-    with mock.patch.object(accelerators, '_BACKENDS', ("fake_good_accel:Good",)):
-      self.assertEqual([b.name for b in accelerators.backends()], ['good'])
-
-  def test_one_broken_backend_does_not_hide_the_others(self):
-    self._module('fake_good_accel', 'Good', lambda: FakeAccelerator('good'))
-    with mock.patch.object(accelerators, '_BACKENDS',
-                           ("nonexistent.module:Thing", "fake_good_accel:Good")):
-      self.assertEqual([b.name for b in accelerators.backends()], ['good'])
-
-  def test_the_shipped_backends_all_load(self):
-    # Catches a typo in _BACKENDS, which discovery would otherwise swallow.
-    for spec in accelerators._BACKENDS:
-      module, _, cls = spec.partition(':')
-      self.assertTrue(hasattr(__import__(module, fromlist=[cls]), cls), spec)
-
-
-class TestPresent(AcceleratorTest):
-  def test_nothing_attached(self):
-    self.install(FakeAccelerator('a'), FakeAccelerator('b'))
+  def test_disabled_by_absence(self):
+    self.configure(enabled=None, model='m', ready_sha='a' * 64, spec_sha='a' * 64)
     self.assertFalse(accelerators.present())
-
-  def test_any_backend_counts(self):
-    self.install(FakeAccelerator('a'), FakeAccelerator('b', present=True))
-    self.assertTrue(accelerators.present())
-
-  def test_a_raising_backend_does_not_hide_an_attached_one(self):
-    self.install(FakeAccelerator('a', raises=('present',)),
-                 FakeAccelerator('b', present=True))
-    self.assertTrue(accelerators.present())
-
-  def test_a_raising_backend_answers_no_rather_than_raising(self):
-    self.install(FakeAccelerator('a', raises=('present',)))
-    self.assertFalse(accelerators.present())
-
-
-class TestActive(AcceleratorTest):
-  def test_none_ready_is_the_small_model(self):
-    self.install(FakeAccelerator('a', present=True), FakeAccelerator('b'))
-    self.assertIsNone(accelerators.active())
-
-  def test_first_ready_wins(self):
-    self.install(FakeAccelerator('a', ready=True), FakeAccelerator('b', ready=True))
-    self.assertEqual(accelerators.active().name, 'a')
-
-  def test_order_is_priority_not_readiness_order(self):
-    # Local hardware is listed first so a board beats a link when both are up.
-    self.install(FakeAccelerator('a'), FakeAccelerator('b', ready=True))
-    self.assertEqual(accelerators.active().name, 'b')
-
-  def test_a_raising_backend_is_skipped_not_selected(self):
-    self.install(FakeAccelerator('a', raises=('ready',)), FakeAccelerator('b', ready=True))
-    self.assertEqual(accelerators.active().name, 'b')
-
-
-class TestUnavailableReason(AcceleratorTest):
-  def test_silence_when_there_is_nothing_to_say(self):
-    self.install(FakeAccelerator('a'), FakeAccelerator('b'))
+    self.assertFalse(accelerators.ready())
     self.assertIsNone(accelerators.unavailable_reason())
+    self.assertFalse(accelerators.uses_stock_runner())
 
-  def test_the_first_complaint_is_reported(self):
-    self.install(FakeAccelerator('a'), FakeAccelerator('b', reason='no gadget'),
-                 FakeAccelerator('c', reason='also broken'))
+  def test_disabled_explicitly(self):
+    self.configure(enabled=False, model='m', ready_sha='a' * 64, spec_sha='a' * 64, gadget_error='no gadget')
+    self.assertFalse(accelerators.present())
+    self.assertFalse(accelerators.ready())
+    # A device with the feature off is never nagged about its kernel.
+    self.assertIsNone(accelerators.unavailable_reason())
+    self.assertFalse(accelerators.uses_stock_runner())
+
+  def test_enabled_but_not_provisioned(self):
+    self.configure(enabled=True, model='m', ready_sha=None, spec_sha=None)
+    self.assertFalse(accelerators.ready())
+    self.assertIsNone(accelerators.unavailable_reason())
+    self.assertIsNone(accelerators.active_model_name())
+
+  def test_enabled_with_a_broken_gadget_says_why(self):
+    self.configure(enabled=True, model='m', ready_sha='a' * 64, spec_sha='a' * 64, gadget_error='no gadget')
+    self.assertFalse(accelerators.ready())
     self.assertEqual(accelerators.unavailable_reason(), 'no gadget')
 
-  def test_a_raising_backend_does_not_break_the_alert_pass(self):
-    self.install(FakeAccelerator('a', raises=('unavailable_reason',)),
-                 FakeAccelerator('b', reason='no gadget'))
-    self.assertEqual(accelerators.unavailable_reason(), 'no gadget')
+  def test_ready(self):
+    self.configure(enabled=True, model='m', ready_sha='a' * 64, spec_sha='a' * 64)
+    self.assertTrue(accelerators.ready())
+    self.assertIsNone(accelerators.unavailable_reason())
+    self.assertTrue(accelerators.uses_stock_runner())
+
+  def test_an_old_engine_is_not_the_new_selection(self):
+    self.configure(enabled=True, model='m', ready_sha='b' * 64, spec_sha='b' * 64)
+    self.assertFalse(accelerators.ready())
+
+  def test_stock_runner_needs_a_model_as_well_as_the_toggle(self):
+    # Configuration only: never link state and never ready(), so a late boot
+    # cannot move manager between modelds mid-drive.
+    self.configure(enabled=True, model=None)
+    self.assertFalse(accelerators.uses_stock_runner())
+    self.configure(enabled=True, model='m')
+    with mock.patch.object(helpers, 'link_configured', return_value=False):
+      self.assertTrue(accelerators.uses_stock_runner())
+    self.configure(enabled=None, model='m')
+    with mock.patch.object(helpers, 'link_configured', return_value=True):
+      self.assertFalse(accelerators.uses_stock_runner())
+
+  def test_present_is_usb_independent_while_dormant(self):
+    self.configure(enabled=True, model='m')
+    with mock.patch.object(helpers, 'dormant', return_value=True), \
+         mock.patch.object(helpers, 'CC_ORIENTATION', mock.Mock(read_text=lambda: '1')):
+      self.assertTrue(accelerators.present())
 
 
-class TestDaemons(AcceleratorTest):
-  def test_backends_without_a_daemon_contribute_nothing(self):
-    self.install(FakeAccelerator('a'), FakeAccelerator('b'))
-    self.assertEqual(accelerators.daemons(), [])
+class MissingPackageTest(unittest.TestCase):
+  """The jetlink client package can be absent; nothing may raise for it."""
 
-  def test_a_declared_daemon_is_collected(self):
-    d = Daemon('somed', 'some.module', lambda *a: True)
-    self.install(FakeAccelerator('a'), FakeAccelerator('b', daemon=d))
-    self.assertEqual(accelerators.daemons(), [d])
+  def hide_package(self):
+    p = mock.patch.dict(sys.modules, {'jetlink': None, 'jetlink.client': None})
+    p.start()
+    self.addCleanup(p.stop)
+    backend._missing_reported = False
 
-  def test_a_raising_backend_does_not_stop_manager_starting(self):
-    d = Daemon('somed', 'some.module', lambda *a: True)
-    self.install(FakeAccelerator('a', raises=('daemon',)), FakeAccelerator('b', daemon=d))
-    self.assertEqual(accelerators.daemons(), [d])
+  def test_prepare_answers_false(self):
+    self.hide_package()
+    with mock.patch.object(backend.cloudlog, 'warning') as warn:
+      self.assertFalse(accelerators.prepare())
+      self.assertFalse(accelerators.prepare())
+    # Once, not per poll.
+    self.assertEqual(warn.call_count, 1)
 
-  def test_declared_daemons_are_importable(self):
-    # A daemon manager cannot import would fail at the onroad transition, long
-    # after anything would notice here.
-    for d in accelerators.daemons():
-      __import__(d.module)
+  def test_make_model_state_answers_none(self):
+    self.hide_package()
+    self.assertIsNone(accelerators.make_model_state(1928, 1208, object()))
+
+  def test_the_cheap_questions_still_import_and_answer(self):
+    self.hide_package()
+    with mock.patch.object(helpers, '_get', return_value=None):
+      self.assertFalse(accelerators.ready())
+      self.assertFalse(accelerators.uses_stock_runner())
+
+
+class DaemonTest(unittest.TestCase):
+  def test_jetlinkd_is_offered_and_gated_on_enabled(self):
+    (d,) = accelerators.daemons()
+    self.assertIsInstance(d, Daemon)
+    self.assertEqual(d.name, 'jetlinkd')
+    __import__(d.module)
+    with mock.patch.object(helpers, 'enabled', return_value=False):
+      self.assertFalse(d.should_run(False, None, None))
+    with mock.patch.object(helpers, 'enabled', return_value=True):
+      self.assertTrue(d.should_run(False, None, None))
 
 
 class TestProgress(unittest.TestCase):
@@ -222,58 +167,37 @@ class TestProgress(unittest.TestCase):
       accelerators.clear_progress()
 
 
+class TestShutdown(unittest.TestCase):
+  def test_disabled_costs_one_param_read_and_nothing_else(self):
+    with mock.patch.object(helpers, 'enabled', return_value=False), \
+         mock.patch.object(backend, 'shutdown') as request:
+      accelerators.shutdown('car battery')
+    request.assert_not_called()
 
-class TestShutdown(AcceleratorTest):
-  def test_every_backend_with_a_say_is_told_and_the_rest_are_skipped(self):
-    told = []
+  def test_the_request_is_forwarded_with_the_bound(self):
+    with mock.patch.object(helpers, 'enabled', return_value=True), \
+         mock.patch.object(backend, 'shutdown') as request:
+      accelerators.shutdown('car battery', timeout=3.0)
+    request.assert_called_once_with('car battery', 3.0)
 
-    class WithShutdown(FakeAccelerator):
-      def shutdown(self, reason):
-        told.append((self.name, reason))
+  def test_a_backend_that_hangs_cannot_hold_hardwared(self):
+    release = threading.Event()
+    self.addCleanup(release.set)
+    with mock.patch.object(helpers, 'enabled', return_value=True), \
+         mock.patch.object(backend, 'shutdown', side_effect=lambda *a: release.wait(30)), \
+         mock.patch.object(accelerators.cloudlog, 'warning') as warn:
+      t0 = time.monotonic()
+      accelerators.shutdown('car battery', timeout=0.2)
+      self.assertLess(time.monotonic() - t0, 2.0)
+    warn.assert_called_once()
 
-    class Exploding(FakeAccelerator):
-      def shutdown(self, reason):
-        raise RuntimeError('no')
+  def test_a_backend_that_raises_is_logged_not_propagated(self):
+    with mock.patch.object(helpers, 'enabled', return_value=True), \
+         mock.patch.object(backend, 'shutdown', side_effect=RuntimeError('no')), \
+         mock.patch.object(accelerators.cloudlog, 'exception') as log:
+      accelerators.shutdown('car battery', timeout=1.0)
+    log.assert_called_once()
 
-    self.install(FakeAccelerator('mute'), Exploding('loud'), WithShutdown('jetlink'))
-    accelerators.shutdown('car battery')
-    assert told == [('jetlink', 'car battery')]
 
-
-class TestChestnutReadyFallback(unittest.TestCase):
-  """chestnut.py must survive modeld.helpers losing chestnut_ready.
-
-  comma added it in #38742 and reverted it the next day in #38760. A
-  module-scope import of a name upstream has taken away raises ImportError,
-  which backends() swallows as "a fork that does not ship this backend" - so a
-  real chestnut would quietly stop running the large model, with nothing in the
-  log to say why. The backend carries its own copy for exactly that window.
-  """
-
-  State = namedtuple('State', 'supplyVoltage supplyFault pcieLtssm')
-
-  def _reload_without_chestnut_ready(self):
-    from openpilot.selfdrive.modeld import helpers
-    from openpilot.sunnypilot.accelerators import chestnut
-
-    self.addCleanup(importlib.reload, chestnut)
-    saved = helpers.chestnut_ready
-    self.addCleanup(setattr, helpers, 'chestnut_ready', saved)
-    del helpers.chestnut_ready
-    return importlib.reload(chestnut)
-
-  def test_the_backend_still_loads(self):
-    mod = self._reload_without_chestnut_ready()
-    self.assertTrue(hasattr(mod, 'ChestnutAccelerator'))
-    self.assertEqual(mod.ChestnutAccelerator().name, 'chestnut')
-
-  def test_the_local_check_agrees_with_the_one_upstream_removed(self):
-    mod = self._reload_without_chestnut_ready()
-    good = self.State(supplyVoltage=5000, supplyFault=False, pcieLtssm=0x78)
-    self.assertTrue(mod.chestnut_ready(good))
-    for bad in (good._replace(supplyVoltage=4999), good._replace(supplyFault=True),
-                good._replace(pcieLtssm=0x00)):
-      self.assertFalse(mod.chestnut_ready(bad), bad)
-
-if __name__ == "__main__":
+if __name__ == '__main__':
   unittest.main()

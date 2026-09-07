@@ -237,8 +237,8 @@ class Jetlinkd:
     model change with no network works as long as the Jetson has the engine.
     """
     # Imported here rather than at module scope: jetlinkd is constructed on
-    # devices whose jetlink package may be absent, and accelerators swallows
-    # that at discovery. Same reason backend._open_link does it.
+    # devices whose jetlink package may be absent, and the module must import
+    # without it. Same reason backend._open_link does it.
     from jetlink.client import EngineMissing
 
     entry = helpers.selected_model()
@@ -327,8 +327,8 @@ class Jetlinkd:
 
   def go_dormant(self) -> None:
     """Release the gadget so the Jetson can sleep. The marker goes first so
-    chestnutPresent never blinks: presence follows it, not the UDC, while we
-    are dormant. Readiness is kept; the server is asked again on the next
+    present() never blinks: presence follows it, not the UDC, while we are
+    dormant. Readiness is kept; the server is asked again on the next
     attach as it is after any other detach."""
     cloudlog.warning("jetlink: nothing left to do, releasing the gadget so the jetson can sleep")
     helpers.set_dormant(True)

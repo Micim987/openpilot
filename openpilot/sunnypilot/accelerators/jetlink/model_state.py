@@ -145,8 +145,10 @@ class JetlinkModelState(ModelStateBase):
       after_enqueue()
     callback_done = time.perf_counter()
     # Blocks like a chestnut frame does. A long frame is a dropped camera
-    # frame, which modeld counts; only a stall past the client's FRAME_TIMEOUT
-    # raises, and that lands in modeld's fallback to the small model.
+    # frame, which modeld counts; only a stall past the client's deadline
+    # (backend.INFERENCE_TIMEOUT, 0.5 s once joined; the 3 s FRAME_TIMEOUT is
+    # for hello and ensure_engine) raises, and that lands in the joining
+    # state's demotion to the small model.
     model_output = self.client.infer_end(seq)
     t4 = time.perf_counter()
     # The split of a slow frame, and of the first few after a swap. A frame

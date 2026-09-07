@@ -36,9 +36,8 @@ from openpilot.system import sentry
 from openpilot.system.camerad.cameras.nv12_info import get_nv12_info
 from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
 from openpilot.selfdrive.controls.lib.drive_helpers import get_accel_from_plan, smooth_value
-from openpilot.selfdrive.modeld.modeld import set_lateral_action_timing
+from openpilot.selfdrive.modeld.modeld import set_lateral_action_timing, ChestnutState
 
-from openpilot.sunnypilot.accelerators.chestnut import ChestnutState
 from openpilot.selfdrive.modeld.compile_modeld import (
   MODELD_INPUTS,
   make_input_queues as make_stock_input_queues,

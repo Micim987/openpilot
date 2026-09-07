@@ -52,15 +52,15 @@ class TestGadgetStatus(unittest.TestCase):
 
 
 class TestGadgetAlert(unittest.TestCase):
-  """Only complain to someone who asked for the link. On auto, a device that
-  cannot present the gadget should simply not offer the feature."""
+  """Only complain to someone who asked for the link. With it off, a device
+  that cannot present the gadget should simply not offer the feature."""
 
-  def alert_with(self, opted_in: bool, reason: str | None):
-    with mock.patch.object(helpers, 'opted_in', return_value=opted_in), \
+  def alert_with(self, enabled: bool, reason: str | None):
+    with mock.patch.object(helpers, 'enabled', return_value=enabled), \
          mock.patch.object(helpers, 'gadget_error', return_value=reason):
       return helpers.gadget_alert()
 
-  def test_silent_on_auto(self):
+  def test_silent_when_off(self):
     assert self.alert_with(False, 'kernel has no USB gadget support') is None
 
   def test_speaks_up_when_switched_on(self):
@@ -252,18 +252,17 @@ class TestSelectedModelReadiness(unittest.TestCase):
     from types import SimpleNamespace
     from openpilot.sunnypilot.accelerators.jetlink import backend
 
-    accel = backend.JetlinkAccelerator()
     with mock.patch.object(helpers, 'enabled', return_value=True), \
          mock.patch.object(helpers, 'engine_ready_for', return_value=True), \
          mock.patch.object(backend.spec_cache, 'load', return_value=SimpleNamespace(sha256='a' * 64)), \
          mock.patch.object(helpers, 'selected_model', return_value={'oid': 'b' * 64}) as selected:
-      self.assertFalse(accel.ready())
+      self.assertFalse(backend.ready())
       client = mock.Mock()
       with self.assertRaisesRegex(RuntimeError, 'not been provisioned'):
-        accel._open_link(client)
+        backend._open_link(client)
       client.close.assert_called_once()
       selected.return_value = {'oid': 'a' * 64}
-      self.assertTrue(accel.ready())
+      self.assertTrue(backend.ready())
 
 
 class TestShippedModelPath(unittest.TestCase):

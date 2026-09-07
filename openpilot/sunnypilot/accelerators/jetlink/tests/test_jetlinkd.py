@@ -397,7 +397,10 @@ class TestParked(unittest.TestCase):
     d = self.daemon()
     d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
     d.step()
-    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=False):
+    # Disabling drops JetlinkEngineReady. Mocked so this can never reach a
+    # live params directory, conftest or no conftest.
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=False), \
+         mock.patch.object(jetlinkd.helpers, 'set_engine_ready'):
       d.step()
     assert not d.dormant
     assert not jetlinkd.helpers.dormant()

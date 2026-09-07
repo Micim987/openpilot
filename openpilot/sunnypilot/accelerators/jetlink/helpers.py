@@ -6,10 +6,9 @@ See the LICENSE.md file in the root directory for more details.
 
 Where the model is, whether the Jetson is attached, and how far along it is.
 
-Deliberately reuses sunnypilot's existing plumbing rather than adding a
-parallel one: the model itself is whatever the model manager has already
-downloaded into the "chestnut" slot, so selecting a large model in the UI and
-watching it download works exactly as it does with a real chestnut.
+The models a Jetson runs are indexed in models.json and fetched from comma's
+LFS, not drawn from the model manager: every bundle it offers is a tinygrad
+pkl for a GPU the Jetson does not have.
 """
 from __future__ import annotations
 
@@ -25,7 +24,7 @@ from openpilot.common.swaglog import cloudlog
 
 # Params. All CLEAR_ON_MANAGER_START-free: readiness must survive a reboot,
 # otherwise every ignition cycle would rebuild a 160 s engine.
-P_ENABLED = "JetlinkEnabled"        # user toggle; absent means "auto"
+P_ENABLED = "JetlinkEnabled"        # user toggle; only True enables
 P_READY = "JetlinkEngineReady"      # sha256 of the model the Jetson has built
 P_ENDPOINT = "JetlinkEndpoint"      # optional "host:port" to use TCP instead of USB
 
@@ -139,7 +138,7 @@ def link_configured() -> bool:
 # leftover from a kill, not a state, which is what the pid is for.
 DORMANT = Path("/dev/shm/jetlink-dormant")
 # hardwared's way of asking jetlinkd to power the Jetson off; see
-# JetlinkAccelerator.shutdown. jetlinkd unlinks it when it has dealt with it.
+# backend.shutdown. jetlinkd unlinks it when it has dealt with it.
 SHUTDOWN_REQUEST = Path("/dev/shm/jetlink-shutdown")
 
 
@@ -203,11 +202,9 @@ def await_shutdown(timeout: float) -> bool:
   return False
 
 
-# How long chestnutPresent stays true after the UDC last read "configured".
-# selfdrived soft-disables on chestnutPresent dropping while the big model is
-# active, and a USB3 link recovery the client rides out passes through
-# "addressed" for a moment. Chestnut's own check is an enumerated USB id, which
-# is stickier than a UDC state read at 2 Hz; this makes ours comparable.
+# How long present() stays true after the UDC last read "configured". A USB3
+# link recovery the client rides out passes through "addressed" for a moment,
+# and presence read at 2 Hz should not blink for it.
 PRESENCE_HOLD = 5.0
 _last_configured = 0.0
 
@@ -215,10 +212,9 @@ _last_configured = 0.0
 def gadget_present() -> bool:
   """Is a Jetson actually on the other end right now?
 
-  This is the one that answers "is an accelerator attached", so it is what
-  deviceState.chestnutPresent uses. It only becomes true once something is
-  holding the gadget open and a host has configured us, and it holds for
-  PRESENCE_HOLD after that stops being true.
+  This is the one that answers "is an accelerator attached". It only becomes
+  true once something is holding the gadget open and a host has configured
+  us, and it holds for PRESENCE_HOLD after that stops being true.
   """
   global _last_configured
   if link_endpoint() is not None:
@@ -257,24 +253,22 @@ def connect(deadline: float | None = None):
 
 
 def enabled() -> bool:
-  """Should we run the link at all? Absent param means "auto"."""
-  v = _get(P_ENABLED)
-  return link_configured() if v is None else bool(v)
+  """Has the user switched the link on? JetlinkEnabled == True and nothing else.
 
-
-def opted_in() -> bool:
-  """Has the user actually asked for the link, rather than left it on auto?
-
-  The distinction only matters for complaining. On auto, a device that cannot
-  present the gadget should simply not offer the feature; once someone has
-  turned it on, silence is the wrong answer.
+  Not "absent means auto": on AGNOS with the package installed the gadget
+  comes up at boot, so an auto rule turned installation alone into enablement
+  and quietly routed manager away from any custom small bundle.
   """
   return bool(_get(P_ENABLED))
 
 
 def gadget_alert() -> str | None:
-  """The gadget failure worth putting in front of the user, if any."""
-  return gadget_error() if opted_in() else None
+  """The gadget failure worth putting in front of the user, if any.
+
+  Only for someone who asked for the link: with it off, a device that cannot
+  present the gadget should simply not offer the feature.
+  """
+  return gadget_error() if enabled() else None
 
 
 # -- the model ------------------------------------------------------------

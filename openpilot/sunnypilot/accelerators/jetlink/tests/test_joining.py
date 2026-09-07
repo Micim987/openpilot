@@ -59,12 +59,10 @@ class JoiningTest(unittest.TestCase):
     patcher.start()
     self.addCleanup(patcher.stop)
 
-    self.params = {}
-    fake_params = mock.MagicMock()
-    fake_params.put_bool.side_effect = lambda k, v: self.params.__setitem__(k, v)
-    fake_params.remove.side_effect = lambda k: self.params.pop(k, None)
-    patcher = mock.patch('openpilot.sunnypilot.accelerators.jetlink.joining.Params',
-                         return_value=fake_params)
+    # The join reports progress through a param. Mocked so this can never
+    # reach a live params directory, conftest or no conftest.
+    self.progress = mock.Mock()
+    patcher = mock.patch('openpilot.sunnypilot.accelerators.jetlink.joining.accelerators', self.progress)
     patcher.start()
     self.addCleanup(patcher.stop)
 
@@ -187,11 +185,11 @@ class JoiningTest(unittest.TestCase):
     self.assertTrue(s.big_model_available)
     self.assertEqual(self._run(s), {'from': 'small'})
     self.assertTrue(s.loading)
-    self.assertNotIn('ChestnutActive', self.params)
+    self.assertEqual(s.big_model_state, 'joining')
     s._engaged = False
     self.assertEqual(self._run(s), {'from': 'big'})
     self.assertFalse(s.big_model_available)
-    self.assertIs(self.params['ChestnutActive'], True)
+    self.assertEqual(s.big_model_state, 'running')
 
   def test_availability_survives_ping_but_not_link_loss(self):
     pinging, release = threading.Event(), threading.Event()
@@ -273,9 +271,10 @@ class JoiningTest(unittest.TestCase):
     s._engaged = False
     self.big.raises = RuntimeError('first inference failed')
     self.assertEqual(self._run(s), {'from': 'small'})
-    self.assertIs(self.params.get('ChestnutLoading'), True)
-    self.assertNotIn('ChestnutActive', self.params)
+    self.assertTrue(s.loading)
+    self.assertEqual(s.big_model_state, 'retrying')
     self.assertFalse(s.big_model_available)
+    self.progress.clear_progress.assert_not_called()
 
   def test_fallback_resets_history_without_waiting_for_teardown(self):
     entered, release = threading.Event(), threading.Event()
@@ -304,21 +303,22 @@ class JoiningTest(unittest.TestCase):
     self.assertTrue(entered.wait(1))
     self.assertFalse(release.is_set())
 
-  def test_ready_is_written_only_after_inference_returns(self):
+  def test_ready_is_announced_only_after_inference_returns(self):
     s = self._state()
     self._wait_joined(s)
     s._engaged = False
     run = self.big.run
 
     def inspect(*args):
-      self.assertIs(self.params.get('ChestnutLoading'), True)
-      self.assertNotIn('ChestnutActive', self.params)
+      # Swapped in, but not announced: the first frame has not returned yet.
+      self.assertTrue(s._loading)
+      self.progress.clear_progress.assert_not_called()
       return run(*args)
 
     self.big.run = inspect
     self.assertEqual(self._run(s), {'from': 'big'})
-    self.assertIs(self.params.get('ChestnutActive'), True)
-    self.assertIs(self.params.get('ChestnutLoading'), False)
+    self.assertFalse(s._loading)
+    self.progress.clear_progress.assert_called_once()
 
   def test_prepare_failure_uses_startup_fallback_not_a_slow_swap(self):
     order = []
@@ -349,9 +349,8 @@ class JoiningTest(unittest.TestCase):
     with mock.patch('openpilot.sunnypilot.accelerators.jetlink.joining.time.monotonic',
                     return_value=time.monotonic() + 600.0):
       self._run(s)
-    self.assertIs(self.params.get("ChestnutLoading"), True)
     self.assertTrue(s.loading)
-    self.assertNotIn("ChestnutActive", self.params)
+    self.assertEqual(s.big_model_state, 'joining')
     # A join that succeeds later still swaps.
     self.connect_error = None
     s._rejoin.set()
@@ -364,30 +363,31 @@ class JoiningTest(unittest.TestCase):
     self.assertTrue(s.chestnut)
     self.assertFalse(s.loading)
 
-  def test_owns_the_params_modeld_would_write(self):
-    # From the constructor, before modeld's main thread gets the object back:
-    # loading is true and active is neither true nor false. modeld reads
-    # `loading` and leaves both alone. True/false at the swap, false/true at a
-    # demote, so selfdrived's "Big Model Ready" edge is the swap and its "Big
-    # Model Failed" soft disable is the demote, as they are for a chestnut.
-    self.params['ChestnutActive'] = True   # stale, from whatever ran before
+  def test_state_travels_in_the_message_not_in_params(self):
+    # A chestnut writes ChestnutLoading and ChestnutActive because its load
+    # is over once. Ours never is, so selfdrived's "Big Model Ready" edge is
+    # modelV2.big turning true and the UI reads acceleratorState: joining from
+    # the constructor, running at the swap, retrying after a demote.
     s = self._state()
-    self.assertIs(self.params.get('ChestnutLoading'), True)
-    self.assertNotIn('ChestnutActive', self.params)
     self.assertTrue(s.loading)
+    self.assertEqual(s.big_model_state, 'joining')
 
     self._wait_joined(s)
     s._engaged = False
     self._run(s)
-    self.assertIs(self.params.get('ChestnutActive'), True)
-    self.assertIs(self.params.get('ChestnutLoading'), False)
     self.assertFalse(s.loading)
+    self.assertTrue(s.chestnut)
+    self.assertEqual(s.big_model_state, 'running')
 
     self.big.raises = RuntimeError("link gone")
     self._run(s)
-    self.assertIs(self.params.get('ChestnutActive'), False)
-    self.assertIs(self.params.get('ChestnutLoading'), True)
     self.assertTrue(s.loading)
+    self.assertFalse(s.chestnut)
+    self.assertEqual(s.big_model_state, 'retrying')
+    self.progress.report_progress.assert_called_with('connect', 0.0, 'lost the jetson, reconnecting')
+
+    s.close()
+    self.assertEqual(s.big_model_state, 'unavailable')
 
   def test_build_failure_backs_off(self):
     self._build = mock.Mock(side_effect=RuntimeError("no warp"))
@@ -399,7 +399,7 @@ class JoiningTest(unittest.TestCase):
     # Not straight back onto the link: the next attempt waits REJOIN_DELAY.
     self.assertGreater(s._rejoin_at, time.monotonic() + 1.0)
     self.assertTrue(s.loading)
-    self.assertNotIn('ChestnutActive', self.params)
+    self.assertEqual(s.big_model_state, 'retrying')
 
   def test_a_link_that_dies_before_the_swap_is_reopened(self):
     # A link waits in _joined until the frame loop finds a window, which on a
@@ -477,16 +477,16 @@ class JoiningTest(unittest.TestCase):
     # and latches on it.
     s = self._state()
     self._run(s)
-    self.assertIs(self.params.get('ChestnutLoading'), True)
+    self.assertTrue(s.loading)
 
     self._wait_joined(s)
     s._engaged = False
     self._run(s)
-    self.assertIs(self.params.get('ChestnutLoading'), False)
+    self.assertFalse(s.loading)
 
     self.big.raises = RuntimeError("link gone")
     self._run(s)
-    self.assertIs(self.params.get('ChestnutLoading'), True)
+    self.assertTrue(s.loading)
 
 
 class ContractTest(unittest.TestCase):
