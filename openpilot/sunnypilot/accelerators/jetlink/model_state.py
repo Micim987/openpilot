@@ -16,6 +16,11 @@ its input is a 2 MB camera buffer already in GPU memory and its output is the
 393 KB the link has to carry anyway. The history queues (img_q, big_img_q,
 feat_q, desire_q) live on the Jetson: shipping them per frame would cost ~10 MB
 instead of ~0.5 MB.
+Upstream fused warp and policy into one JIT, so there is no longer a warp in
+the small model's pkl to take. scons compiles a standalone one at build time,
+before manager starts; see accelerators/SConscript and warp_cache. The wire
+format is unchanged - the same `Tensor.cat` of the two warped frames goes out -
+because `make_warp` is still the same closure the fused JIT wraps.
 """
 from __future__ import annotations
 

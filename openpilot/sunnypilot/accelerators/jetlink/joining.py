@@ -109,10 +109,10 @@ class JoiningModelState:
     self._reset_small = reset_small
 
     # Whatever the swap would otherwise have to do on the frame loop, done now
-    # instead. modeld constructs this from its loader thread and waits for it
-    # on the main thread, so the GPU is idle and no frame can be dropped;
-    # measured on the car, doing it at the swap cost a 1.5 s frame. Failure
-    # stays on modeld's startup fallback path, never a later driving frame.
+    # instead. modeld constructs this where it loads models, on its main thread
+    # before the frame loop exists, so the GPU is idle and there is no frame to
+    # drop; measured on the car, doing it at the swap cost a 1.5 s frame.
+    # Failure stays on modeld's startup fallback path, never a driving frame.
     if prepare is not None:
       try:
         t0 = time.monotonic()
@@ -243,14 +243,16 @@ class JoiningModelState:
     return result
 
   def warmup(self) -> None:
-    """modeld warms whatever make_model_state returned. Nothing to do here.
+    """Nothing to do, and it still has to exist.
 
     Nobody warms the small model: modeld builds it and starts running frames,
     on stock and here alike. The large model's warp is warmed in __init__ by
     `prepare`, and its first real frame carries the reset, which is the
-    cheapest warm-up there is. So this is a no-op, but it has to exist -
-    modeld calls it unconditionally on the chestnut path, and an
-    AttributeError there is caught as "big model load failed".
+    cheapest warm-up there is. modeld does not call this on the jetlink path
+    (it warms only what its own loader thread built, which is the chestnut
+    block), but every ModelState it may be handed has the method, and a caller
+    that does duck-type it - the replay tool, a test - must not take an
+    AttributeError, which modeld reads as "big model load failed".
     """
 
   @property
