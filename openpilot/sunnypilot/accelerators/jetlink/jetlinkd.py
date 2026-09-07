@@ -98,6 +98,16 @@ VM_SYSCTLS = {
   'vm.dirty_background_bytes': '8388608',
   'vm.min_free_kbytes': '131072',
 }
+# Stock AGNOS runs the dirty limits in ratio mode: both *_bytes keys read 0.
+# 0 cannot be written back: the kernel's proc_doulongvec_minmax drops a value
+# below dirty_bytes_min (two pages) without an error, so a restore that writes
+# vm.dirty_bytes=0 leaves 16 MB in place, from sysctl and from /proc alike.
+# Writing the ratio key is what zeroes the bytes key, so the ratios are
+# recorded alongside and a recorded 0 restores through them.
+VM_RATIO_KEYS = {
+  'vm.dirty_bytes': 'vm.dirty_ratio',
+  'vm.dirty_background_bytes': 'vm.dirty_background_ratio',
+}
 SYSCTL_PREV = Path('/dev/shm/jetlink-sysctl-prev')
 PROC_SYS = Path('/proc/sys')
 
@@ -129,7 +139,7 @@ def _write_sysctls(values: dict[str, str]) -> None:
 def apply_vm_tuning() -> None:
   """Record the stock values once, then apply ours."""
   if not SYSCTL_PREV.exists():
-    prev = _read_sysctls(VM_SYSCTLS)
+    prev = _read_sysctls([*VM_SYSCTLS, *VM_RATIO_KEYS.values()])
     if prev:
       try:
         SYSCTL_PREV.write_text(json.dumps(prev))
@@ -148,7 +158,18 @@ def restore_vm_tuning() -> None:
     cloudlog.exception("jetlink: unreadable sysctl record, leaving the values as they are")
     prev = {}
   if isinstance(prev, dict):
-    _write_sysctls({k: str(v) for k, v in prev.items() if k in VM_SYSCTLS})
+    values = {}
+    for key in VM_SYSCTLS:
+      if key not in prev:
+        continue
+      ratio = VM_RATIO_KEYS.get(key)
+      if str(prev[key]) == '0' and ratio in prev:
+        # A 0 written to a *_bytes key is dropped by the kernel; the ratio key
+        # is the way back to ratio mode (see VM_RATIO_KEYS).
+        values[ratio] = str(prev[ratio])
+      else:
+        values[key] = str(prev[key])
+    _write_sysctls(values)
   try:
     SYSCTL_PREV.unlink()
   except OSError:

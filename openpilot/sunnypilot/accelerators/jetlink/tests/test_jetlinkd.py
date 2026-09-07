@@ -510,7 +510,12 @@ class TestVmTuning(unittest.TestCase):
   at ignition, and the values are for the drive that follows.
   """
 
-  STOCK = {'vm.dirty_bytes': '0', 'vm.dirty_background_bytes': '0', 'vm.min_free_kbytes': '7274'}
+  # Stock AGNOS: ratio mode, so both *_bytes read 0 and the ratios carry the limit.
+  STOCK = {'vm.dirty_bytes': '0', 'vm.dirty_background_bytes': '0', 'vm.min_free_kbytes': '7274',
+           'vm.dirty_ratio': '20', 'vm.dirty_background_ratio': '5'}
+  # What a restore of STOCK has to write: the kernel drops a 0 written to a
+  # *_bytes key, and writing the ratio key is what zeroes it.
+  RESTORED = ['vm.dirty_ratio=20', 'vm.dirty_background_ratio=5', 'vm.min_free_kbytes=7274']
 
   def setUp(self):
     self.tmp = Path(tempfile.mkdtemp())
@@ -547,8 +552,8 @@ class TestVmTuning(unittest.TestCase):
     d.stop = True
     with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True):
       d.run()
-    for key in self.STOCK:
-      (jetlinkd.PROC_SYS / key.replace('.', '/')).write_text(jetlinkd.VM_SYSCTLS[key])
+    for key, value in jetlinkd.VM_SYSCTLS.items():
+      (jetlinkd.PROC_SYS / key.replace('.', '/')).write_text(value)
     self.run_mock.reset_mock()
     d = jetlinkd.Jetlinkd()
     d.stop = True
@@ -567,12 +572,12 @@ class TestVmTuning(unittest.TestCase):
     # A previous run that was SIGKILLed left our values in /proc; reading them
     # now would record them as the stock ones and restore to them forever.
     self.record.write_text(json.dumps(self.STOCK))
-    for key in self.STOCK:
-      (jetlinkd.PROC_SYS / key.replace('.', '/')).write_text(jetlinkd.VM_SYSCTLS[key])
+    for key, value in jetlinkd.VM_SYSCTLS.items():
+      (jetlinkd.PROC_SYS / key.replace('.', '/')).write_text(value)
     jetlinkd.apply_vm_tuning()
     assert json.loads(self.record.read_text()) == self.STOCK
     jetlinkd.restore_vm_tuning()
-    assert self.applied()[-len(self.STOCK):] == [f'{k}={v}' for k, v in self.STOCK.items()]
+    assert self.applied()[-len(self.RESTORED):] == self.RESTORED
 
   def test_nothing_happens_when_disabled(self):
     d = jetlinkd.Jetlinkd()
@@ -595,6 +600,27 @@ class TestVmTuning(unittest.TestCase):
     assert not d.vm_tuned
     assert not self.record.exists()
     assert self.applied()[-1] == 'vm.min_free_kbytes=' + self.STOCK['vm.min_free_kbytes']
+
+  def test_the_ratios_are_captured_in_the_record(self):
+    jetlinkd.apply_vm_tuning()
+    record = json.loads(self.record.read_text())
+    assert record['vm.dirty_ratio'] == '20'
+    assert record['vm.dirty_background_ratio'] == '5'
+
+  def test_ratio_mode_is_restored_through_the_ratio_keys(self):
+    # Measured on the comma: after our apply, `sysctl -w vm.dirty_bytes=0` and
+    # a direct /proc write both return 0 and leave 16777216 in place.
+    self.record.write_text(json.dumps(self.STOCK))
+    jetlinkd.restore_vm_tuning()
+    assert self.applied() == self.RESTORED
+    assert not any(a.endswith('_bytes=0') for a in self.applied())
+
+  def test_bytes_mode_is_restored_directly(self):
+    prev = dict(self.STOCK, **{'vm.dirty_bytes': '33554432', 'vm.dirty_background_bytes': '4194304'})
+    self.record.write_text(json.dumps(prev))
+    jetlinkd.restore_vm_tuning()
+    assert self.applied() == ['vm.dirty_bytes=33554432', 'vm.dirty_background_bytes=4194304',
+                              'vm.min_free_kbytes=7274']
 
   def test_a_root_run_writes_proc_directly(self):
     with mock.patch.object(jetlinkd.os, 'geteuid', return_value=0):
