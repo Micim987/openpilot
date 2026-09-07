@@ -22,4 +22,4 @@
 	branch = nrdr-architecture-development
 [submodule "jetlink"]
   path = jetlink_repo
-  url = https://github.com/zephleggett/jetlink.git
+  url = https://github.com/zoompilot/jetlink.git
