@@ -19,7 +19,9 @@ of load_warp, which lands in the fallback to the small model.
 """
 import importlib
 import pickle
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -167,6 +169,34 @@ class TestGeometry(WarpCacheTest):
     # both warp to MEDMODEL_INPUT_SIZE, which is what the model input needs
     self.assertEqual(mici[2:], tici[2:])
     self.assertEqual(tici[2:], (512, 256))
+
+
+class TestInitDevice(unittest.TestCase):
+  """prepare() runs this before modeld goes realtime. tinygrad's compile pool
+  (engine/worker.py) is created on the first compile, which is otherwise the
+  warp's first call after config_realtime_process, and its handler threads
+  then sit at FIFO 54 on the frame loop's core."""
+
+  def setUp(self):
+    self.pool = mock.Mock(name='get_worker_pool')
+    worker = types.ModuleType('tinygrad.engine.worker')
+    worker.get_worker_pool = self.pool
+    modules = {'tinygrad': mock.MagicMock(), 'tinygrad.tensor': mock.MagicMock(),
+               'tinygrad.engine': mock.MagicMock(), 'tinygrad.engine.worker': worker}
+    patcher = mock.patch.dict(sys.modules, modules)
+    patcher.start()
+    self.addCleanup(patcher.stop)
+
+  def test_the_compile_pool_is_created_with_the_device(self):
+    warp_cache.init_device()
+    self.pool.assert_called_once_with()
+
+  def test_a_pool_that_will_not_start_is_logged_not_raised(self):
+    # An older tinygrad without the module, or PARALLEL=0, must not veto the accelerator.
+    self.pool.side_effect = RuntimeError('no pool')
+    with mock.patch.object(warp_cache.cloudlog, 'exception') as log:
+      warp_cache.init_device()
+    log.assert_called_once()
 
 
 class TestCallConvention(unittest.TestCase):

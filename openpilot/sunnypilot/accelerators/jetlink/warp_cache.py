@@ -98,6 +98,20 @@ def init_device() -> None:
     Tensor([0.0]).realize()
   except Exception:
     cloudlog.exception("jetlink: could not bring the gpu up before modeld goes realtime")
+  # The same trap one layer up. tinygrad compiles kernels through a
+  # multiprocessing pool (engine/worker.py, PARALLEL != 0) that it creates on
+  # the first compile, which for us is the warp JIT's first call inside
+  # make_model_state, after modeld has gone realtime. A live bench found its
+  # three handler threads (_handle_workers, _handle_tasks, _handle_results) at
+  # SCHED_FIFO 54 on core 7, next to the frame loop; the stock small-model path
+  # never creates them. Made here, the threads and the worker processes are
+  # SCHED_OTHER on every core. An older tinygrad without the module, or
+  # PARALLEL=0, is not a reason to refuse the accelerator.
+  try:
+    from tinygrad.engine.worker import get_worker_pool
+    get_worker_pool()
+  except Exception:
+    cloudlog.exception("jetlink: could not start tinygrad's compile pool before modeld goes realtime")
 
 
 def device_geometry() -> tuple[int, int, int, int]:
