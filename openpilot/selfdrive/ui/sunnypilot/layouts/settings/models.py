@@ -138,8 +138,7 @@ class ModelsLayout(Widget):
     set_link_enabled(enabled)
 
   def _refresh_accelerator_items(self):
-    # present() and unavailable_reason() read sysfs, so this rides the half-second
-    # cache tick rather than the frame
+    # present() and unavailable_reason() read sysfs, so this rides the half-second tick
     choices = accelerators.model_choices()
     self.accelerator_model_item.set_visible(bool(choices))
     if choices:
@@ -271,8 +270,7 @@ class ModelsLayout(Widget):
     fallback_name = default_model_name("qcom")
     state = big_model_state()
     if accelerator:
-      # the accelerator's model comes from its own registry, and its only fallback
-      # is stock modeld's small model, so it reads like a Default big
+      # the accelerator's model comes from its own registry, so it reads like a Default big
       big_name = selected_accelerator_model() or tr("The big model")
       big_is_default = True
     else:

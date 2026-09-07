@@ -24,10 +24,7 @@ from openpilot.system.ui.widgets.scroller import NavScroller
 
 
 class AcceleratorLinkToggle(BigToggle):
-  """On / off over one bool param. Not BigParamControl: the write also drops
-  manager's runner cache and is refused onroad, so it goes through
-  accelerator_link rather than straight to Params.
-  """
+  """not BigParamControl: the write also drops manager's runner cache and is refused onroad"""
 
   def __init__(self):
     super().__init__(tr("accelerator link"), initial_state=link_enabled(), toggle_callback=self._store)
@@ -55,10 +52,13 @@ def _model_info() -> tuple[str, str, str]:
   active_text = (carry_display or active_name).lower()
   provisioning = big_model_progress()
   if provisioning is not None:
-    stage, frac = provisioning
+    stage, frac, msg = provisioning
     if stage == 'failed':
       return active_text, tr("big model"), tr("unavailable")
-    return active_text, tr("big model"), f"{tr(stage)} {frac * 100:.0f}%"
+    # "waiting for the jetson" says more than "connect 0%"; no percentage for a stage
+    # with nothing to measure
+    detail = tr(msg) if msg else tr(stage)
+    return active_text, tr("big model"), f"{detail} {frac * 100:.0f}%" if frac > 0 else detail
   if state == 'failed':
     return active_text, tr("big model"), tr("unavailable")
   if state == 'loading':
@@ -253,8 +253,7 @@ class ModelsLayoutMici(NavScroller):
     should_update = self._download_frame % (gui_app.target_fps / 2) == 0
     if should_update:
       self._download_progress = self._download_progress + "." if len(self._download_progress) < 3 else ""
-      # present() and unavailable_reason() read sysfs, so they ride this half-second
-      # tick rather than the frame
+      # present() and unavailable_reason() read sysfs, so they ride this half-second tick
       self.link_toggle.refresh()
       self.link_toggle.set_visible(link_toggle_meaningful())
 

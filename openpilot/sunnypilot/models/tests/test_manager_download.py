@@ -880,13 +880,8 @@ class TestEffectiveSmallBundle(OpenpilotTestCase):
 
 
 class TestChunkManifestRepair(OpenpilotTestCase):
-  """The chunk manifest describes the chunks on disk, not the manifest parsed last.
-
-  The same file name appears in the qcom and the chestnut manifest with
-  different chunk counts, and the manager parses both every tick. Writing the
-  count unconditionally left the two sources overwriting each other forever, so
-  every open_file_chunked in between resolved to chunk names that do not exist.
-  """
+  """qcom and chestnut list the same file with different chunk counts; the manifest must
+  describe the chunks on disk, not whichever was parsed last"""
 
   CHUNKED_NAME = "shared_model.pkl"
 

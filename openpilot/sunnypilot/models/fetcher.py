@@ -48,21 +48,9 @@ class ModelParser:
 
   @staticmethod
   def _repair_chunk_manifest(artifact: custom.ModelManagerSP.Artifact) -> None:
-    """Record the chunk count of an artifact that is already on disk.
-
-    The manifest is what open_file_chunked reads to rebuild the chunk names, so
-    it has to describe the chunks that are actually there. It cannot simply be
-    taken from whichever manifest was parsed last: the same file name appears in
-    both the qcom and the chestnut manifest with different chunk counts, and the
-    manager parses both every tick, so an unconditional write leaves the two
-    sources overwriting each other forever - and every read in between resolves
-    to chunk names (`...chunk01of04` vs `...chunk01of05`) that do not exist.
-
-    Keying on the first chunk being present settles it: only the source whose
-    chunks were actually downloaded writes. A download of its own writes the
-    manifest when it finishes, so this is purely a repair for files already
-    downloaded, which is all it was ever for.
-    """
+    """Record the chunk count of an artifact already on disk. Every catalog parses each
+    tick and qcom and chestnut list the same file with different counts, so only the source
+    whose first chunk exists writes; a download writes its own manifest when it finishes."""
     from openpilot.common.file_chunker import get_chunk_name, get_manifest_path
 
     try:

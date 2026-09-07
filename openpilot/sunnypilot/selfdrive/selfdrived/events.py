@@ -284,8 +284,7 @@ EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 2.),
   },
 
-  # An accelerator on its own power reconnects mid-drive, so unlike the native
-  # bigModelFailed this does not tell the driver to restart the car.
+  # an accelerator on its own power reconnects mid-drive, so no "restart the car"
   EventNameSP.bigModelLinkLost: {
     ET.SOFT_DISABLE: soft_disable_alert("Big Model Lost"),
     ET.PERMANENT: NormalPermanentAlert("Big Model Lost", "Small model is driving,\nreconnecting if it comes back", duration=20.),

@@ -5,17 +5,9 @@ Copyright (c) 2026-, Zeph Leggett.
 This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Replay a recorded segment through the real modeld, on the accelerator.
-
-The bench tools stop at the link: bench_link measures the round trip and
-verify_parity checks the numbers against onnxruntime, but both drive the client
-directly. Nothing had ever put a real camera frame through modeld's own warp,
-its own ModelState and its own modelV2 parsing while an accelerator ran the
-model. This does, using openpilot's process_replay so the code under test is
-the shipped modeld and not a copy of it.
-
-Runs entirely on the device against a segment already in /data/media, so it
-needs no network and no route download.
+Replay a recorded segment through the real modeld, on the accelerator, via process_replay
+so the code under test is the shipped modeld. Runs on the device against a segment
+already in /data/media, no network needed.
 
     # jetlinkd owns the link offroad, so hand it over first
     kill -TERM $(pgrep -f accelerators.jetlink.jetlinkd)
@@ -39,12 +31,8 @@ CAMERAS = {
 
 
 class HevcFrameReader:
-  """The slice of tools.lib.FrameReader that process_replay actually uses.
-
-  The real one shells out to ffmpeg, which AGNOS does not ship. PyAV carries
-  its own, and decoding on the device beats moving 3.5 MB a frame of raw NV12
-  over wifi.
-  """
+  """The slice of FrameReader process_replay uses. The real one shells out to ffmpeg,
+  which AGNOS does not ship; PyAV decodes on the device."""
 
   pix_fmt = 'nv12'
 
@@ -76,14 +64,8 @@ class HevcFrameReader:
 
 
 def disengaged(m):
-  """Disable both engagement and independent actuation in the isolated replay.
-
-  The joining state only swaps to the accelerator while the car is
-  disengaged, which is right on the road and wrong here: a segment recorded
-  while engaged would replay entirely on the small model, and the run would
-  say so only at the end. The replay never controls anything, so the flag
-  carries no meaning beyond letting the swap happen.
-  """
+  """The joining state only swaps while disengaged, so an engaged segment would replay
+  entirely on the small model. The replay controls nothing."""
   if m.which() == 'selfdriveState':
     b = m.as_builder()
     b.selfdriveState.enabled = False
@@ -97,12 +79,8 @@ def disengaged(m):
 
 
 def trim_to_frames(msgs: list, n: int) -> list:
-  """Keep only as much of the segment as we decoded frames for.
-
-  Camera states run the whole minute, so replaying all of them against a
-  60-frame reader would feed the last decoded frame over and over and report
-  1200 results from 60 images.
-  """
+  """Camera states run the whole minute; replaying them all against a 60-frame reader
+  would repeat the last frame and report 1200 results from 60 images."""
   out, seen = [], 0
   for m in msgs:
     if m.which() == 'narrowRoadCameraState':
@@ -123,12 +101,8 @@ def model_name() -> str:
 
 
 def jetlink_params() -> dict:
-  """Carry the accelerator's provisioning into the replay's params.
-
-  process_replay gives the process a private PARAMS_ROOT, so without this
-  modeld sees no cached spec, decides no accelerator is ready and quietly runs
-  the small model - which looks like a pass everywhere except modelV2.big.
-  """
+  """process_replay gives modeld a private PARAMS_ROOT; without these it quietly runs
+  the small model, which passes everything except modelV2.big."""
   from openpilot.common.params import Params
   params = Params()
   out: dict = {'JetlinkEnabled': True}
@@ -143,14 +117,8 @@ ONLINE = Path('/sys/devices/system/cpu/online')
 
 
 def big_cores_up() -> bool:
-  """Bring the big cluster online so modeld can pin itself as it does onroad.
-
-  modeld opens with config_realtime_process(7, 54), and openpilot parks cores
-  4-7 while the device is offroad - so on a bench sched_setaffinity raises
-  EINVAL and modeld dies before it loads a model. This is the same call
-  hardwared makes at ignition rather than a poke at sysfs behind its back, so
-  the timings below are measured against the scheduling modeld really gets.
-  """
+  """Cores 4-7 are offline offroad and config_realtime_process(7, 54) dies with EINVAL.
+  Same call hardwared makes at ignition, so timings match the scheduling modeld gets."""
   from openpilot.common.hardware import HARDWARE
   try:
     HARDWARE.set_power_save(False)
@@ -160,23 +128,13 @@ def big_cores_up() -> bool:
 
 
 def unpin() -> None:
-  """Last resort when the big cores will not come up: run modeld unpinned.
-
-  It still exercises the whole model path, but the frame times are then the
-  bench's rather than the car's, so they are reported with that caveat.
-  """
+  """Last resort: run modeld unpinned, with frame times that are the bench's, not the car's."""
   from openpilot.common import realtime
   realtime.set_core_affinity = lambda cores: None
 
 
 def dump(model, path: str) -> None:
-  """Per-frame outputs, for comparing two runs over the same frames.
-
-  The summary below says whether a run worked; it cannot say whether the
-  accelerator's outputs are as smooth as the small model's on the same road,
-  which is the question a steering oscillation raises. Saving the fields the
-  planner and the UI consume lets that comparison happen offline.
-  """
+  """Per-frame outputs the planner and UI consume, for comparing two runs over the same frames."""
   def col(f):
     return np.array([f(m.modelV2) for m in model], dtype=np.float32)
   np.savez(path,
@@ -265,14 +223,12 @@ def main() -> int:
   from openpilot.tools.lib.logreader import LogReader
 
   full = list(LogReader(str(rlog)))
-  # The calibration and live-parameter snapshots process_replay wants are
-  # scattered through the whole segment, so read them off the full log and
-  # only then cut it down to the frames we decoded.
+  # process_replay's calibration and live-parameter snapshots are scattered through
+  # the whole segment, so read them off the full log before cutting it down
   custom = get_custom_params_from_lr(full)
   custom.update(jetlink_params())
   lr = [disengaged(m) for m in trim_to_frames(full, args.frames)]
-  # Cutting the log can drop the carParams that process_replay would otherwise
-  # fingerprint from, so name the car outright instead.
+  # cutting the log can drop the carParams process_replay fingerprints from
   fingerprint = next((m.carParams.carFingerprint for m in full if m.which() == 'carParams'), None)
   print(f"segment {seg.name}: {len(lr)} of {len(full)} messages, {args.frames} frames")
   print(f"  car: {fingerprint}")
@@ -293,11 +249,8 @@ def main() -> int:
     unpin()
 
   cfg = get_process_config('modeld')
-  # The joining state only swaps to the accelerator on a disengaged frame and
-  # assumes engaged until selfdriveState says otherwise. modeld itself never
-  # subscribes to it, so process_replay does not deliver it; feed it here or
-  # the whole replay runs on the small model waiting for a signal that never
-  # comes.
+  # the joining state swaps only on a disengaged frame and assumes engaged until told;
+  # modeld never subscribes to selfdriveState, so process_replay would not deliver it
   cfg = replace(cfg, pubs=list(dict.fromkeys([*cfg.pubs, 'selfdriveState', 'carState', 'carControl'])))
   out = replay_process(cfg, lr, frs, fingerprint=fingerprint, custom_params=custom)
   return summarise(out, args.dump)

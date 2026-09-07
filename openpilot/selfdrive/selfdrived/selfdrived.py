@@ -207,8 +207,7 @@ class SelfdriveD(CruiseHelper):
     if self.big_model_loading:
       self.events.add(EventName.bigModelLoading)
 
-    # modeld clears ChestnutLoading after a failed load too, once the small model is up,
-    # so that edge cannot mean ready. modelV2.big is the only sign a big frame was published.
+    # ChestnutLoading also clears after a failed load, so only modelV2.big means the big model is up
     running_big = self.sm.alive['modelV2'] and self.sm.valid['modelV2'] and self.sm['modelV2'].big
     if running_big and not self.big_model_running:
       self.events_sp.add(custom.OnroadEventSP.EventName.bigModelReady)
@@ -465,8 +464,7 @@ class SelfdriveD(CruiseHelper):
       self.logged_comm_issue = None
 
     if not self.CP.notCar and not big_model_settling:  # localization has nothing to work with during the load
-      # a message never received is capnp defaults, not a localizer verdict: locationd and paramsd
-      # publish nothing while modeld is down, and processNotRunning already says so
+      # a message never received is capnp defaults, not a localizer verdict
       if self.sm.seen['deviceMotion'] and not self.sm['deviceMotion'].posenetOK:
         self.events.add(EventName.posenetInvalid)
       if not self.sm['deviceMotion'].inputsOK:

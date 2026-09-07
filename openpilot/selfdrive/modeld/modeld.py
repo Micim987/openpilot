@@ -273,7 +273,7 @@ def main(demo=False):
     params.put_bool("ChestnutActive", False)
   else:
     params.remove("ChestnutActive")
-  # Here and not later: prepare() inits tinygrad's device thread, which must exist before the process goes realtime or it inherits FIFO 54 on core 7.
+  # before going realtime: prepare() starts tinygrad's device thread, which would inherit FIFO 54 on core 7
   JETLINK = not CHESTNUT and accelerators.ready() and accelerators.prepare()
 
   config_realtime_process(7, 54)
@@ -462,8 +462,7 @@ def main(demo=False):
                        run_count % round(ModelConstants.MODEL_RUN_FREQ / SERVICE_LIST['chestnutState'].frequency) == 0)
       model_output = model.run(bufs, transforms, inputs, chestnut_state.send if send_chestnut else None)
     except Exception:
-      # The joining state owns its own demotion, and a small-model fault is fatal as on stock.
-      # Without this the handler below would write ChestnutActive=False and orphan its threads and open link.
+      # the joining state does its own fallback; the handler below would orphan its threads and link
       if JETLINK:
         raise
       if not params.get_bool("ChestnutActive"):

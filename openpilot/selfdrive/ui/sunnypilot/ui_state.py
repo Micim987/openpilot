@@ -31,13 +31,8 @@ class OnroadTimerStatus(Enum):
 
 
 class AcceleratorView(NamedTuple):
-  """What the UI knows about an off-board accelerator (sunnypilot/accelerators).
-
-  Built on the 5 Hz params pass and only when no chestnut is fitted, so the
-  board's native state machine in UIState never sees it. The comma is the USB
-  gadget for this hardware and enumerates nothing, which is why presence comes
-  from the backend and not from a USB id.
-  """
+  """What the UI knows about an off-board accelerator, built on the params pass when no
+  chestnut is fitted. Presence comes from the backend: the comma is the gadget and enumerates nothing."""
   present: bool
   ready: bool
   progress: dict | None
@@ -96,8 +91,7 @@ class UIStateSP:
     self._accelerator_state_name = str(self.sm['modelDataV2SP'].acceleratorState)
 
   def _accelerator_state(self):
-    """ChestnutState for the accelerator view: the same icon states, from the
-    progress param offroad and from modelV2 / acceleratorState onroad."""
+    """ChestnutState for the accelerator view: progress param offroad, modelV2 and acceleratorState onroad"""
     from openpilot.selfdrive.ui.ui_state import ChestnutState  # defined by the class that mixes this in
     view = self.accelerator_view
     if not self.started:
@@ -113,8 +107,7 @@ class UIStateSP:
       return ChestnutState.ACTIVE
     if not view.present:
       return ChestnutState.DISCONNECTED
-    # retrying an absent accelerator is not loading, which the check above settles;
-    # attached, a pending join is loading rather than a failed model
+    # attached, a pending join is loading, not a failed model
     if view.state in ('joining', 'retrying') or not model_seen:
       return ChestnutState.LOADING
     if not view.ready:
@@ -208,28 +201,22 @@ class UIStateSP:
                                chestnut_loading=self.chestnut_loading, offroad=self.is_offroad())
     self.active_bundle = self.params.get(ACTIVE_BUNDLE_KEYS[source])
     self.model_runner_tinygrad = self.active_bundle is not None and self.active_bundle.get("runner") == "tinygrad"
-    # A backend may provision offroad for minutes (an upload, a TensorRT build).
-    # Read on the same 5 Hz pass as the chestnut params, not per frame in a layout.
+    # read on the 5 Hz params pass, not per frame in a layout
     self.accelerator_progress = accelerators.progress()
     stock_runner = accelerators.uses_stock_runner()
-    # stock only counts the default big model's compiled pkl. a downloaded big bundle runs on the
-    # chestnut just the same, so ChestnutState has to see it as available too. Not under the
-    # accelerator override: manager runs stock modeld then, and the stored bundle never loads.
+    # a downloaded big bundle runs on the chestnut too, so it counts as available, except
+    # under the accelerator override where stock modeld never loads it
     if not stock_runner:
       self.chestnut_compiled = self.chestnut_compiled or self.model_runner_tinygrad
-    # comma's board owns chestnut_state whenever it is fitted; the view exists only
-    # for a device with something of ours to show
+    # a fitted chestnut owns chestnut_state; the view exists only when there is something to show
     view = None
     if not self.sm['deviceState'].chestnutPresent:
       present, ready = accelerators.present(), accelerators.ready()
       if present or ready or self.accelerator_progress is not None or stock_runner:
         view = AcceleratorView(present, ready, self.accelerator_progress, stock_runner, self._accelerator_state_name)
     self.accelerator_view = view
-    # An accelerator on its own supply is a cable long before it is a device: the
-    # Jetson's port has VBUS up from power-on, but it does not configure the gadget
-    # until its kernel is up, ~25 s after this UI started on a cold boot, by which
-    # time the one-shot usb_unknown decision has been made. Recognising it late
-    # still clears "unknown".
+    # the Jetson configures the gadget ~25 s after a cold boot, after the one-shot
+    # usb_unknown decision; recognising it late still clears "unknown"
     if view is not None and view.present and self.usb_unknown:
       self.usb_unknown = False
     self.blindspot = self.params.get_bool("BlindSpot")

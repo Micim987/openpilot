@@ -170,8 +170,7 @@ procs = [
 procs += [
   # Models
   PythonProcess("models_manager", "openpilot.sunnypilot.models.manager", only_offroad),
-  # Accelerator backends declare the offroad daemons they need; manager owns
-  # the onroad gating, so a backend never imports this module back.
+  # backends declare their offroad daemons; manager owns the onroad gating
   *[PythonProcess(d.name, d.module, and_(only_offroad, d.should_run)) for d in accelerators.daemons()],
   NativeProcess("modeld_tinygrad", "openpilot/sunnypilot/modeld_v2", ["./modeld"], and_(only_onroad, is_tinygrad_model)),
 

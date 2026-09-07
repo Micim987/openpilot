@@ -330,9 +330,8 @@ class ModelManagerSP:
         self.available_models = self.source_models[ModelFetcher.active_source(self.chestnut_present)]
         validate_active_bundles(self.params, self.source_models)
         self.active_bundle = get_active_bundle(self.params, chestnut=self.chestnut_present)
-        # Under the jetlink override manager runs stock modeld and the stored qcom bundle
-        # is inert. Seeding the default into an empty slot would flip the cached runner
-        # to modeld_tinygrad, which knows nothing about the link.
+        # under the accelerator override the qcom bundle is inert, and seeding the default
+        # would flip the cached runner to modeld_tinygrad
         if not accelerators.uses_stock_runner():
           select_default_model(self.params, self.available_models)
 

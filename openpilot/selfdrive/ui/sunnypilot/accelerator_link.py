@@ -4,10 +4,8 @@ Copyright (c) 2026-, Zeph Leggett.
 This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The user's say over the accelerator link, shared by the mici and the tici
-models panels. On is the only enable: an absent param is off, the backend
-never decides on its own. The backend reads the param, the panels only write
-it, so the name lives here and never on screen.
+The user's say over the accelerator link, shared by the mici and tici models panels.
+On is the only enable; the backend reads the param, the panels only write it.
 """
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.sunnypilot import accelerators
@@ -16,8 +14,7 @@ LINK_PARAM = "JetlinkEnabled"
 
 
 def link_enabled() -> bool:
-  """Never raises: a params library older than the key would otherwise take the
-  settings panel down, the guard accelerators.progress() has."""
+  """never raises: a params library older than the key would take the settings panel down"""
   try:
     return bool(ui_state.params.get(LINK_PARAM))
   except Exception:
@@ -30,14 +27,12 @@ def set_link_enabled(enabled: bool) -> None:
     # manager caches which modeld it runs; the link decides that
     ui_state.params.remove('ModelRunnerTypeCache')
   except Exception:
-    pass  # the same unknown-key case as the read; nothing the panel can do about it
+    pass  # same unknown-key case as the read
 
 
 def link_toggle_meaningful() -> bool:
-  """Whether to show the toggle at all. A plain device with no accelerator, no
-  complaint and the link off must not. ready() is on the list for the link whose
-  engine is cached while the hardware is out of the car: that is exactly when
-  someone wants to turn it off."""
+  """hidden on a plain device. ready() counts so a cached engine can be turned off
+  while the hardware is out of the car"""
   return (accelerators.present() or accelerators.ready() or link_enabled()
           or accelerators.unavailable_reason() is not None)
 
