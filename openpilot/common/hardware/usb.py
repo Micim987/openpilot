@@ -90,11 +90,4 @@ def set_usb_state(device_state, devices: list[dict]) -> None:
     if is_chestnut_usb_id(entry.vendorId, entry.productId):
       chestnut_present = True
 
-  # Any accelerator counts, not just comma's board: this field - not
-  # modeld.helpers.chestnut_present() - is what the model manager, the UI and
-  # selfdrived gate on. Imported here rather than at module scope: modeld.helpers
-  # imports this module, so a top-level import would close a cycle.
-  if not chestnut_present:
-    from openpilot.sunnypilot import accelerators
-    chestnut_present = accelerators.present()
   device_state.chestnutPresent = chestnut_present

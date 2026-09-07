@@ -27,15 +27,12 @@ basedir = env.Dir("#").abspath
 
 
 def jetlink_installed() -> bool:
-  """Is the jetlink package here? Only then is a warp worth building.
+  """Is the jetlink submodule checked out? Only then is a warp worth building.
 
-  setup.sh runs from launch_chffrplus.sh before build.py and symlinks the
-  package to #jetlink, so on a device this is already true by the time scons
-  looks. The repo candidates are the same ones setup.sh searches, for a
-  checkout where the launcher has not run.
+  An empty jetlink_repo/ (submodule registered, never fetched) has no package
+  in it, so the package directory is the test rather than the mount point.
   """
-  candidates = [os.path.join(basedir, 'jetlink'), os.path.join(basedir, 'jetlink_repo'), '/data/jetlink_repo']
-  return any(os.path.isdir(c) for c in candidates)
+  return os.path.isdir(os.path.join(basedir, 'jetlink_repo', 'jetlink'))
 
 
 # Only for the comma's own GPU. The pickle is a capture against Device.DEFAULT

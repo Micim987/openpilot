@@ -687,7 +687,9 @@ def hardware_thread(end_event, hw_queue, telemetry_queue) -> None:
     if power_monitor.should_shutdown(onroad_conditions["ignition"], in_car, off_ts, started_seen):
       cloudlog.warning(f"shutting device down, offroad since {off_ts}")
       # An accelerator on its own supply outlives us; give it the same news.
-      accelerators.shutdown(f"comma shutting down, offroad since {off_ts}")
+      # deviceState pauses for up to the timeout while it goes out; with
+      # jetlink disabled this is one param read.
+      accelerators.shutdown(f"comma shutting down, offroad since {off_ts}", timeout=25.0)
       params.put_bool("DoShutdown", True, block=True)
     stage_started = log_slow_hardware_stage("main", "shutdown", stage_started, last_slow_stage_log,
                                             started_ts is not None, sm.frame)
