@@ -506,7 +506,8 @@ class TestVmTuning(unittest.TestCase):
   """The sysctls are jetlinkd's now, not the boot script's.
 
   A device with the link off must run stock values, and a device that turns it
-  off must get them back; only a SIGKILL leaves ours in place.
+  off must get them back. A plain exit keeps them: manager stops this daemon
+  at ignition, and the values are for the drive that follows.
   """
 
   STOCK = {'vm.dirty_bytes': '0', 'vm.dirty_background_bytes': '0', 'vm.min_free_kbytes': '7274'}
@@ -532,15 +533,29 @@ class TestVmTuning(unittest.TestCase):
   def applied(self) -> list[str]:
     return [c.args[0][-1] for c in self.run_mock.call_args_list]
 
-  def test_applied_on_start_and_restored_on_exit(self):
+  def test_applied_on_start_and_kept_on_exit(self):
     d = jetlinkd.Jetlinkd()
     d.stop = True
     with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True):
       d.run()
     ours = [f'{k}={v}' for k, v in jetlinkd.VM_SYSCTLS.items()]
-    stock = [f'{k}={v}' for k, v in self.STOCK.items()]
-    assert self.applied() == ours + stock
-    assert not self.record.exists(), "the record outliving the restore would be read as stock next time"
+    assert self.applied() == ours, "an exit is the ignition handoff; restoring here strips the drive of them"
+    assert json.loads(self.record.read_text()) == self.STOCK, "the record is what a later disable restores to"
+
+  def test_the_next_start_reapplies_without_touching_the_record(self):
+    d = jetlinkd.Jetlinkd()
+    d.stop = True
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True):
+      d.run()
+    for key in self.STOCK:
+      (jetlinkd.PROC_SYS / key.replace('.', '/')).write_text(jetlinkd.VM_SYSCTLS[key])
+    self.run_mock.reset_mock()
+    d = jetlinkd.Jetlinkd()
+    d.stop = True
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True):
+      d.run()
+    assert self.applied() == [f'{k}={v}' for k, v in jetlinkd.VM_SYSCTLS.items()]
+    assert json.loads(self.record.read_text()) == self.STOCK
 
   def test_the_record_is_written_before_anything_changes(self):
     with mock.patch.object(jetlinkd, '_write_sysctls') as write:

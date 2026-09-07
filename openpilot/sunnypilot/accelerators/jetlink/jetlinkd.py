@@ -86,9 +86,13 @@ WAKE_TIMEOUT = 20.0
 # System-wide on purpose - the gadget read shares the kernel with every writer.
 # Applied here rather than at boot so a device with the link switched off runs
 # stock values: the previous ones are recorded in SYSCTL_PREV before the first
-# change and put back on the way out. A SIGKILL skips the restore and leaves
-# them in place until reboot; that record survives us in /dev/shm so the next
-# run still knows the stock values and never records our own as them.
+# change and put back only when the user turns the link off. Never on exit:
+# the settings are for the drive and this daemon is not. manager stops it at
+# ignition, which is exactly when the contention they were measured against
+# starts, so a restore on the way out would hand modeld stock values on every
+# drive. A reboot resets them. Apply is idempotent on every start, the record
+# is never clobbered, and a disable or a SIGKILL are the only ways the values
+# change while the device is up.
 VM_SYSCTLS = {
   'vm.dirty_bytes': '16777216',
   'vm.dirty_background_bytes': '8388608',
@@ -179,7 +183,7 @@ class Jetlinkd:
     self.warp_thread: threading.Thread | None = None
     self.started = time.monotonic()
     self.dormant = False     # released the gadget on purpose; see go_dormant
-    self.vm_tuned = False    # our sysctls are in; restore on the way out
+    self.vm_tuned = False    # our sysctls are in; restored only on disable
 
   # -- lifecycle ------------------------------------------------------------
 
@@ -574,8 +578,8 @@ class Jetlinkd:
           self.close_link()
           self.next_attempt = time.monotonic() + RECONNECT_BACKOFF
     finally:
+      # The sysctls stay: a stop here is the ignition handoff to modeld.
       self.close_link()
-      self.untune_vm()
     helpers.set_dormant(False)
     if self.warp_thread is not None and self.warp_thread.is_alive():
       cloudlog.warning("jetlink: stopped with the warp still compiling; it will rebuild next time")
