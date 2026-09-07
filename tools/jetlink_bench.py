@@ -24,6 +24,8 @@ def main():
   parser.add_argument('--seconds', type=float, default=180)
   parser.add_argument('--output', type=Path, required=True)
   parser.add_argument('--small', action='store_true')
+  parser.add_argument('--engaged-until', type=float, default=0.0,
+                      help='fake an engaged selfdriveState for this many seconds, so the join has to wait for a window')
   parser.add_argument('--write-chunk', type=int, choices=[16384, 32768, 65536, 131072, 262144, 524288],
                       help='bench-only FunctionFS write quantum override, in bytes')
   args = parser.parse_args()
@@ -65,7 +67,7 @@ def main():
     params.put('CarParams', saved['CarParamsPersistent'], block=True)
     params.put_bool('JetlinkEnabled', not args.small, block=True)
     pm = messaging.PubMaster(['selfdriveState', 'carState', 'carControl', 'deviceState', 'extrinsicsCalibration'])
-    sm = messaging.SubMaster(['modelV2', 'chestnutState'])
+    sm = messaging.SubMaster(['modelV2', 'modelDataV2SP'])
     calibration = None
     if saved['CalibrationParams'] is not None:
       calibration = messaging.log_from_bytes(saved['CalibrationParams'])
@@ -88,18 +90,24 @@ def main():
       tick = 0
       with (args.output / 'frames.csv').open('w') as stream:
         writer = csv.writer(stream)
-        writer.writerow(['elapsed_s', 'frame_id', 'big', 'valid', 'exec_ms', 'drop_pct', 'age_ms'])
+        writer.writerow(['elapsed_s', 'frame_id', 'big', 'valid', 'exec_ms', 'drop_pct', 'age_ms', 'accel_state', 'available'])
         while not stop and time.monotonic() - start < args.seconds:
           if any(child.poll() is not None for child in children):
             raise RuntimeError('camera/modeld exited; inspect captured logs')
           if tick % 100 == 0 and not live.get_bool('IsOffroad'):
             raise RuntimeError('real ignition changed: stopping bench')
+          engaged = time.monotonic() - start < args.engaged_until
           for service in ('selfdriveState', 'carState', 'carControl'):
             message = messaging.new_message(service)
             message.valid = True
             if service == 'carState':
               message.carState.standstill = True
-            # enabled, latActive and longActive stay False.
+            elif service == 'selfdriveState':
+              # The promotion gate reads these three; faking them engaged holds the join back.
+              message.selfdriveState.enabled = engaged
+            elif service == 'carControl':
+              message.carControl.latActive = engaged
+              message.carControl.longActive = engaged
             pm.send(service, message)
           if tick % 10 == 0:
             device = messaging.new_message('deviceState')
@@ -113,15 +121,17 @@ def main():
           sm.update(0)
           if sm.updated['modelV2']:
             model = sm['modelV2']
+            status = sm['modelDataV2SP']
             row = (time.monotonic() - start, model.frameId, int(model.big), int(sm.valid['modelV2']),
                    model.modelExecutionTime * 1000, model.frameDropPerc,
-                   (sm.logMonoTime['modelV2'] - model.timestampEof) / 1e6)
+                   (sm.logMonoTime['modelV2'] - model.timestampEof) / 1e6,
+                   str(status.acceleratorState), int(status.bigModelAvailable))
             rows.append(row)
             writer.writerow(row)
           if time.monotonic() - last >= 10:
             last = time.monotonic()
             stream.flush()
-            print(f't={last-start:.0f}s frames={len(rows)} big={sum(r[2] for r in rows)}',
+            print(f't={last-start:.0f}s frames={len(rows)} big={sum(r[2] for r in rows)} engaged={engaged}',
                   f'latest={rows[-1] if rows else None}', flush=True)
           tick += 1
           time.sleep(max(0, start + tick * 0.01 - time.monotonic()))
