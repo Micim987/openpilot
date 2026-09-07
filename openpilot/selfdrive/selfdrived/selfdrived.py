@@ -34,6 +34,7 @@ from openpilot.sunnypilot.selfdrive.car.cruise_helpers import CruiseHelper
 from openpilot.sunnypilot.selfdrive.car.intelligent_cruise_button_management.controller import IntelligentCruiseButtonManagement
 from openpilot.sunnypilot.selfdrive.selfdrived.button_state_tracker import ButtonStateTracker
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
+from openpilot.sunnypilot.selfdrive.selfdrived.accelerator_events import AcceleratorEvents
 
 REPLAY = "REPLAY" in os.environ
 SIMULATION = "SIMULATION" in os.environ
@@ -83,11 +84,12 @@ class SelfdriveD(CruiseHelper):
     self.calibrated_pose: Pose | None = None
     self.excessive_actuation_check = ExcessiveActuationCheck()
     self.excessive_actuation = self.params.get("Offroad_ExcessiveActuation") is not None
-    self.big_model_running = False
-    self.big_model_available = False
-    self.big_model_blocking = False
+    self.big_model_loading = False
     self.big_model_active = False
     self.big_model_failed = False
+    self.big_model_running = False
+    self.big_model_ready_t = 0.
+    self.accelerator_events = AcceleratorEvents()
 
     # Setup sockets
     self.pm = messaging.PubMaster(['selfdriveState', 'onroadEvents'] + ['selfdriveStateSP', 'onroadEventsSP'])
@@ -188,16 +190,6 @@ class SelfdriveD(CruiseHelper):
     self.button_state_tracker = ButtonStateTracker()
     self.nrdr = NrdrSelfdrive()
 
-  def update_big_model_availability(self):
-    # Ignore missing/stale status without rearming the chime. Only a fresh
-    # unavailable state (or successful activation) permits another announcement.
-    if not all(self.sm.seen[s] and self.sm.alive[s] and self.sm.valid[s] for s in ("modelV2", "modelDataV2SP")):
-      return
-    available = self.sm["modelDataV2SP"].bigModelAvailable and not self.sm["modelV2"].big
-    if available and not self.big_model_available:
-      self.events_sp.add(custom.OnroadEventSP.EventName.bigModelAvailable)
-    self.big_model_available = available
-
   def update_events(self, CS):
     """Compute onroadEvents from carState"""
 
@@ -209,17 +201,18 @@ class SelfdriveD(CruiseHelper):
       self.startup_event = None
 
     loading = self.params.get_bool("ChestnutLoading")
+    if self.big_model_loading and not loading:
+      self.big_model_ready_t = time.monotonic()
+    self.big_model_loading = loading
+    if self.big_model_loading:
+      self.events.add(EventName.bigModelLoading)
+
+    # modeld clears ChestnutLoading after a failed load too, once the small model is up,
+    # so that edge cannot mean ready. modelV2.big is the only sign a big frame was published.
     running_big = self.sm.alive['modelV2'] and self.sm.valid['modelV2'] and self.sm['modelV2'].big
     if running_big and not self.big_model_running:
       self.events_sp.add(custom.OnroadEventSP.EventName.bigModelReady)
     self.big_model_running = running_big
-    self.update_big_model_availability()
-    # A load that holds modelV2 back keeps the driver out. One that joins onto
-    # a model already publishing (an accelerator on its own power, which can
-    # take a whole drive to arrive) does not; see sunnypilot/accelerators/.
-    self.big_model_blocking = loading and not self.sm.alive['modelV2']
-    if self.big_model_blocking:
-      self.events.add(EventName.bigModelLoading)
 
     big_active = self.params.get("ChestnutActive")
     chestnut_present = self.sm['deviceState'].chestnutPresent
@@ -234,6 +227,7 @@ class SelfdriveD(CruiseHelper):
       self.big_model_active = True
     if not self.enabled and not model_unavailable:
       self.big_model_active = False
+    self.accelerator_events.update(self.sm, self.enabled, self.events, self.events_sp)
 
     if self.sm.recv_frame['lateralManeuverPlan'] > 0:
       self.events.add(EventName.lateralManeuver)
@@ -449,9 +443,9 @@ class SelfdriveD(CruiseHelper):
     # generic catch-all. ideally, a more specific event should be added above instead
     has_disable_events = self.events.contains(ET.NO_ENTRY) and (self.events.contains(ET.SOFT_DISABLE) or self.events.contains(ET.IMMEDIATE_DISABLE))
     no_system_errors = (not has_disable_events) or (len(self.events) == num_events)
-    # Accelerator loading has its own NO_ENTRY event. It must not suppress
-    # communication or localization faults, including during a mid-drive join.
-    if not self.sm.all_checks() and no_system_errors:
+    warmup_sec = 5.
+    big_model_settling = self.big_model_loading or time.monotonic() < self.big_model_ready_t + warmup_sec
+    if not self.sm.all_checks() and no_system_errors and not big_model_settling:  # the load holds modelV2 and friends back on purpose
       if not self.sm.all_alive():
         self.events.add(EventName.commIssue)
       elif not self.sm.all_freq_ok():
@@ -470,8 +464,10 @@ class SelfdriveD(CruiseHelper):
     else:
       self.logged_comm_issue = None
 
-    if not self.CP.notCar:
-      if not self.sm['deviceMotion'].posenetOK:
+    if not self.CP.notCar and not big_model_settling:  # localization has nothing to work with during the load
+      # a message never received is capnp defaults, not a localizer verdict: locationd and paramsd
+      # publish nothing while modeld is down, and processNotRunning already says so
+      if self.sm.seen['deviceMotion'] and not self.sm['deviceMotion'].posenetOK:
         self.events.add(EventName.posenetInvalid)
       if not self.sm['deviceMotion'].inputsOK:
         self.events.add(EventName.locationdTemporaryError)

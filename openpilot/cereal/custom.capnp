@@ -365,6 +365,7 @@ struct OnroadEventSP @0xda96579883444c35 {
     controlsMismatchLateralWarning @26;
     silentPedalPressed @27;
     bigModelAvailable @28;
+    bigModelLinkLost @29;
   }
 }
 

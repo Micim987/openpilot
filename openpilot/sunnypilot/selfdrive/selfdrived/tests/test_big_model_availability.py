@@ -5,7 +5,8 @@ from types import SimpleNamespace
 from openpilot.cereal import custom, messaging
 from openpilot.common.prefix import OpenpilotPrefix
 from openpilot.selfdrive.selfdrived.selfdrived import SelfdriveD
-from openpilot.selfdrive.selfdrived.events import ET
+from openpilot.selfdrive.selfdrived.events import Events, ET
+from openpilot.sunnypilot.selfdrive.selfdrived.accelerator_events import AcceleratorEvents
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EVENTS_SP, EventsSP
 
 EventName = custom.OnroadEventSP.EventName
@@ -16,23 +17,23 @@ class TestBigModelAvailability(unittest.TestCase):
     prefix = OpenpilotPrefix()
     prefix.__enter__()
     self.addCleanup(prefix.__exit__, None, None, None)
-    # Exercise selfdrived's real event generation without processes or live Params.
-    self.sd = SelfdriveD.__new__(SelfdriveD)
-    self.sd.sm = messaging.SubMaster(['modelV2', 'modelDataV2SP'])
-    self.sd.events_sp = EventsSP()
-    self.sd.big_model_available = False
-    for service in self.sd.sm.services:
-      self.sd.sm.data[service] = self.sd.sm[service].as_builder()
-      self.sd.sm.seen[service] = True
-      self.sd.sm.alive[service] = True
-      self.sd.sm.valid[service] = True
+    self.sm = messaging.SubMaster(['modelV2', 'modelDataV2SP'])
+    self.events = Events()
+    self.events_sp = EventsSP()
+    self.accel = AcceleratorEvents()
+    for service in self.sm.services:
+      self.sm.data[service] = self.sm[service].as_builder()
+      self.sm.seen[service] = True
+      self.sm.alive[service] = True
+      self.sm.valid[service] = True
 
   def update(self, available=False, big=False):
-    self.sd.sm['modelDataV2SP'].bigModelAvailable = available
-    self.sd.sm['modelV2'].big = big
-    self.sd.events_sp.clear()
-    self.sd.update_big_model_availability()
-    return EventName.bigModelAvailable in self.sd.events_sp.names
+    self.sm['modelDataV2SP'].bigModelAvailable = available
+    self.sm['modelV2'].big = big
+    self.events.clear()
+    self.events_sp.clear()
+    self.accel.update(self.sm, False, self.events, self.events_sp)
+    return EventName.bigModelAvailable in self.events_sp.names
 
   def test_late_boot_chimes_once_then_can_rejoin(self):
     self.assertFalse(self.update())
@@ -56,7 +57,7 @@ class TestBigModelAvailability(unittest.TestCase):
     for service in ('modelV2', 'modelDataV2SP'):
       for check in ('seen', 'alive', 'valid'):
         with self.subTest(service=service, check=check):
-          checks = getattr(self.sd.sm, check)
+          checks = getattr(self.sm, check)
           checks[service] = False
           self.assertFalse(self.update(available=True))
           checks[service] = True
@@ -64,9 +65,9 @@ class TestBigModelAvailability(unittest.TestCase):
 
   def test_stale_gap_does_not_repeat_chime(self):
     self.assertTrue(self.update(available=True))
-    self.sd.sm.alive['modelDataV2SP'] = False
+    self.sm.alive['modelDataV2SP'] = False
     self.assertFalse(self.update())
-    self.sd.sm.alive['modelDataV2SP'] = True
+    self.sm.alive['modelDataV2SP'] = True
     self.assertFalse(self.update(available=True))
     self.assertFalse(self.update())  # an explicit loss rearms it
     self.assertTrue(self.update(available=True))
@@ -78,25 +79,29 @@ class TestBigModelAvailability(unittest.TestCase):
 
   def test_main_event_loop_checks_availability_and_preserves_ready(self):
     # Stop update_events at its normal initialization gate, after model events.
-    from openpilot.selfdrive.selfdrived.events import Events
-    sd = self.sd
+    sd = SelfdriveD.__new__(SelfdriveD)
     sd.sm = messaging.SubMaster(['modelV2', 'modelDataV2SP', 'controlsState', 'deviceState',
                                 'lateralManeuverPlan', 'alertDebug'])
     for service in ('modelV2', 'modelDataV2SP'):
       sd.sm.data[service] = sd.sm[service].as_builder()
       sd.sm.seen[service] = sd.sm.alive[service] = sd.sm.valid[service] = True
     sd.events = Events()
+    sd.events_sp = EventsSP()
+    sd.accelerator_events = AcceleratorEvents()
     sd.params = Mock()
-    sd.params.get_bool.return_value = True
+    sd.params.get_bool.return_value = False
     sd.params.get.return_value = None
-    sd.big_model_running = sd.big_model_active = sd.big_model_failed = False
+    sd.big_model_loading = sd.big_model_running = sd.big_model_active = sd.big_model_failed = False
+    sd.big_model_ready_t = 0.
     sd.enabled = True
     sd.initialized = False
     sd.startup_event = None
+    sd.sm['modelDataV2SP'].acceleratorState = 'joining'
     sd.sm['modelDataV2SP'].bigModelAvailable = True
     sd.update_events(SimpleNamespace())
     self.assertIn(EventName.bigModelAvailable, sd.events_sp.names)
     self.assertNotIn(EventName.bigModelReady, sd.events_sp.names)
+    sd.sm['modelDataV2SP'].acceleratorState = 'running'
     sd.sm['modelDataV2SP'].bigModelAvailable = False
     sd.sm['modelV2'].big = True
     sd.update_events(SimpleNamespace())
