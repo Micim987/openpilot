@@ -10,10 +10,9 @@ from openpilot.cereal import custom
 from openpilot.sunnypilot import accelerators
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle
-from openpilot.selfdrive.ui.mici.widgets.button import BigButton, BigMultiToggle
+from openpilot.selfdrive.ui.mici.widgets.button import BigButton, BigToggle
 from openpilot.selfdrive.ui.ui_state import ui_state, device
-from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (LINK_STATES, link_toggle_meaningful,
-                                                                read_link_state, write_link_state)
+from openpilot.selfdrive.ui.sunnypilot.accelerator_link import link_enabled, link_toggle_meaningful, set_link_enabled
 from openpilot.selfdrive.ui.sunnypilot.model_info import (active_source, big_model_progress, big_model_state,
                                                           bundles_for_source, carrying_model,
                                                           default_model_name, model_info, queued_name)
@@ -24,26 +23,23 @@ from openpilot.system.ui.widgets.label import UnifiedLabel
 from openpilot.system.ui.widgets.scroller import NavScroller
 
 
-class AcceleratorLinkToggle(BigMultiToggle):
-  """auto / on / off over one bool param, where absent means auto.
-
-  BigMultiParamToggle stores an option index and cannot say "unset", which is
-  the state every device should stay in until someone decides otherwise.
+class AcceleratorLinkToggle(BigToggle):
+  """On / off over one bool param. Not BigParamControl: the write also drops
+  manager's runner cache and is refused onroad, so it goes through
+  accelerator_link rather than straight to Params.
   """
 
   def __init__(self):
-    super().__init__(tr("accelerator link"), [tr(state) for state in LINK_STATES], select_callback=self._store)
-    self.refresh()
+    super().__init__(tr("accelerator link"), initial_state=link_enabled(), toggle_callback=self._store)
 
-  def _store(self, label: str) -> None:
+  def _store(self, checked: bool) -> None:
     if not ui_state.is_offroad():
+      self.set_checked(link_enabled())
       return
-    write_link_state(LINK_STATES[self._options.index(label)])
+    set_link_enabled(checked)
 
   def refresh(self) -> None:
-    label = self._options[LINK_STATES.index(read_link_state())]
-    if label != self.value:
-      self.set_value(label)
+    self.set_checked(link_enabled())
 
 
 def _model_info() -> tuple[str, str, str]:

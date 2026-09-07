@@ -207,21 +207,19 @@ class TestTiciModelsPanel:
     params.put("ModelRunnerTypeCache", 1)
     with accelerator(present=True), mock.patch.object(ui_state_module().ui_state, "is_offroad", return_value=True):
       layout = self._layout()
-      layout._set_link_state(1)
+      layout._set_link_state(True)
       assert params.get_bool("JetlinkEnabled") is True
       assert params.get("ModelRunnerTypeCache") is None
-      layout._set_link_state(2)
+      layout._set_link_state(False)
       assert params.get_bool("JetlinkEnabled") is False
-      layout._set_link_state(0)
-      assert params.get("JetlinkEnabled") is None
 
   def test_toggle_is_inert_onroad(self, params):
     params.remove("JetlinkEnabled")
     with accelerator(present=True), mock.patch.object(ui_state_module().ui_state, "is_offroad", return_value=False):
       layout = self._layout()
-      layout._set_link_state(1)
+      layout._set_link_state(True)
       assert params.get("JetlinkEnabled") is None
-      assert layout.accelerator_link_item.action_item.get_selected_button() == 0
+      assert layout.accelerator_link_item.action_item.get_state() is False
 
   def test_picker_selects_through_the_module_api(self, params):
     from openpilot.system.ui.widgets import DialogResult

@@ -14,8 +14,8 @@ from openpilot.sunnypilot import accelerators
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle, resolve_bundle_by_ref
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import device, ui_state
-from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (LINK_STATES, link_toggle_meaningful, read_link_state,
-                                                                selected_accelerator_model, write_link_state)
+from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (link_enabled, link_toggle_meaningful,
+                                                                selected_accelerator_model, set_link_enabled)
 from openpilot.selfdrive.ui.sunnypilot.model_info import big_model_state, bundles_for_source, carrying_model, default_model_name, queued_name
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.application import gui_app
@@ -28,7 +28,7 @@ from openpilot.system.ui.widgets.toggle import ON_COLOR
 from openpilot.sunnypilot.models.runners.constants import CUSTOM_MODEL_PATH
 from openpilot.system.ui.sunnypilot.lib.styles import style
 from openpilot.system.ui.sunnypilot.lib.utils import NoElideButtonAction, ScrollingButtonAction
-from openpilot.system.ui.sunnypilot.widgets.list_view import ListItemSP, multiple_button_item_sp, toggle_item_sp, option_item_sp
+from openpilot.system.ui.sunnypilot.widgets.list_view import ListItemSP, toggle_item_sp, option_item_sp
 from openpilot.system.ui.sunnypilot.widgets.download_status import download_status_item
 from openpilot.system.ui.sunnypilot.widgets.tree_dialog import TreeOptionDialog, TreeNode, TreeFolder
 
@@ -77,13 +77,12 @@ class ModelsLayout(Widget):
       callback=self._open_accelerator_dialog
     )
 
-    # auto / on / off over one bool param, where absent means auto. The stock index
-    # toggle stores a number and cannot say "unset", the state every device stays in
-    # until someone decides otherwise, so the param is read and written by hand.
-    self.accelerator_link_item = multiple_button_item_sp(
+    # not a param-bound toggle: the write also drops manager's runner cache and
+    # is refused onroad, so it goes through accelerator_link by hand
+    self.accelerator_link_item = toggle_item_sp(
       tr("Accelerator Link"),
-      tr("Run the big driving model on an attached accelerator. Auto lets the device decide from what it finds."),
-      [tr("Auto"), tr("On"), tr("Off")], LINK_STATES.index(read_link_state()), callback=self._set_link_state)
+      tr("Run the big driving model on an attached accelerator."),
+      initial_state=link_enabled(), callback=self._set_link_state)
 
     self.download_item = download_status_item(lambda: tr("Download") if self._downloading else tr("Model Status"))
 
@@ -132,11 +131,11 @@ class ModelsLayout(Widget):
                   self.lane_turn_desire_toggle, self.lane_turn_value_control, self.lagd_toggle, self.delay_control, self.camera_offset]
     self._refresh_accelerator_items()
 
-  def _set_link_state(self, index: int):
+  def _set_link_state(self, enabled: bool):
     if not ui_state.is_offroad():
-      self.accelerator_link_item.action_item.set_selected_button(LINK_STATES.index(read_link_state()))
+      self.accelerator_link_item.action_item.set_state(link_enabled())
       return
-    write_link_state(LINK_STATES[index])
+    set_link_enabled(enabled)
 
   def _refresh_accelerator_items(self):
     # present() and unavailable_reason() read sysfs, so this rides the half-second
@@ -147,7 +146,7 @@ class ModelsLayout(Widget):
       name = next((m['name'] for m in choices if m['selected']), tr("None"))
       self.accelerator_model_item.action_item.set_value(name, style.ITEM_TEXT_VALUE_COLOR)
     self.accelerator_link_item.set_visible(link_toggle_meaningful())
-    self.accelerator_link_item.action_item.set_selected_button(LINK_STATES.index(read_link_state()))
+    self.accelerator_link_item.action_item.set_state(link_enabled())
 
   def _open_accelerator_dialog(self):
     choices = accelerators.model_choices()

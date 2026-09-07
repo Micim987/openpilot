@@ -5,33 +5,28 @@ This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
 The user's say over the accelerator link, shared by the mici and the tici
-models panels. Absent means auto and the backend decides from what it finds;
-true and false force it. The backend reads the param, the panels only write
+models panels. On is the only enable: an absent param is off, the backend
+never decides on its own. The backend reads the param, the panels only write
 it, so the name lives here and never on screen.
 """
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.sunnypilot import accelerators
 
 LINK_PARAM = "JetlinkEnabled"
-LINK_STATES = ("auto", "on", "off")
 
 
-def read_link_state() -> str:
-  """auto | on | off. Never raises: a params library older than the key would
-  otherwise take the settings panel down, the guard accelerators.progress() has."""
+def link_enabled() -> bool:
+  """Never raises: a params library older than the key would otherwise take the
+  settings panel down, the guard accelerators.progress() has."""
   try:
-    value = ui_state.params.get(LINK_PARAM)
+    return bool(ui_state.params.get(LINK_PARAM))
   except Exception:
-    return "auto"
-  return "auto" if value is None else "on" if value else "off"
+    return False
 
 
-def write_link_state(state: str) -> None:
+def set_link_enabled(enabled: bool) -> None:
   try:
-    if state == "auto":
-      ui_state.params.remove(LINK_PARAM)
-    else:
-      ui_state.params.put_bool(LINK_PARAM, state == "on", block=True)
+    ui_state.params.put_bool(LINK_PARAM, enabled, block=True)
     # manager caches which modeld it runs; the link decides that
     ui_state.params.remove('ModelRunnerTypeCache')
   except Exception:
@@ -40,10 +35,10 @@ def write_link_state(state: str) -> None:
 
 def link_toggle_meaningful() -> bool:
   """Whether to show the toggle at all. A plain device with no accelerator, no
-  complaint and nothing set must not. ready() is on the list for the link whose
-  engine is cached while the hardware is out of the car: on auto that is exactly
-  when someone wants to turn it off."""
-  return (accelerators.present() or accelerators.ready() or read_link_state() != "auto"
+  complaint and the link off must not. ready() is on the list for the link whose
+  engine is cached while the hardware is out of the car: that is exactly when
+  someone wants to turn it off."""
+  return (accelerators.present() or accelerators.ready() or link_enabled()
           or accelerators.unavailable_reason() is not None)
 
 
