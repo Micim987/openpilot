@@ -122,6 +122,15 @@ def get_selected_bundle(params: Params | None = None, source: str = "qcom") -> "
   return _parse_active_bundle(params.get(ACTIVE_BUNDLE_KEYS[source]))
 
 
+def effective_small_bundle(params: Params | None = None) -> "custom.ModelManagerSP.ModelBundle | None":
+  # What the small slot actually runs. Under the accelerator override manager runs
+  # stock modeld, which loads the default small model and never reads the stored
+  # qcom bundle, so naming that bundle in the UI would be a lie.
+  if accelerators.uses_stock_runner():
+    return None
+  return get_selected_bundle(params, "qcom")
+
+
 def get_active_source(chestnut: bool | None = None, chestnut_active: bool | None = None,
                       chestnut_loading: bool | None = None, offroad: bool | None = None) -> str:
   # `chestnut` is whether the chestnut catalog is in play, not whether a board is
