@@ -13,6 +13,7 @@ from openpilot.cereal import custom
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.hardware.hw import Paths
+from openpilot.selfdrive.modeld.helpers import chestnut_present
 from openpilot.sunnypilot import accelerators
 
 # SET ME TO THE EXACT JSON VERSION WE SET IN SUNNYPILOT_MODELS REPO
@@ -133,12 +134,8 @@ def effective_small_bundle(params: Params | None = None) -> "custom.ModelManager
 
 def get_active_source(chestnut: bool | None = None, chestnut_active: bool | None = None,
                       chestnut_loading: bool | None = None, offroad: bool | None = None) -> str:
-  # `chestnut` is whether the chestnut catalog is in play, not whether a board is
-  # fitted. Every bundle in that catalog is a tinygrad pkl for comma's GPU, so an
-  # accelerator with its own model registry must never see one become active:
-  # it would route modeld to modeld_tinygrad on the small model.
   if chestnut is None:
-    chestnut = accelerators.catalog() == "chestnut"
+    chestnut = chestnut_present()
   state_valid = chestnut_active is not None or chestnut_loading is not None or offroad is not None
   big_active = chestnut and (not state_valid or chestnut_active or chestnut_loading or offroad)
   return "chestnut" if big_active else "qcom"
@@ -148,6 +145,8 @@ def get_active_bundle(params: Params | None = None, *, chestnut: bool | None = N
   # no cross-slot fallback: an empty active slot means the hardware default, which
   # only stock modeld can run - modeld_v2 requires a real bundle
   params = params or Params()
+  # the jetlink override runs stock modeld, which ignores every stored bundle; an
+  # explicit `chestnut` is the manager describing its slots, which still resolve
   if chestnut is None and accelerators.uses_stock_runner():
     return None
   return get_selected_bundle(params, get_active_source(chestnut=chestnut))

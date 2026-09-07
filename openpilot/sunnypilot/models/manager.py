@@ -38,11 +38,12 @@ class ModelManagerSP:
     self.params = Params()
     self.model_fetcher = ModelFetcher(self.params)
     self.pm = messaging.PubMaster(["modelManagerSP"])
-    self.chestnut_catalog = False
+    self.sm = messaging.SubMaster(["deviceState"])
+    self.chestnut_present = False
     self.available_models: list[custom.ModelManagerSP.ModelBundle] = []
     self.source_models: dict[str, list[custom.ModelManagerSP.ModelBundle]] = {}
     self.selected_bundle: custom.ModelManagerSP.ModelBundle = None
-    self.active_bundle: custom.ModelManagerSP.ModelBundle = get_active_bundle(self.params, chestnut=self.chestnut_catalog)
+    self.active_bundle: custom.ModelManagerSP.ModelBundle = get_active_bundle(self.params, chestnut=self.chestnut_present)
     self._chunk_size = 128 * 1000  # 128 KB chunks
     self._download_start_times: dict[str, float] = {}  # Track start time per model
     self._download_ref: bytes | str | None = None
@@ -282,7 +283,7 @@ class ModelManagerSP:
         raise DownloadCancelled("Download cancelled")
       self.selected_bundle.status = custom.ModelManagerSP.DownloadStatus.downloaded
       self.params.put(ACTIVE_BUNDLE_KEYS[source], model_bundle.to_dict(), block=True)
-      self.active_bundle = get_active_bundle(self.params, chestnut=self.chestnut_catalog)
+      self.active_bundle = get_active_bundle(self.params, chestnut=self.chestnut_present)
 
     except Exception:
       if self.selected_bundle is not None:
@@ -323,26 +324,19 @@ class ModelManagerSP:
 
     while True:
       try:
-        # Not deviceState.chestnutPresent: a present accelerator with its own model
-        # registry cannot run anything in the chestnut catalog, so it stays on qcom.
-        self.chestnut_catalog = accelerators.catalog() == "chestnut"
+        self.sm.update(0)
+        self.chestnut_present = self.sm['deviceState'].chestnutPresent
         self.source_models = {source: self.model_fetcher.get_bundles_for_source(source) for source in ModelFetcher.MODEL_SOURCES}
-        self.available_models = self.source_models[ModelFetcher.active_source(self.chestnut_catalog)]
+        self.available_models = self.source_models[ModelFetcher.active_source(self.chestnut_present)]
         validate_active_bundles(self.params, self.source_models)
-        self.active_bundle = get_active_bundle(self.params, chestnut=self.chestnut_catalog)
-        select_default_model(self.params, self.available_models)
+        self.active_bundle = get_active_bundle(self.params, chestnut=self.chestnut_present)
+        # Under the jetlink override manager runs stock modeld and the stored qcom bundle
+        # is inert. Seeding the default into an empty slot would flip the cached runner
+        # to modeld_tinygrad, which knows nothing about the link.
+        if not accelerators.uses_stock_runner():
+          select_default_model(self.params, self.available_models)
 
-        # Only a chestnut device needs a qcom model sitting behind its chestnut one,
-        # because that slot is what modeld falls back to when the board is not
-        # available. Anywhere else an empty qcom slot *is* the selection: it means the
-        # hardware default, which only stock modeld runs, and stock modeld is where an
-        # accelerator with its own model registry lives. Filling it moves manager to
-        # modeld_tinygrad, which knows nothing about that accelerator, so the link goes
-        # quiet onroad with nothing logged. Activation rides along with the download
-        # path even when every chunk verifies as cached, so this fires on a device that
-        # downloads nothing at all.
-        if self.chestnut_catalog and get_selected_bundle(self.params, "chestnut") is not None \
-           and get_selected_bundle(self.params, "qcom") is None:
+        if get_selected_bundle(self.params, "chestnut") is not None and get_selected_bundle(self.params, "qcom") is None:
           if self.params.get("ModelManager_DownloadRef") is None:
             from openpilot.sunnypilot.models.model_name import DEFAULT_MODEL_REF
             if DEFAULT_MODEL_REF:
