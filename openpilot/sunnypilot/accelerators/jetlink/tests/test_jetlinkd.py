@@ -80,11 +80,8 @@ def serving_client(spec=None):
 class TestProvisionCost(unittest.TestCase):
   """What provisioning is allowed to cost when nothing needs doing.
 
-  The identity comes from models.json - the git-lfs `oid` is the sha256 and
-  `size` is the byte count - so a parked car asks the Jetson what it already
-  has without reading, hashing or even having the ONNX. Deriving it from the
-  file instead meant the comma had to hold 766 MB to ask a question the
-  registry could answer, and re-hashed it whenever the file changed.
+  The identity comes from models.json, so a parked car asks the Jetson what it
+  already has without reading, hashing or even having the ONNX.
   """
 
   ENTRY = {'name': 'Fake', 'oid': 'deadbeef', 'size': 4096}
@@ -120,8 +117,7 @@ class TestProvisionCost(unittest.TestCase):
     assert args[0] == self.ENTRY['oid'] and args[1] == self.ENTRY['size']
 
   def test_a_server_that_already_has_it_never_reads_the_file(self):
-    # The steady state of a parked car: hashing 766 MB per retry used to be
-    # the cost of asking, and it is now not paid at all.
+    # the steady state of a parked car: the 766 MB hash is not paid per retry
     d = jetlinkd.Jetlinkd()
     d.client = serving_client()
     d.client.ensure_engine.return_value = FakeSpec()
@@ -201,9 +197,7 @@ class TestProvisionCost(unittest.TestCase):
     assert self.hashed == []
 
   def test_a_ready_param_is_checked_with_the_server_once_per_attach(self):
-    # The Jetson's cache can be pruned, re-flashed or swapped under a param
-    # that says ready; trusting it blindly used to cost every drive until
-    # someone cleared the param by hand.
+    # the Jetson's cache can be pruned or re-flashed under a param that says ready
     self.cache.store(FakeSpec(), self.model)
     d = jetlinkd.Jetlinkd()
     d.client = serving_client()
@@ -261,9 +255,8 @@ class TestStepOnFailure(unittest.TestCase):
     d.step()
 
   def test_a_timeout_keeps_the_gadget_presented(self):
-    # Unbinding makes the host re-enumerate. Doing that on every retry is what
-    # produced hours of connect/disconnect against a Jetson that was simply
-    # not running the server.
+    # unbinding makes the host re-enumerate; on every retry that was hours of
+    # connect/disconnect against a Jetson not running the server
     d = jetlinkd.Jetlinkd()
     d.client = object()
     with mock.patch.object(jetlinkd, '_timed_out', return_value=True):
@@ -460,11 +453,7 @@ class TestTimedOut(unittest.TestCase):
 
 
 class TestWarpFallback(TestParked):
-  """scons builds the warp now; build_warp only covers one that is missing.
-
-  It inherits TestParked's fixture for the patched helpers and the mocked
-  accelerators module, and just turns warp_built back off.
-  """
+  """scons builds the warp; build_warp only covers one that is missing."""
 
   def warp_daemon(self):
     d = self.daemon()
@@ -503,12 +492,8 @@ class TestWarpFallback(TestParked):
 
 
 class TestVmTuning(unittest.TestCase):
-  """The sysctls are jetlinkd's now, not the boot script's.
-
-  A device with the link off must run stock values, and a device that turns it
-  off must get them back. A plain exit keeps them: manager stops this daemon
-  at ignition, and the values are for the drive that follows.
-  """
+  """A device with the link off runs stock values, one that turns it off gets
+  them back, and a plain exit keeps them for the drive that follows."""
 
   # Stock AGNOS: ratio mode, so both *_bytes read 0 and the ratios carry the limit.
   STOCK = {'vm.dirty_bytes': '0', 'vm.dirty_background_bytes': '0', 'vm.min_free_kbytes': '7274',
@@ -630,9 +615,8 @@ class TestVmTuning(unittest.TestCase):
 
 
 class BuildEtaTest(unittest.TestCase):
-  """models.json has carried built_seconds all along so the UI could say how
-  long a first provision takes, and nothing read it. A driver watching
-  "build 12%" cannot tell five minutes from thirty."""
+  """built_seconds is what tells a driver watching "build 12%" whether that is
+  five minutes or thirty."""
 
   def test_the_build_stage_gets_a_time_remaining(self):
     from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J

@@ -6,13 +6,10 @@ See the LICENSE.md file in the root directory for more details.
 
 The rules the late join has to keep.
 
-No hardware and no link: the point of the joining state is that it is pure
-plumbing around two model states, so both of those are fakes here. What is
-actually being pinned is the four things that are easy to get wrong and
-expensive to find on the car - that modeld gets a working model immediately,
-that a swap never lands on an engaged frame, that a large model which dies
-mid-drive falls back without losing the frame, and that a small-model failure
-still belongs to modeld.
+Both model states are fakes; the joining state is plumbing around them. What
+is pinned: modeld gets a working model immediately, a swap never lands on an
+engaged frame, a large model that dies mid-drive falls back without losing the
+frame, and a small-model failure still belongs to modeld.
 """
 import re
 import threading
@@ -338,11 +335,8 @@ class JoiningTest(unittest.TestCase):
     self.assertFalse(self.big.warmed)
 
   def test_loading_has_no_deadline(self):
-    # It used to end at 60 s because it was a NO_ENTRY in selfdrived. It is not
-    # any more (selfdrived only gates on it while nothing publishes modelV2),
-    # so a Jetson that takes a whole drive to arrive stays "getting ready" and
-    # the join keeps going. The 60 s edge used to read as "Big Model Ready" to
-    # selfdrived and "unavailable" to the UI, both false.
+    # no 60 s edge: selfdrived gates on it only while nothing publishes modelV2,
+    # so a Jetson that takes a whole drive stays "getting ready"
     self.connect_error = RuntimeError("jetson still booting")
     s = self._state()
     self._run(s)
@@ -364,10 +358,8 @@ class JoiningTest(unittest.TestCase):
     self.assertFalse(s.loading)
 
   def test_state_travels_in_the_message_not_in_params(self):
-    # A chestnut writes ChestnutLoading and ChestnutActive because its load
-    # is over once. Ours never is, so selfdrived's "Big Model Ready" edge is
-    # modelV2.big turning true and the UI reads acceleratorState: joining from
-    # the constructor, running at the swap, retrying after a demote.
+    # a chestnut's load is over once; this never is, so selfdrived's edge is
+    # modelV2.big turning true and the UI reads acceleratorState
     s = self._state()
     self.assertTrue(s.loading)
     self.assertEqual(s.big_model_state, 'joining')
@@ -402,9 +394,8 @@ class JoiningTest(unittest.TestCase):
     self.assertEqual(s.big_model_state, 'retrying')
 
   def test_a_link_that_dies_before_the_swap_is_reopened(self):
-    # A link waits in _joined until the frame loop finds a window, which on a
-    # drive with no stop and no disengage is the whole drive. If the Jetson
-    # reboots in there, finding out at the swap costs a frame and a demote.
+    # a link waits in _joined for a window, which on a drive with no stop is the
+    # whole drive; a Jetson that reboots in there must be caught before the swap
     clients = []
 
     def connect():
@@ -472,9 +463,8 @@ class JoiningTest(unittest.TestCase):
 
 
   def test_reports_loading_until_it_joins(self):
-    # The UI reads this to tell "not up yet" from "failed". modelV2.big is
-    # false for the whole join, and without this the UI calls that a failure
-    # and latches on it.
+    # the UI reads this to tell "not up yet" from "failed"; modelV2.big is
+    # false for the whole join
     s = self._state()
     self._run(s)
     self.assertTrue(s.loading)
@@ -492,11 +482,8 @@ class JoiningTest(unittest.TestCase):
 class ContractTest(unittest.TestCase):
   """Whatever modeld touches on the object make_model_state returns.
 
-  Read out of modeld rather than kept by hand, because the list is modeld's and
-  it has already been wrong once: `warmup` is called on the return value and
-  nothing else, so it was missed, and modeld catches the AttributeError as
-  "big model load failed" and spends the drive on the small model. A missing
-  member has to fail here, not on the car.
+  Read out of modeld rather than kept by hand: `warmup` was missed once, and
+  modeld reads the AttributeError as "big model load failed".
   """
 
   def test_provides_everything_modeld_touches(self):
