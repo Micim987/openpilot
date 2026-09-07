@@ -316,10 +316,15 @@ def make_status_publisher(pm, model):
 
 
 def uses_stock_runner() -> bool:
-  # Configuration, not live presence or readiness: a late boot must not change
-  # which modeld manager runs in the middle of a drive, and installing the
-  # package must not route manager away from a custom small bundle on its own.
-  return helpers.enabled() and bool(helpers._get(helpers.P_MODEL))
+  # The toggle is the configuration. The model is not: JetlinkModel is a
+  # choice that defaults through selected_model(), so an enabled device with
+  # no model set still provisions and reports ready(). Gating on the model too
+  # left that device on modeld_tinygrad under a custom small bundle, where
+  # jetlink never runs and modelV2.big never happens. Not live presence or
+  # readiness either: a late boot must not change which modeld manager runs
+  # in the middle of a drive, and installing the package must not route
+  # manager away from a custom small bundle on its own.
+  return helpers.enabled()
 
 
 def model_choices() -> list[dict]:

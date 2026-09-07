@@ -76,11 +76,13 @@ class SelectionTest(unittest.TestCase):
     self.configure(enabled=True, model='m', ready_sha='b' * 64, spec_sha='b' * 64)
     self.assertFalse(accelerators.ready())
 
-  def test_stock_runner_needs_a_model_as_well_as_the_toggle(self):
+  def test_stock_runner_is_the_toggle_alone(self):
     # Configuration only: never link state and never ready(), so a late boot
-    # cannot move manager between modelds mid-drive.
+    # cannot move manager between modelds mid-drive. The model is not part of
+    # it either: it defaults through selected_model(), and an enabled device
+    # with no model set still provisions, so it must stay on stock modeld.
     self.configure(enabled=True, model=None)
-    self.assertFalse(accelerators.uses_stock_runner())
+    self.assertTrue(accelerators.uses_stock_runner())
     self.configure(enabled=True, model='m')
     with mock.patch.object(helpers, 'link_configured', return_value=False):
       self.assertTrue(accelerators.uses_stock_runner())

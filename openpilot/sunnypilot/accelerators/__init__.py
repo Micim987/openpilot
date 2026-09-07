@@ -80,9 +80,10 @@ def make_status_publisher(pm, model):
 def uses_stock_runner() -> bool:
   """Should manager run stock modeld regardless of the stored bundle?
 
-  Configuration only: JetlinkEnabled is true and a model is selected. Never
-  link state and never ready(), so a Jetson that boots late cannot change
-  which modeld manager runs in the middle of a drive.
+  Configuration only: JetlinkEnabled is true. The model choice defaults, so
+  it is not part of the gate. Never link state and never ready(), so a Jetson
+  that boots late cannot change which modeld manager runs in the middle of a
+  drive.
   """
   return backend.uses_stock_runner()
 

@@ -863,8 +863,8 @@ class TestEffectiveSmallBundle(OpenpilotTestCase):
     with mock.patch("openpilot.sunnypilot.accelerators.uses_stock_runner", return_value=False):
       assert helpers.effective_small_bundle(params).ref == "custom_small"
 
-  def test_override_is_the_two_params(self):
-    # JetlinkEnabled true and a model selected, nothing about link state or readiness
+  def test_override_is_exactly_the_toggle(self):
+    # JetlinkEnabled true, nothing about the model (it defaults), link state or readiness
     from openpilot.sunnypilot.accelerators.jetlink import helpers as jetlink_helpers
     params = self._params(self._raw_bundle("custom_small"))
 
@@ -874,7 +874,7 @@ class TestEffectiveSmallBundle(OpenpilotTestCase):
     with stub({"JetlinkEnabled": True, "JetlinkModel": "m"}):
       assert helpers.effective_small_bundle(params) is None
     with stub({"JetlinkEnabled": True}):
-      assert helpers.effective_small_bundle(params).ref == "custom_small"
+      assert helpers.effective_small_bundle(params) is None
     with stub({"JetlinkModel": "m"}):
       assert helpers.effective_small_bundle(params).ref == "custom_small"
 
