@@ -129,8 +129,7 @@ class TestDownload(unittest.TestCase):
     assert self.dest.read_bytes() == BODY
 
   def test_a_corrupt_body_leaves_nothing_behind(self):
-    # Half a model that TensorRT would happily try to parse is the one outcome
-    # worth being paranoid about.
+    # half a model that TensorRT would try to parse is the one outcome worth being paranoid about
     corrupt = b'x' * SIZE
     with self.urlopen_returning(corrupt), self.assertRaises(lfs.LfsError):
       lfs.download('https://x/y', OID, SIZE, self.dest)

@@ -6,17 +6,14 @@ See the LICENSE.md file in the root directory for more details.
 
 An accelerator that runs the large driving model off the comma: jetlink.
 
-comma's chestnut board is not one of these. modeld, hardwared and the UI
-handle it natively, at upstream's lines, and only ask here when no board is
-fitted. That is what keeps the two from answering the same question two ways:
-selection is `if chestnut_present(): native elif accelerators.ready(): jetlink`
-and nothing in between.
+comma's chestnut board is not one of these: modeld, hardwared and the UI handle
+it natively and only ask here when no board is fitted. Selection is
+`if chestnut_present(): native elif accelerators.ready(): jetlink`.
 
-Every function here is a thin call into accelerators.jetlink.backend and is
-safe on any device: with the feature off it costs a param read; with the
-`jetlink` package absent the expensive ones answer their negative default and
-say so once in the log. present(), ready(), progress() and uses_stock_runner()
-are polled by the UI at 5 Hz and must stay cheap.
+Every function is a thin call into jetlink.backend and is safe on any device:
+feature off costs a param read, package absent answers the negative default.
+present(), ready(), progress() and uses_stock_runner() are polled by the UI at
+5 Hz and must stay cheap.
 """
 from __future__ import annotations
 
@@ -29,18 +26,16 @@ from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot.accelerators.jetlink import backend
 
-# Written by jetlinkd while it provisions and by the joining state while it
-# waits for a window, read by the UI. A param rather than a field because the
-# writer is an offroad daemon in another process.
+# written by jetlinkd and the joining state, read by the UI; a param because
+# the writer is another process
 P_PROGRESS = "AcceleratorProgress"
 
 
 class Daemon(NamedTuple):
   """An offroad process the accelerator needs.
 
-  A description rather than a PythonProcess so this package does not import
-  manager, which imports it. process_config builds the real process and owns
-  the onroad/offroad gating.
+  A description, not a PythonProcess: manager imports this package, so this
+  package cannot import manager. process_config owns the onroad gating.
   """
   name: str
   module: str
@@ -80,10 +75,8 @@ def make_status_publisher(pm, model):
 def uses_stock_runner() -> bool:
   """Should manager run stock modeld regardless of the stored bundle?
 
-  Configuration only: JetlinkEnabled is true. The model choice defaults, so
-  it is not part of the gate. Never link state and never ready(), so a Jetson
-  that boots late cannot change which modeld manager runs in the middle of a
-  drive.
+  Configuration only, never link state or ready(): a Jetson that boots late
+  must not move manager between modelds mid-drive.
   """
   return backend.uses_stock_runner()
 
@@ -109,8 +102,7 @@ def daemons() -> list[Daemon]:
 def progress() -> dict | None:
   """{stage, frac, msg} while something provisions, else None.
 
-  Read from the UI's param thread, so nothing may escape - including
-  UnknownKeyName on a build whose params library predates this key.
+  Read from the UI's param thread, so nothing may escape, UnknownKeyName included.
   """
   try:
     value = Params().get(P_PROGRESS)
@@ -137,10 +129,8 @@ def clear_progress() -> None:
 def shutdown(reason: str = '', timeout: float = 25.0) -> None:
   """The device is powering off for good. Tell the Jetson, within `timeout`.
 
-  hardwared calls this before it sets DoShutdown, and deviceState is not
-  published for as long as this takes, so the bound is enforced here rather
-  than trusted to the backend: the request runs on a thread and is abandoned
-  at the deadline. With jetlink disabled it costs one param read.
+  hardwared calls this before DoShutdown and publishes no deviceState until it
+  returns, so the request runs on a thread and is abandoned at the deadline.
   """
   if not backend.enabled():
     return

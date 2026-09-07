@@ -6,23 +6,17 @@ See the LICENSE.md file in the root directory for more details.
 
 A device with comma's board fitted must behave exactly as it does on develop.
 
-The whole shape of the upstreaming plan rests on one claim: chestnut is
-native, at its own lines, and jetlink is five sites beside it that a chestnut
-device never reaches. This file is what stops that claim rotting. It reads
-modeld.py rather than importing it - importing costs tinygrad, usb1 and a
-vision stream - and runs the decide, load and status-publisher statements
-verbatim under fakes, so the short-circuit being tested is modeld's own and
-not a paraphrase of it.
+The upstreaming plan rests on one claim: chestnut is native, at its own lines,
+and jetlink is five sites beside it a chestnut device never reaches. This reads
+modeld.py rather than importing it (that costs tinygrad, usb1 and a vision
+stream) and runs the decide, load and status-publisher statements verbatim
+under fakes.
 
-Two questions, and both are about calls that must not happen:
-
-  a fitted board, PCIe trained: accelerators is not asked anything at all,
-  because `not CHESTNUT` is the first term of the JETLINK line;
-  no board and the link switched off: the question stops at ready(), so
-  prepare() never runs and no link is opened on a device nobody enabled.
-
-The rest pins the footprint: the chestnut statements are develop's byte for
-byte, and the module is reachable from four call sites in five hunks.
+Two calls that must not happen: a fitted board with PCIe trained asks
+accelerators nothing, because `not CHESTNUT` is the first term; no board and
+the link off stops at ready(), so prepare() never opens a link. The rest pins
+the footprint: chestnut statements are develop's byte for byte, and the module
+is reachable from four call sites in five hunks.
 """
 import ast
 import subprocess
@@ -39,13 +33,12 @@ from openpilot.sunnypilot.accelerators.jetlink import helpers
 
 MODELD = Path(__file__).resolve().parents[3] / 'selfdrive' / 'modeld' / 'modeld.py'
 
-# The zoompilot parent, which carries comma's chestnut unmodified. The claim is
-# equivalence with what a chestnut device runs today, so the baseline is the
-# branch this one was cut from rather than any older upstream tag.
+# the zoompilot parent carries comma's chestnut unmodified, so it is the
+# baseline rather than any older upstream tag
 BASELINE = 'develop'
 
-# Everything core openpilot may call on the module, and nothing else. A name
-# added here without a plan entry is a widened seam.
+# everything core openpilot may call on the module; a name added here without
+# a plan entry is a widened seam
 ACCELERATOR_CALLS = {'ready', 'prepare', 'make_model_state', 'make_status_publisher'}
 
 
@@ -208,10 +201,9 @@ class ModeldSeam:
       'pm': object(),
     }
     for block in (self.decide, self.load, self.publish):
-      # In a function, not at module level: the chestnut load declares
-      # `nonlocal big_model`, which is a SyntaxError anywhere else. What each
-      # block binds becomes a global for the next one, which is how JETLINK
-      # reaches the load and the load's model reaches the publisher.
+      # in a function: the chestnut load declares `nonlocal big_model`. What
+      # each block binds becomes a global for the next, which is how JETLINK
+      # reaches the load
       wrapped = 'def _block():\n' + textwrap.indent(block, '  ') + '\n  return locals()\n'
       # exec of modeld's own source is the point of this file.
       exec(compile(wrapped, str(MODELD), 'exec'), scope)
@@ -233,17 +225,16 @@ class NativeEquivalence(unittest.TestCase):
 
     self.assertTrue(scope['CHESTNUT'])
     self.assertFalse(scope['JETLINK'])
-    # Not "prepare was not called": nothing was, because `not CHESTNUT` is the
-    # first term and Python stops there. A chestnut device pays no param read.
+    # not "prepare was not called": nothing was, because `not CHESTNUT` is
+    # the first term
     self.assertEqual(accel.calls, [], "a fitted chestnut asked the accelerator module something")
     self.assertEqual(scope['environ'].get('HCQDEV_WAIT_TIMEOUT_MS'), '3000')
     self.assertTrue(scope['model'].chestnut)
     self.assertIsNotNone(scope['chestnut_state'])
 
   def test_no_board_and_the_link_off_stops_at_ready(self):
-    # The real answer, from the real module, on a device where the user never
-    # switched the link on: enabled() is false, so ready() reads one param and
-    # nothing opens a gadget.
+    # the real module with the link off: ready() reads one param and nothing
+    # opens a gadget
     Params().remove(helpers.P_ENABLED)
     self.assertFalse(accelerators.ready())
 
@@ -261,10 +252,8 @@ class NativeEquivalence(unittest.TestCase):
     self.assertIsNone(scope['chestnut_state'])
 
   def test_a_board_that_never_trains_falls_through_to_the_question(self):
-    # Pinned because it is easy to read the plan's "chestnut first" as "a
-    # chestnut device never asks". It does, once, when the board is fitted but
-    # its PCIe link never reports trained inside the poller wait: CHESTNUT is
-    # false, so the accelerator gets the same chance it gets on a bare device.
+    # a chestnut device does ask, once, when the board is fitted but PCIe never
+    # trains inside the poller wait: CHESTNUT is false, same as a bare device
     accel = FakeAccelerators(ready=lambda: False)
     scope = self.seam.decide_and_load(accel, present=True, compiled=True, trained=False)
 
@@ -273,9 +262,8 @@ class NativeEquivalence(unittest.TestCase):
     self.assertEqual(accel.calls, ['ready'])
 
   def test_the_link_is_decided_before_the_process_goes_realtime(self):
-    # prepare() starts tinygrad's device thread. After config_realtime_process
-    # that thread inherits SCHED_FIFO 54 pinned to core 7 and preempts the
-    # frame loop, which is the documented way to lose frames here.
+    # prepare() starts tinygrad's device thread; after config_realtime_process
+    # it would inherit SCHED_FIFO 54 on core 7 and preempt the frame loop
     self.assertLess(self.seam.decide_end, self.seam.realtime,
                     "the JETLINK decision moved after config_realtime_process")
 
@@ -306,11 +294,9 @@ class UpstreamFootprint(unittest.TestCase):
              if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == 'accelerators']
     sites = [f"  modeld.py:{lineno} {lines[lineno - 1].strip()}" for lineno, _ in calls]
 
-    # The five hunks of section 4.2: the decision, the load, the status
-    # publisher, the fallback re-raise, and the modelDataV2SP fields. Four of
-    # them call the module; the re-raise only reads JETLINK. Runs of lines
-    # closer together than a hunk's context are one hunk, which is how `if not
-    # JETLINK:` counts as part of the load rather than as a sixth site.
+    # the five hunks: decision, load, status publisher, fallback re-raise and
+    # the modelDataV2SP fields. Lines closer than a hunk's context are one
+    # hunk, so `if not JETLINK:` is part of the load
     jetlink = sorted({n.lineno for n in ast.walk(self.tree) if isinstance(n, ast.Name) and n.id == 'JETLINK'}
                      | {lineno for lineno, _ in calls})
     hunk_starts = [line for i, line in enumerate(jetlink) if i == 0 or line - jetlink[i - 1] > 8]
@@ -368,8 +354,8 @@ class UpstreamFootprint(unittest.TestCase):
     guard = ours.body[0]
     self.assertTrue(_tests_name(guard, 'JETLINK') and isinstance(guard.body[0], ast.Raise),
                     "the fallback no longer opens with `if JETLINK: raise`")
-    # Everything after the guard is develop's handler, so a small-model fault
-    # is still fatal and a chestnut still demotes itself the way it always has.
+    # everything after the guard is develop's handler: a small-model fault is
+    # still fatal and a chestnut still demotes itself
     self.assertEqual(_run(self.src, ours.body[1:]), _run(self.baseline_src, theirs.body),
                      f"the big-model fallback differs from {BASELINE}")
 

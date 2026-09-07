@@ -6,16 +6,11 @@ See the LICENSE.md file in the root directory for more details.
 
 modeld's per-frame status callback for the jetlink path.
 
-On the chestnut path modeld hands `ChestnutState.send` to the model as
-`after_enqueue`, called once the frame is on the accelerator and before the
-result is waited for. This is the same hook. It publishes nothing: chestnutState
-is comma's board on the wire, and a Jetson's telemetry has no message yet
-(that needs a customReserved slot from the maintainers). Until then it goes to
-swaglog at 1 Hz, which is enough to read temperature and power off a drive.
-
-The hook still has to exist, because passing a callback is what makes the
-client ask for telemetry: it is piggybacked on the previous inference response
-(`want_state`), so it costs no extra round trip and cannot delay a frame.
+The same hook as ChestnutState.send: modeld calls it once the frame is on the
+accelerator. It publishes nothing, chestnutState is comma's board on the wire
+and a Jetson's telemetry has no message yet, so it goes to swaglog at 1 Hz.
+The hook has to exist because passing a callback is what makes the client ask
+for telemetry, piggybacked on the previous response at no extra round trip.
 """
 from __future__ import annotations
 
@@ -30,16 +25,14 @@ class JetlinkStatus:
   def __init__(self, pm, model):
     self.pm = pm
     self.model = model
-    # modeld's chestnut fallback clears this when it takes over; on the
-    # jetlink path the joining state owns its own demotion and modeld re-raises
-    # instead, so it stays true. Kept for the shared duck type.
+    # modeld's chestnut fallback clears this when it takes over; the joining
+    # state owns its own demotion, so it stays true. Kept for the duck type
     self.big = True
     self._last_logged = 0.0
 
   @property
   def client(self):
-    # Per send rather than captured: a joining state has no client until the
-    # Jetson turns up, and can lose and regain one without modeld hearing.
+    # per send: a joining state has no client until the Jetson turns up
     return getattr(self.model, 'client', None)
 
   def send(self) -> None:

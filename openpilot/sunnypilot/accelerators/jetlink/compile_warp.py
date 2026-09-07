@@ -7,11 +7,8 @@ See the LICENSE.md file in the root directory for more details.
 
 Build the comma-side warp JIT. Invoked by accelerators/SConscript.
 
-The mirror of upstream's compile_dm_warp.py, and deliberately as thin: every
-subtlety about what gets captured and how it is called lives in warp_cache,
-because jetlinkd's fallback has to build exactly the same pickle this does.
-Two builders producing two slightly different warps is the failure this shape
-rules out.
+Mirrors upstream's compile_dm_warp.py and stays as thin: everything about what
+gets captured lives in warp_cache, so jetlinkd's fallback builds the same pickle.
 """
 import argparse
 

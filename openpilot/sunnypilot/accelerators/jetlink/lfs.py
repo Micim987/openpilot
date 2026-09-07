@@ -6,17 +6,11 @@ See the LICENSE.md file in the root directory for more details.
 
 Fetching the large model's ONNX, which the install deliberately does not carry.
 
-The big model is a git-lfs object that .lfsconfig excludes from the install: it
-is ~0.8-1.8 GB and every device that is not running it would pay for it. A
-chestnut compiles it to a tinygrad pkl at build time and so needs it present; a
-Jetson wants the ONNX itself, once, and only on a device that actually has one
-attached. So we fetch it on demand instead of widening the install for everyone.
-
-The pointer file left in the worktree is the source of truth for *which* model:
-it carries the oid and size of whatever this branch pins, so switching models is
-a pointer change and never a code change. What it does not say is which server
-has the object - sunnypilot substitutes its own big model but comma's LFS still
-holds comma's - so ask each endpoint in turn and take the one that answers.
+The big model is a git-lfs object .lfsconfig excludes from the install: it is
+0.8 to 1.8 GB and only a device with a Jetson attached needs it, so it is
+fetched on demand. The pointer file says which model; which server has it
+varies (sunnypilot substitutes its own big model, comma's LFS holds comma's),
+so each endpoint is asked in turn.
 """
 from __future__ import annotations
 
@@ -30,9 +24,8 @@ from pathlib import Path
 from openpilot.common.swaglog import cloudlog
 
 LFS_MEDIA_TYPE = 'application/vnd.git-lfs+json'
-# comma's LFS lives on GitLab, not GitHub: GitHub's LFS API answers
-# "Object does not exist on the server" for these and media.githubusercontent
-# 404s them too. Both endpoints below serve anonymously.
+# comma's LFS is on GitLab, not GitHub: GitHub's LFS API and
+# media.githubusercontent both 404 these. Both endpoints serve anonymously
 COMMA_LFS = 'https://gitlab.com/commaai/openpilot-lfs.git/info/lfs'
 CONNECT_TIMEOUT = 30.0
 CHUNK = 4 << 20
@@ -45,9 +38,7 @@ class LfsError(Exception):
 def parse_pointer(path: Path) -> tuple[str, int] | None:
   """Read a git-lfs pointer file, or None if this is the real object.
 
-  A worktree holds one or the other depending on whether the object was
-  fetched, and the size check is what tells them apart cheaply: a pointer is a
-  few hundred bytes of text.
+  A pointer is a few hundred bytes of text, so size tells them apart cheaply.
   """
   try:
     if path.stat().st_size > 4096:
@@ -85,8 +76,7 @@ def lfsconfig_endpoint(repo_root: Path) -> str | None:
 
 
 def endpoints(repo_root: Path) -> list[str]:
-  """Where to look, nearest first. The checkout's own server knows about the
-  model this branch pins; comma's knows about comma's."""
+  """Where to look, nearest first: the checkout's own server, then comma's."""
   out = []
   configured = lfsconfig_endpoint(repo_root)
   if configured:
@@ -129,8 +119,7 @@ def download(href: str, oid: str, size: int, dest: Path,
              should_stop: Callable[[], bool] | None = None) -> Path:
   """Stream to a .part file, hashing as we go, and only then take the name.
 
-  Nothing may leave a half-written model where the next boot would find it and
-  hand it to TensorRT: the whole point of the oid is that we can be sure.
+  A half-written model must never be where the next boot would hand it to TensorRT.
   """
   free = shutil.disk_usage(dest.parent).free
   if free < size + (64 << 20):
@@ -139,8 +128,8 @@ def download(href: str, oid: str, size: int, dest: Path,
   part = dest.with_name(dest.name + '.part')
   digest = hashlib.sha256()
   written = 0
-  # Report on whole percent only. The callback writes a param, and a gigabyte
-  # at 4 MB a chunk would otherwise write it a few hundred times to say nothing.
+  # whole percent only: the callback writes a param, and a gigabyte at 4 MB a
+  # chunk would write it a few hundred times
   reported = -1
   try:
     with urllib.request.urlopen(href, timeout=CONNECT_TIMEOUT) as response, open(part, 'wb') as out:

@@ -6,16 +6,10 @@ See the LICENSE.md file in the root directory for more details.
 
 When the warp JIT is trusted, and when it is not.
 
-The compile itself needs a GPU and is not exercised here; what is, is every way
-the file on disk can be wrong. Staleness moved out of this module when the warp
-became a scons target: the build depends on tinygrad and on the sources that
-decide what gets captured, so a warp that outlived a successful build is
-current by construction, and there is no key here to check any more.
-
-What is left is still the dangerous part. A TinyJit from another tinygrad, or
-one pickled before it captured, loads into something that does not compute the
-warp, and modeld would carry that to the car. Every one of those is a raise out
-of load_warp, which lands in the fallback to the small model.
+The compile needs a GPU and is not exercised here. Staleness is scons' job now,
+so what is left is the file on disk being wrong: a TinyJit from another
+tinygrad, or one pickled before it captured, loads into something that does not
+compute the warp. Each is a raise out of load_warp into the small-model fallback.
 """
 import importlib
 import pickle
@@ -67,9 +61,7 @@ class TestValidity(WarpCacheTest):
     self.assertFalse(warp_cache.is_cached(*GEOM))
 
   def test_a_bare_pickle_needs_no_sidecar(self):
-    """What scons writes, and all it writes. The build key and its json went
-    with the move to a scons target; asking for a sidecar here would reject
-    every warp the build produces."""
+    """What scons writes, and all it writes; asking for a sidecar would reject every warp the build produces."""
     self.write()
     self.assertFalse(warp_cache.warp_path(*GEOM).with_suffix('.json').exists())
     self.assertTrue(warp_cache.is_cached(*GEOM))
@@ -103,9 +95,7 @@ class TestLoad(WarpCacheTest):
       warp_cache.load_warp(*GEOM)
 
   def test_a_pickle_that_will_not_load_raises(self):
-    """The incompatible-tinygrad case, which the build key used to catch before
-    scons owned staleness. Unpickling fails, modeld's big-model load catches
-    it, and the drive is small-model: the same place a stale-key miss landed."""
+    """The incompatible-tinygrad case: unpickling fails and modeld's big-model load falls back."""
     self.write(body=b'not a pickle at all')
     with self.assertRaises(pickle.UnpicklingError):
       warp_cache.load_warp(*GEOM)
@@ -172,10 +162,9 @@ class TestGeometry(WarpCacheTest):
 
 
 class TestInitDevice(unittest.TestCase):
-  """prepare() runs this before modeld goes realtime. tinygrad's compile pool
-  (engine/worker.py) is created on the first compile, which is otherwise the
-  warp's first call after config_realtime_process, and its handler threads
-  then sit at FIFO 54 on the frame loop's core."""
+  """prepare() runs this before modeld goes realtime: tinygrad's compile pool
+  is otherwise created on the warp's first call, and its handler threads then
+  sit at FIFO 54 on the frame loop's core."""
 
   def setUp(self):
     self.pool = mock.Mock(name='get_worker_pool')
@@ -202,11 +191,8 @@ class TestInitDevice(unittest.TestCase):
 class TestCallConvention(unittest.TestCase):
   """The compile and the per-frame call have to name the JIT's inputs the same way.
 
-  TinyJit derives its input names from `enumerate(args)` plus `sorted(kwargs)`
-  and refuses a call whose names differ from the capture, so a positional
-  compile and a keyword call produce a JitError on the first frame of a drive,
-  long after the warp was built. Pinning the convention here is cheap; finding
-  it on the car cost a session.
+  TinyJit refuses a call whose names differ from the capture, so a positional
+  compile and a keyword call raise JitError on the first frame of a drive.
   """
 
   def test_call_warp_passes_everything_by_keyword(self):
@@ -222,10 +208,8 @@ class TestCallConvention(unittest.TestCase):
     self.assertEqual(seen['kwargs'], {'tfm': 'T', 'big_tfm': 'BT', 'frame': 'F', 'big_frame': 'BF'})
 
   def test_both_call_sites_go_through_the_helper(self):
-    # A second call site that calls the JIT directly would diverge again without
-    # anything failing until a frame runs on the car. Read the sources rather
-    # than import them: model_state pulls in tinygrad and msgq, and this check
-    # has to run off the device too.
+    # a second direct call site would diverge again. Read the sources: importing
+    # model_state pulls in tinygrad and msgq, and this runs off the device
     pkg = Path(warp_cache.__file__).parent
     for name in ('warp_cache.py', 'model_state.py'):
       for line in (pkg / name).read_text().splitlines():

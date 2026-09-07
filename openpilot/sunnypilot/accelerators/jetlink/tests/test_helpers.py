@@ -146,9 +146,8 @@ class TestActiveModelPath(unittest.TestCase):
     return mock.Mock(models=models)
 
   def test_no_bundle_falls_through_to_the_pinned_model(self):
-    # The normal case on a Jetson: no chestnut bundle ships an ONNX, so what
-    # runs is the model openpilot pins. Returning None here would mean a
-    # provisioned device silently stayed on the small model.
+    # no chestnut bundle ships an ONNX, so what runs is the model openpilot
+    # pins; None here would leave a provisioned device on the small model
     pinned = Path(self.root) / helpers.BIG_MODEL_NAME
     with mock.patch.object(helpers, 'active_bundle', return_value=None), \
          mock.patch.object(helpers, 'shipped_model_path', return_value=pinned):

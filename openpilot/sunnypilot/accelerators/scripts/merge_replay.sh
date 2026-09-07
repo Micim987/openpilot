@@ -7,22 +7,16 @@
 #
 # Replay the two upstream changes most likely to land on top of us.
 #
-# The accelerator work sits in modeld.py beside comma's chestnut, which is the
-# one file upstream keeps rewriting. The plan's bet is that our hunks are
-# small, dull and out of the way, so a sync costs nothing. This is the cheap
-# way to keep taking that bet: apply the two known changes to a throwaway
+# The accelerator work sits in modeld.py beside comma's chestnut, the file
+# upstream keeps rewriting. Apply the two known changes to a throwaway
 # worktree and report where they land.
 #
-#   38760  e3def37695  reverts 38742, so it moves the chestnut poller wait,
-#                      helpers.chestnut_ready and one param key - the lines
-#                      our JETLINK decision was wedged between.
-#   38684  cb85ac1f0e  fused warp and policy into one run_model JIT, which is
-#                      why the warp is a scons target here at all.
+#   38760  e3def37695  reverts 38742: moves the chestnut poller wait,
+#                      helpers.chestnut_ready and one param key
+#   38684  cb85ac1f0e  fused warp and policy into one run_model JIT
 #
-# Failing hunks are not automatically a problem: a conflict inside
-# openpilot/sunnypilot/ is ours to resolve and costs a rebase. A conflict
-# anywhere else means we changed a line upstream still owns, which is the
-# thing the plan says must not happen, so only that exits non-zero.
+# A conflict inside openpilot/sunnypilot/ is ours to rebase. A conflict anywhere
+# else means we changed a line upstream owns, and only that exits non-zero.
 #
 # Usage: merge_replay.sh [branch]   (default HEAD)
 
@@ -31,8 +25,8 @@ set -uo pipefail
 REVERT=e3def37695   # revert 38742 (#38760)
 FUSED=cb85ac1f0e    # amd warp (#38684)
 
-# The revert also touches files this fork does not carry the same way; the
-# plan asks only about modeld, its helpers and the param key.
+# the revert also touches files this fork carries differently; only modeld
+# and the param key matter
 REVERT_PATHS=(openpilot/selfdrive/modeld openpilot/common/params_keys.h)
 
 BRANCH="${1:-HEAD}"
@@ -55,7 +49,7 @@ for commit in "$REVERT" "$FUSED"; do
   fi
 done
 
-# Detached, so a branch checked out in another worktree still replays.
+# detached, so a branch checked out in another worktree still replays
 if ! git -C "$REPO" worktree add --detach "$TREE" "$BRANCH" >/dev/null 2>&1; then
   echo "merge_replay: could not create a worktree for $BRANCH" >&2
   exit 2
@@ -84,7 +78,7 @@ replay() {
     return
   fi
 
-  # Both shapes git uses: a hunk that would not apply, and a file it gave up on.
+  # both shapes git uses: a hunk that would not apply, and a file it gave up on
   files="$(printf '%s\n' "$out" |
     sed -n -E -e 's/^error: patch failed: (.+):[0-9]+$/\1/p' \
               -e 's/^error: (.+): patch does not apply$/\1/p' \
@@ -94,16 +88,15 @@ replay() {
   echo "-> failing hunks in:"
   printf '%s\n' "$files" | sed 's/^/     /'
 
-  # What a rebase would actually cost. Applied for real, not with --check:
-  # --check --3way returns 0 on a patch whose three-way apply then leaves
-  # conflict markers, so it answers a question nobody asked.
+  # applied for real: --check --3way returns 0 on a patch whose three-way
+  # apply leaves conflict markers
   git -C "$TREE" apply --3way "$patch" >/dev/null 2>&1
   conflicted="$(git -C "$TREE" diff --name-only --diff-filter=U)"
   if [ -z "$conflicted" ]; then
     echo "-> --3way merges it cleanly: context drift, not a real conflict"
   else
-    # The region count, not just the file name: run this against the parent
-    # branch too, and the difference is what this fork adds to a rebase.
+    # region count: run against the parent branch too, the difference is what
+    # this fork adds to a rebase
     echo "-> --3way still conflicts in:"
     while IFS= read -r file; do
       echo "     $file ($(grep -c '^<<<<<<<' "$TREE/$file") region(s))"

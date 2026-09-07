@@ -6,9 +6,8 @@ See the LICENSE.md file in the root directory for more details.
 
 Where the model is, whether the Jetson is attached, and how far along it is.
 
-The models a Jetson runs are indexed in models.json and fetched from comma's
-LFS, not drawn from the model manager: every bundle it offers is a tinygrad
-pkl for a GPU the Jetson does not have.
+Models come from models.json and comma's LFS, not the model manager: every
+bundle it offers is a tinygrad pkl for a GPU the Jetson does not have.
 """
 from __future__ import annotations
 
@@ -22,8 +21,8 @@ from openpilot.common.hardware.hw import Paths
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 
-# Params. All CLEAR_ON_MANAGER_START-free: readiness must survive a reboot,
-# otherwise every ignition cycle would rebuild a 160 s engine.
+# none of these are CLEAR_ON_MANAGER_START: readiness must survive a reboot or
+# every ignition rebuilds a 160 s engine
 P_ENABLED = "JetlinkEnabled"        # user toggle; only True enables
 P_READY = "JetlinkEngineReady"      # sha256 of the model the Jetson has built
 P_ENDPOINT = "JetlinkEndpoint"      # optional "host:port" to use TCP instead of USB
@@ -32,13 +31,10 @@ UNCHUNKED_SUFFIX = ".jetlink-unchunked"
 
 
 def _get(key: str, default=None):
-  """Read a param, tolerating one this build does not know about.
+  """Read a param, tolerating a params library that predates the key.
 
-  These keys are declared in params_keys.h, which is compiled into the params
-  library. A device running an older build of that library - a partial update,
-  or a prebuilt branch - raises UnknownKeyName. Several of these predicates are
-  called from hardwared and from the UI's param thread, so a raise here takes
-  down a process that has nothing to do with jetlink. One guard, at the read.
+  Called from hardwared and the UI's param thread, so UnknownKeyName here
+  would take down a process that has nothing to do with jetlink.
   """
   try:
     return Params().get(key)
@@ -55,16 +51,13 @@ def link_endpoint() -> tuple[str, int] | None:
   return host, int(port or 5599)
 
 
-# The comma is the USB *gadget* and the Jetson is the host. That is decided by
-# what the two kernels have, not by which side is "the client": AGNOS has
-# CONFIG_USB_F_FS and libcomposite built in, while a Jetson host needs no driver
-# at all (libusb goes through usbfs) - which matters because L4T rootfs images
-# are often stripped of the gadget modules. See jetlink/docs/transport.md.
+# the comma is the USB gadget and the Jetson the host, decided by the kernels:
+# AGNOS has CONFIG_USB_F_FS built in, L4T images are often stripped of the
+# gadget modules. See jetlink/docs/transport.md
 GADGET_PATH = Path("/sys/kernel/config/usb_gadget/jetlink")
 FFS_MOUNT = Path("/dev/ffs-jetlink")
 UDC_PATH = Path("/sys/class/udc")
-# Written by scripts/setup_gadget.sh at boot: "ok", or "error: <reason>".
-# tmpfs, so it describes this boot and costs the flash nothing.
+# written by scripts/setup_gadget.sh at boot: "ok", or "error: <reason>"
 GADGET_STATUS = Path("/dev/shm/jetlink-gadget")
 CC_ORIENTATION = Path('/sys/class/power_supply/usb/typec_cc_orientation')
 
@@ -72,13 +65,8 @@ CC_ORIENTATION = Path('/sys/class/power_supply/usb/typec_cc_orientation')
 def gadget_error() -> str | None:
   """Why the USB gadget is unavailable, if it is.
 
-  The gadget is set up once at boot, by root, from launch_chffrplus.sh - long
-  before any of this runs and nowhere a user would look. Without this the whole
-  feature just silently does not appear on a device whose kernel lacks the
-  gadget drivers, or where the package was never installed.
-
-  A missing file is not an error: it means a build that never ran the setup at
-  all, which is the same as jetlink not being installed here.
+  The gadget is set up at boot by root from launch_chffrplus.sh, nowhere a
+  user would look. A missing file is not an error: the setup never ran.
   """
   try:
     reason = GADGET_STATUS.read_text().strip()
@@ -114,10 +102,8 @@ def host_attached() -> bool:
 def link_configured() -> bool:
   """Can we even attempt a link? The gadget exists, or TCP is configured.
 
-  Deliberately NOT host_attached(): the comma's UDC only binds when something
-  opens ep0, and nothing opens ep0 unless the link looks usable. Gating the
-  attempt on a host already being there deadlocks - the Jetson can never
-  enumerate because nobody ever presented the gadget to it.
+  Not host_attached(): the UDC only binds when something opens ep0, and nothing
+  opens ep0 unless the link looks usable. Waiting for a host deadlocks.
   """
   if gadget_error() is not None:
     return False
@@ -126,19 +112,15 @@ def link_configured() -> bool:
   try:
     return (FFS_MOUNT / "ep0").exists()
   except OSError:
-    # A root-only mount raises PermissionError from stat rather than returning
-    # False. We could not open it either way, so treat it as unusable.
+    # a root-only mount raises PermissionError from stat; unusable either way
     return False
 
 
-# jetlinkd writes its pid here when it has released the gadget on purpose so
-# the Jetson can sleep (Jetlinkd.go_dormant). The Jetson is still there, only
-# unreachable until something presents the gadget again, so presence has to
-# come from this rather than from the UDC. A marker whose writer is dead is a
-# leftover from a kill, not a state, which is what the pid is for.
+# jetlinkd's pid while it has released the gadget on purpose so the Jetson can
+# sleep (Jetlinkd.go_dormant). Presence comes from this, not the UDC; a marker
+# whose writer is dead is a leftover from a kill
 DORMANT = Path("/dev/shm/jetlink-dormant")
-# hardwared's way of asking jetlinkd to power the Jetson off; see
-# backend.shutdown. jetlinkd unlinks it when it has dealt with it.
+# hardwared's request to power the Jetson off; see backend.shutdown
 SHUTDOWN_REQUEST = Path("/dev/shm/jetlink-shutdown")
 
 
@@ -202,9 +184,8 @@ def await_shutdown(timeout: float) -> bool:
   return False
 
 
-# How long present() stays true after the UDC last read "configured". A USB3
-# link recovery the client rides out passes through "addressed" for a moment,
-# and presence read at 2 Hz should not blink for it.
+# a USB3 link recovery passes through "addressed" for a moment, and presence
+# read at 2 Hz should not blink for it
 PRESENCE_HOLD = 5.0
 _last_configured = 0.0
 
@@ -212,16 +193,14 @@ _last_configured = 0.0
 def gadget_present() -> bool:
   """Is a Jetson actually on the other end right now?
 
-  This is the one that answers "is an accelerator attached". It only becomes
-  true once something is holding the gadget open and a host has configured
-  us, and it holds for PRESENCE_HOLD after that stops being true.
+  True once something holds the gadget open and a host has configured us,
+  held for PRESENCE_HOLD after that stops.
   """
   global _last_configured
   if link_endpoint() is not None:
     return True
   if dormant():
-    # Enumeration is deliberately absent during suspend; physical cable
-    # detection still distinguishes a sleeping host from an unplugged one.
+    # no enumeration during suspend; the CC line still tells a sleeping host from an unplugged one
     try:
       return int(CC_ORIENTATION.read_text()) != 0
     except (OSError, ValueError):
@@ -234,11 +213,10 @@ def gadget_present() -> bool:
 
 
 def connect(deadline: float | None = None):
-  """Open the link. USB unless an endpoint override is set (bring-up over ethernet).
+  """Open the link. USB unless an endpoint override is set.
 
-  `deadline` is per frame and defaults to the client's FRAME_TIMEOUT: modeld
-  blocks on a frame the way it blocks on a chestnut, and only a stall that long
-  means the Jetson is gone.
+  `deadline` is per frame and defaults to FRAME_TIMEOUT: modeld blocks on a
+  frame the way it blocks on a chestnut.
   """
   from jetlink.client import FRAME_TIMEOUT, JetlinkClient
   deadline = FRAME_TIMEOUT if deadline is None else deadline
@@ -247,27 +225,21 @@ def connect(deadline: float | None = None):
     host, port = endpoint
     cloudlog.warning("jetlink: connecting over tcp to %s:%d", host, port)
     return JetlinkClient.open_tcp(host, port, deadline=deadline)
-  # Over USB the comma is the gadget and the Jetson is the host; see
-  # gadget_present() for why round that way.
+  # the comma is the gadget and the Jetson the host; see gadget_present()
   return JetlinkClient.open_ffs(str(FFS_MOUNT), gadget=str(GADGET_PATH), deadline=deadline)
 
 
 def enabled() -> bool:
   """Has the user switched the link on? JetlinkEnabled == True and nothing else.
 
-  Not "absent means auto": on AGNOS with the package installed the gadget
-  comes up at boot, so an auto rule turned installation alone into enablement
-  and quietly routed manager away from any custom small bundle.
+  Not "absent means auto": the gadget comes up at boot with the package
+  installed, so auto turned installation into enablement.
   """
   return bool(_get(P_ENABLED))
 
 
 def gadget_alert() -> str | None:
-  """The gadget failure worth putting in front of the user, if any.
-
-  Only for someone who asked for the link: with it off, a device that cannot
-  present the gadget should simply not offer the feature.
-  """
+  """The gadget failure worth an alert: only for someone who asked for the link."""
   return gadget_error() if enabled() else None
 
 
@@ -291,13 +263,9 @@ def _artifact_names(bundle) -> list[str]:
 def active_model_path() -> Path | None:
   """Path to the selected large model's ONNX, materialising chunks if needed.
 
-  Returns None when there is no large model here yet; the caller then simply
-  stays on the small model.
-
-  No bundle selected is the normal case, not a dead end: every bundle the
-  model manager offers is a tinygrad pkl compiled for chestnut's GPU, and none
-  of them ships an ONNX, so what a Jetson actually runs is the model openpilot
-  itself pins. Falling through to it is the whole point.
+  No bundle selected is the normal case: no model-manager bundle ships an
+  ONNX, so a Jetson runs the model from models.json. None means no large
+  model here yet and the caller stays on the small model.
   """
   bundle = active_bundle()
   root = Path(Paths.model_root())
@@ -305,7 +273,7 @@ def active_model_path() -> Path | None:
     plain = root / name
     if plain.is_file() and plain.stat().st_size > 1_000_000:
       return plain
-    # Chunked download: reassemble once, next to the chunks.
+    # chunked download: reassemble once, next to the chunks
     manifest = root / f'{name}.chunkmanifest'
     if manifest.is_file():
       return _materialise(root / name)
@@ -327,11 +295,10 @@ def big_model_pointer() -> Path:
 
 
 def model_index() -> list[dict]:
-  """The large models we know a Jetson can run.
+  """The large models a Jetson can run.
 
-  Hand-maintained from comma's history rather than discovered, because there is
-  nothing to discover from: openpilot overwrites one file, so the older models
-  exist only as git-lfs objects that no manifest lists. See models.json.
+  Hand-maintained: openpilot overwrites one file, so older models exist only
+  as git-lfs objects no manifest lists. See models.json.
   """
   try:
     with open(MODEL_INDEX) as f:
@@ -344,8 +311,7 @@ def model_index() -> list[dict]:
 def selected_model() -> dict | None:
   """The entry the user picked, or the default.
 
-  An unknown name falls back rather than leaving the device with no model at
-  all: the index can shrink under a param that outlived it.
+  An unknown name falls back: the index can shrink under a param that outlived it.
   """
   models = model_index()
   if not models:
@@ -362,10 +328,8 @@ def selected_model() -> dict | None:
 def shipped_model_path() -> Path | None:
   """The chosen large model, if it has been fetched.
 
-  Keyed on the index entry rather than on whatever the worktree pins: the
-  in-tree pointer moves with upstream syncs and is also what a chestnut device
-  compiles, so tying the Jetson's model to it would couple two unrelated
-  decisions. Size is the cheap check that the file on disk is the one we mean.
+  Keyed on the index entry, not the in-tree pointer, which moves with upstream
+  syncs. Size is the cheap check that the file is the one we mean.
   """
   model = selected_model()
   if model is None:
@@ -405,11 +369,7 @@ def model_file_name(model: dict) -> str:
 
 
 def fetch_shipped_model(progress=None, should_stop=None) -> Path | None:
-  """Download the chosen large model if it is not here yet.
-
-  Costs 0.2-1.8 GB once per model, on a device that has an accelerator
-  attached, rather than on every install. Returns None when nothing is chosen.
-  """
+  """Download the chosen large model if it is not here yet. None when nothing is chosen."""
   from openpilot.sunnypilot.accelerators.jetlink import lfs
   model = selected_model()
   if model is None:

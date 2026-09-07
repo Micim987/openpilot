@@ -6,14 +6,10 @@ See the LICENSE.md file in the root directory for more details.
 
 The selected model's spec, cached in a param.
 
-modeld needs the model's shapes and output slices to run a frame, but reading
-them means parsing a 766 MB ONNX. jetlinkd does that once when it provisions
-and leaves the answer here, so modeld starts in milliseconds and never touches
-the file.
-
-The encode/decode itself belongs to `ModelSpec`; this only adds `source`, which
-records the file the spec came from so jetlinkd can tell nothing has changed
-without hashing 766 MB again.
+Reading the shapes and output slices means parsing a 766 MB ONNX. jetlinkd does
+that once when it provisions; modeld reads the answer here and never touches
+the file. `source` records the file the spec came from so jetlinkd can tell
+nothing changed without hashing it again.
 """
 from __future__ import annotations
 
@@ -28,8 +24,7 @@ PARAM = "JetlinkSpec"
 
 
 def _raw() -> dict | None:
-  # JSON params decode to a dict on the way out; _get tolerates a params
-  # library older than these keys.
+  # _get tolerates a params library older than these keys
   value = helpers._get(PARAM)
   return value if isinstance(value, dict) else None
 

@@ -77,10 +77,9 @@ class SelectionTest(unittest.TestCase):
     self.assertFalse(accelerators.ready())
 
   def test_stock_runner_is_the_toggle_alone(self):
-    # Configuration only: never link state and never ready(), so a late boot
-    # cannot move manager between modelds mid-drive. The model is not part of
-    # it either: it defaults through selected_model(), and an enabled device
-    # with no model set still provisions, so it must stay on stock modeld.
+    # configuration only, never link state or ready(): a late boot cannot move
+    # manager between modelds mid-drive. The model defaults through
+    # selected_model(), so it is not part of it either
     self.configure(enabled=True, model=None)
     self.assertTrue(accelerators.uses_stock_runner())
     self.configure(enabled=True, model='m')
