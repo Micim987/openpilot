@@ -40,10 +40,13 @@ bind at ignition is the wake.
 from __future__ import annotations
 
 import functools
-
+import json
+import os
 import signal
+import subprocess
 import threading
 import time
+from pathlib import Path
 
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
@@ -66,6 +69,86 @@ DORMANT_HOLD = 60.0
 # A sleeping Jetson wakes on the gadget bind: ~6 s to a kernel, ~1 s to
 # enumerate on the bench.
 WAKE_TIMEOUT = 20.0
+
+# Keep a recording-writeback storm from stalling the gadget read path.
+# loggerd/encoderd write video continuously; on a memory-tight comma (stock
+# min_free_kbytes ~7 MB, ~40 MB free) a segment's dirty pages pile up until the
+# kernel has to reclaim them synchronously - write them back before it can
+# evict them - exactly while a FunctionFS transfer is allocating its buffer.
+# Measured on the 2026-09-06 bench: nr_dirty to 108 MB, direct reclaim, and the
+# gadget read stalled 200-350 ms, past backend.INFERENCE_TIMEOUT, so the big
+# model fell back and rejoined (91 lagging frames, three losses in 15 min).
+# Capping dirty memory (so reclaim finds clean, evictable pages) and holding a
+# real free-memory floor (so allocations do not reclaim at all) removed it:
+# dirty peak 7 MB, worst frame 244 -> 72 ms, zero lagging frames over 20 min;
+# under a 500 MB memory hog plus CPU contention, 128 MB/16 MB held it too.
+#
+# System-wide on purpose - the gadget read shares the kernel with every writer.
+# Applied here rather than at boot so a device with the link switched off runs
+# stock values: the previous ones are recorded in SYSCTL_PREV before the first
+# change and put back on the way out. A SIGKILL skips the restore and leaves
+# them in place until reboot; that record survives us in /dev/shm so the next
+# run still knows the stock values and never records our own as them.
+VM_SYSCTLS = {
+  'vm.dirty_bytes': '16777216',
+  'vm.dirty_background_bytes': '8388608',
+  'vm.min_free_kbytes': '131072',
+}
+SYSCTL_PREV = Path('/dev/shm/jetlink-sysctl-prev')
+PROC_SYS = Path('/proc/sys')
+
+
+def _read_sysctls(keys) -> dict[str, str]:
+  values = {}
+  for key in keys:
+    try:
+      values[key] = (PROC_SYS / key.replace('.', '/')).read_text().strip()
+    except OSError:
+      cloudlog.exception(f"jetlink: could not read {key}")
+  return values
+
+
+def _write_sysctls(values: dict[str, str]) -> None:
+  # The launcher runs us as comma; sysctl -w through sudo -n is the same
+  # privilege setup_gadget.sh uses. Root (a bench run) writes /proc directly.
+  for key, value in values.items():
+    try:
+      if os.geteuid() == 0:
+        (PROC_SYS / key.replace('.', '/')).write_text(value)
+      else:
+        subprocess.run(['sudo', '-n', 'sysctl', '-w', f'{key}={value}'], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    except Exception:
+      cloudlog.exception(f"jetlink: could not set {key}={value}")
+
+
+def apply_vm_tuning() -> None:
+  """Record the stock values once, then apply ours."""
+  if not SYSCTL_PREV.exists():
+    prev = _read_sysctls(VM_SYSCTLS)
+    if prev:
+      try:
+        SYSCTL_PREV.write_text(json.dumps(prev))
+      except OSError:
+        cloudlog.exception("jetlink: could not record the previous sysctls")
+  _write_sysctls(VM_SYSCTLS)
+
+
+def restore_vm_tuning() -> None:
+  """Put the recorded values back and drop the record."""
+  try:
+    prev = json.loads(SYSCTL_PREV.read_text())
+  except FileNotFoundError:
+    return
+  except (OSError, ValueError):
+    cloudlog.exception("jetlink: unreadable sysctl record, leaving the values as they are")
+    prev = {}
+  if isinstance(prev, dict):
+    _write_sysctls({k: str(v) for k, v in prev.items() if k in VM_SYSCTLS})
+  try:
+    SYSCTL_PREV.unlink()
+  except OSError:
+    pass
 
 
 def _timed_out(e: BaseException) -> bool:
@@ -96,6 +179,7 @@ class Jetlinkd:
     self.warp_thread: threading.Thread | None = None
     self.started = time.monotonic()
     self.dormant = False     # released the gadget on purpose; see go_dormant
+    self.vm_tuned = False    # our sysctls are in; restore on the way out
 
   # -- lifecycle ------------------------------------------------------------
 
@@ -374,6 +458,18 @@ class Jetlinkd:
     finally:
       helpers.finish_shutdown()
 
+  # -- VM tuning ------------------------------------------------------------
+
+  def tune_vm(self) -> None:
+    if not self.vm_tuned:
+      apply_vm_tuning()
+      self.vm_tuned = True
+
+  def untune_vm(self) -> None:
+    if self.vm_tuned:
+      restore_vm_tuning()
+      self.vm_tuned = False
+
   # -- main loop ------------------------------------------------------------
 
   def backoff(self) -> float:
@@ -394,8 +490,10 @@ class Jetlinkd:
         self.close_link()
       if self.dormant:
         self.wake()
+      self.untune_vm()
       return
 
+    self.tune_vm()
     reason = helpers.pending_shutdown()
     if reason is not None:
       self.shutdown_jetson(reason)
@@ -461,18 +559,23 @@ class Jetlinkd:
       self.next_provision = time.monotonic() + self.backoff()
 
   def run(self) -> None:
+    if helpers.enabled():
+      self.tune_vm()
     rk = Ratekeeper(POLL_HZ)
-    while not self.stop:
-      rk.keep_time()
-      try:
-        self.step()
-      except Exception:
-        # Nothing may escape: this daemon restarting in a loop would be worse
-        # than it sitting out a cycle.
-        cloudlog.exception("jetlink: unhandled error")
-        self.close_link()
-        self.next_attempt = time.monotonic() + RECONNECT_BACKOFF
-    self.close_link()
+    try:
+      while not self.stop:
+        rk.keep_time()
+        try:
+          self.step()
+        except Exception:
+          # Nothing may escape: this daemon restarting in a loop would be worse
+          # than it sitting out a cycle.
+          cloudlog.exception("jetlink: unhandled error")
+          self.close_link()
+          self.next_attempt = time.monotonic() + RECONNECT_BACKOFF
+    finally:
+      self.close_link()
+      self.untune_vm()
     helpers.set_dormant(False)
     if self.warp_thread is not None and self.warp_thread.is_alive():
       cloudlog.warning("jetlink: stopped with the warp still compiling; it will rebuild next time")

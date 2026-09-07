@@ -11,6 +11,7 @@ daemon has a host to talk to and keeps trying, so anything it repeats per
 attempt it repeats for as long as the car is parked.
 """
 
+import json
 import sys
 import tempfile
 import time
@@ -499,6 +500,92 @@ class TestWarpFallback(TestParked):
       d.build_warp()
       d.build_warp()
     cached.assert_called_once()
+
+
+class TestVmTuning(unittest.TestCase):
+  """The sysctls are jetlinkd's now, not the boot script's.
+
+  A device with the link off must run stock values, and a device that turns it
+  off must get them back; only a SIGKILL leaves ours in place.
+  """
+
+  STOCK = {'vm.dirty_bytes': '0', 'vm.dirty_background_bytes': '0', 'vm.min_free_kbytes': '7274'}
+
+  def setUp(self):
+    self.tmp = Path(tempfile.mkdtemp())
+    proc = self.tmp / 'proc'
+    for key, value in self.STOCK.items():
+      path = proc / key.replace('.', '/')
+      path.parent.mkdir(parents=True, exist_ok=True)
+      path.write_text(value + '\n')
+    self.record = self.tmp / 'prev'
+    self.run_mock = mock.Mock()
+    for p in (mock.patch.object(jetlinkd, 'PROC_SYS', proc),
+              mock.patch.object(jetlinkd, 'SYSCTL_PREV', self.record),
+              mock.patch.object(jetlinkd.subprocess, 'run', self.run_mock),
+              mock.patch.object(jetlinkd.os, 'geteuid', return_value=1000),
+              mock.patch.object(jetlinkd.helpers, 'DORMANT', self.tmp / 'dormant'),
+              mock.patch.object(jetlinkd, 'accelerators', mock.Mock())):
+      self.addCleanup(p.stop)
+      p.start()
+
+  def applied(self) -> list[str]:
+    return [c.args[0][-1] for c in self.run_mock.call_args_list]
+
+  def test_applied_on_start_and_restored_on_exit(self):
+    d = jetlinkd.Jetlinkd()
+    d.stop = True
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True):
+      d.run()
+    ours = [f'{k}={v}' for k, v in jetlinkd.VM_SYSCTLS.items()]
+    stock = [f'{k}={v}' for k, v in self.STOCK.items()]
+    assert self.applied() == ours + stock
+    assert not self.record.exists(), "the record outliving the restore would be read as stock next time"
+
+  def test_the_record_is_written_before_anything_changes(self):
+    with mock.patch.object(jetlinkd, '_write_sysctls') as write:
+      jetlinkd.apply_vm_tuning()
+    assert json.loads(self.record.read_text()) == self.STOCK
+    write.assert_called_once_with(jetlinkd.VM_SYSCTLS)
+
+  def test_an_existing_record_is_not_clobbered(self):
+    # A previous run that was SIGKILLed left our values in /proc; reading them
+    # now would record them as the stock ones and restore to them forever.
+    self.record.write_text(json.dumps(self.STOCK))
+    for key in self.STOCK:
+      (jetlinkd.PROC_SYS / key.replace('.', '/')).write_text(jetlinkd.VM_SYSCTLS[key])
+    jetlinkd.apply_vm_tuning()
+    assert json.loads(self.record.read_text()) == self.STOCK
+    jetlinkd.restore_vm_tuning()
+    assert self.applied()[-len(self.STOCK):] == [f'{k}={v}' for k, v in self.STOCK.items()]
+
+  def test_nothing_happens_when_disabled(self):
+    d = jetlinkd.Jetlinkd()
+    d.stop = True
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=False):
+      d.run()
+    assert self.run_mock.call_count == 0
+    assert not self.record.exists()
+
+  def test_disabling_mid_run_restores(self):
+    d = jetlinkd.Jetlinkd()
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True), \
+         mock.patch.object(d, 'build_warp'), \
+         mock.patch.object(d, 'open_link', return_value=False):
+      d.step()
+    assert d.vm_tuned
+    with mock.patch.object(jetlinkd.helpers, 'enabled', return_value=False), \
+         mock.patch.object(jetlinkd.helpers, 'set_engine_ready'):
+      d.step()
+    assert not d.vm_tuned
+    assert not self.record.exists()
+    assert self.applied()[-1] == 'vm.min_free_kbytes=' + self.STOCK['vm.min_free_kbytes']
+
+  def test_a_root_run_writes_proc_directly(self):
+    with mock.patch.object(jetlinkd.os, 'geteuid', return_value=0):
+      jetlinkd.apply_vm_tuning()
+    assert self.run_mock.call_count == 0
+    assert (jetlinkd.PROC_SYS / 'vm/min_free_kbytes').read_text() == '131072'
 
 
 class BuildEtaTest(unittest.TestCase):
