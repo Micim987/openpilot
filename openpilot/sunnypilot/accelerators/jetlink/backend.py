@@ -77,8 +77,8 @@ def _wait_for_host(deadline: float) -> bool:
 def _present_early(ready: dict) -> None:
   """Open and bind the gadget now, from a thread that is not modeld's.
 
-  Not on the caller's thread: this runs from modeld's loader thread, which
-  inherited SCHED_FIFO 54 pinned to core 7 from main, and the FunctionFS
+  Not on the caller's thread: this runs from modeld's main thread, already
+  SCHED_FIFO 54 pinned to core 7 by config_realtime_process, and the FunctionFS
   reader thread the open creates would inherit that in turn and preempt the
   frame loop for the drive (see joining._background_priority). A helper that
   drops realtime first is what the reader inherits from instead. Bounded, so a
@@ -204,9 +204,9 @@ def make_model_state(cam_w: int, cam_h: int, small=None):
   from openpilot.sunnypilot.accelerators.jetlink import warp_cache
 
   # The warp, loaded and warmed here rather than at the swap. This runs on
-  # modeld's loader thread while its main thread is blocked in loader.join,
-  # which is the one moment the GPU is idle and there are no frames to
-  # drop; the swap itself lands on the frame loop. Sized from the cached
+  # modeld's main thread inside make_model_state, before the frame loop
+  # starts, which is the one moment the GPU is idle and there are no frames
+  # to drop; the swap itself lands on the frame loop. Sized from the cached
   # spec, which is what the link will hand back, so the swap can use it
   # without a load. Another geometry is rejected; GPU compilation must not
   # be deferred to a driving frame.

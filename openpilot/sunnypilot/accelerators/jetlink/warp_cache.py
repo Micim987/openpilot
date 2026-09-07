@@ -18,9 +18,9 @@ goes camera buffer to model output in one graph, with no seam to tap. The warp
 itself is still constructible - `compile_modeld.make_warp` builds the same
 closure the fused JIT wraps - it just has to be JIT-compiled somewhere.
 
-Not in modeld. That compile lands on the loader thread inside modeld's 60 s
-BIG_MODEL_TIMEOUT, on a device whose only GPU the main thread is using, every
-single ignition.
+Not in modeld. That compile would land inside make_model_state, holding the
+first frame back for the ~9 s it takes on a device whose only GPU the small
+model is about to need, every single ignition.
 
 So it is a scons target, exactly as upstream's own dm_warp_*.pkl is: see
 accelerators/SConscript, which runs compile_warp.py. launch_chffrplus.sh
@@ -88,7 +88,7 @@ def init_device() -> None:
   this fork lost 5% of its frames once already; see
   joining._background_priority, which exists for the threads we do create.
 
-  The device comes up either way, moments later on the loader thread. Doing it
+  The device comes up either way, moments later when the warp loads. Doing it
   here is the whole difference between that libusb thread being SCHED_OTHER on
   every core and SCHED_FIFO 54 on modeld's. Failure is not worth refusing the
   accelerator over: the device will simply come up late, as it does today.
