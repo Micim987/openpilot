@@ -12,6 +12,8 @@ from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle
 from openpilot.selfdrive.ui.mici.widgets.button import BigButton, BigMultiToggle
 from openpilot.selfdrive.ui.ui_state import ui_state, device
+from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (LINK_STATES, link_toggle_meaningful,
+                                                                read_link_state, write_link_state)
 from openpilot.selfdrive.ui.sunnypilot.model_info import (active_source, big_model_progress, big_model_state,
                                                           bundles_for_source, carrying_model,
                                                           default_model_name, model_info, queued_name)
@@ -20,42 +22,6 @@ from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.label import UnifiedLabel
 from openpilot.system.ui.widgets.scroller import NavScroller
-
-# The user's say over the accelerator link. Absent means auto and the backend
-# decides from what it finds; true and false force it. The backend reads the
-# param, this panel only writes it, so the name lives here and never on screen.
-LINK_PARAM = "JetlinkEnabled"
-LINK_STATES = ("auto", "on", "off")
-
-
-def read_link_state() -> str:
-  """auto | on | off. Never raises: a params library older than the key would
-  otherwise take the settings panel down, the guard accelerators.progress() has."""
-  try:
-    value = ui_state.params.get(LINK_PARAM)
-  except Exception:
-    return "auto"
-  return "auto" if value is None else "on" if value else "off"
-
-
-def write_link_state(state: str) -> None:
-  try:
-    if state == "auto":
-      ui_state.params.remove(LINK_PARAM)
-    else:
-      ui_state.params.put_bool(LINK_PARAM, state == "on", block=True)
-    ui_state.params.remove('ModelRunnerTypeCache')
-  except Exception:
-    pass  # the same unknown-key case as the read; nothing the panel can do about it
-
-
-def link_toggle_meaningful() -> bool:
-  """Whether to show the toggle at all. A plain device with no accelerator, no
-  complaint and nothing set must not. ready() is on the list for the link whose
-  engine is cached while the hardware is out of the car: on auto that is exactly
-  when someone wants to turn it off."""
-  return (accelerators.present() or accelerators.ready() or read_link_state() != "auto"
-          or accelerators.unavailable_reason() is not None)
 
 
 class AcceleratorLinkToggle(BigMultiToggle):
@@ -213,7 +179,7 @@ class ModelsLayoutMici(NavScroller):
   def _choose_accelerator(self, choice):
     if not ui_state.is_offroad():
       return
-    accelerators.select_model(choice['backend'], choice['name'])
+    accelerators.select_model(choice['name'])
     self._pop_to_main()
 
   def _select_hardware(self, source):

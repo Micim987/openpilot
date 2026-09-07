@@ -14,7 +14,7 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.common.hardware import HARDWARE, PC
 from openpilot.common.hardware.usb import TYPEC_CC_ORIENTATION_PATH, get_usb_state, is_chestnut_usb_id, read_int
 from openpilot.selfdrive.modeld.helpers import chestnut_compiled
-from openpilot.sunnypilot import accelerators
+
 
 from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP, DeviceSP
 
@@ -94,7 +94,7 @@ class UIState(UIStateSP):
     self.experimental_mode: bool = self.params.get_bool("ExperimentalMode")
     self.experimental_mode_confirmed: bool = self.params.get_bool("ExperimentalModeConfirmed")
     self.chestnut_present: bool = False
-    self.chestnut_compiled: bool = accelerators.ready()
+    self.chestnut_compiled: bool = chestnut_compiled()
     self.chestnut_active: bool | None = None
     self.chestnut_loading: bool = False
     self.usb_connected: bool = False
@@ -219,34 +219,30 @@ class UIState(UIStateSP):
       self._started_prev = self.started
 
   def _update_chestnut_state(self) -> None:
+    if self.accelerator_view is not None:
+      self.chestnut_state = self._accelerator_state()
+      return
+
     detected = self.sm["deviceState"].chestnutPresent
     if not self.started:
       self.chestnut_present = detected
-      stage = str((self.accelerator_progress or {}).get('stage', ''))
-      if not detected:
-        self.chestnut_state = ChestnutState.DISCONNECTED
-      elif stage and stage != 'ready':
-        self.chestnut_state = ChestnutState.FAILED if stage == 'failed' else ChestnutState.LOADING
-      elif self.chestnut_compiled:
-        self.chestnut_state = ChestnutState.READY
-      else:
-        self.chestnut_state = ChestnutState.UNCOMPILED
+      self.chestnut_state = (ChestnutState.READY if detected and self.chestnut_compiled else
+                             ChestnutState.UNCOMPILED if detected else ChestnutState.DISCONNECTED)
       return
 
     model_seen = self.sm.recv_frame["modelV2"] > self.started_frame
-    running_big = model_seen and self.sm.alive["modelV2"] and self.sm["modelV2"].big
-    if running_big:
-      self.chestnut_state = ChestnutState.ACTIVE
-    elif not detected:
+    if not self.chestnut_present:
       self.chestnut_state = ChestnutState.DISCONNECTED
-    elif self.chestnut_loading or not model_seen:
-      # Retrying an absent accelerator does not mean it is loading. Once it
-      # is attached, a pending join is loading rather than a failed model.
-      self.chestnut_state = ChestnutState.LOADING
     elif not self.chestnut_compiled:
       self.chestnut_state = ChestnutState.UNCOMPILED
-    else:
+    elif self.chestnut_state == ChestnutState.FAILED or not detected or (model_seen and (not self.sm.alive["modelV2"] or not self.sm["modelV2"].big)):
       self.chestnut_state = ChestnutState.FAILED
+    elif self.chestnut_loading or not model_seen:
+      self.chestnut_state = ChestnutState.LOADING
+    elif self.chestnut_active is False:
+      self.chestnut_state = ChestnutState.FAILED
+    else:
+      self.chestnut_state = ChestnutState.ACTIVE
 
   def update_params(self) -> None:
     # For slower operations
@@ -264,7 +260,8 @@ class UIState(UIStateSP):
     self.always_on_dm = self.params.get_bool("AlwaysOnDM")
     self.experimental_mode = self.params.get_bool("ExperimentalMode")
     self.experimental_mode_confirmed = self.params.get_bool("ExperimentalModeConfirmed")
-    self.chestnut_compiled = accelerators.ready()
+    if not self.chestnut_compiled:
+      self.chestnut_compiled = chestnut_compiled()
     self.chestnut_active = self.params.get("ChestnutActive")
     self.chestnut_loading = self.params.get_bool("ChestnutLoading")
     now = time.monotonic()
@@ -275,19 +272,10 @@ class UIState(UIStateSP):
         self.usb_connected_ts = now
         self.usb_unknown = False
       elif self.usb_connected_ts is not None and now - self.usb_connected_ts > 10.:
-        # "Unknown" means a cable with nothing we recognise behind it. The id
-        # check only sees devices the comma enumerated as a USB host; an
-        # accelerator the comma is the gadget for is never in that list, so
-        # ask deviceState too, which every backend answers.
-        self.usb_unknown = not (self.chestnut_present or
+        # the comma is the gadget for an off-board accelerator and enumerates nothing
+        self.usb_unknown = not (self.accelerator_view is not None or
                                 any(is_chestnut_usb_id(d["vendorId"], d["productId"], True) for d in get_usb_state()))
         self.usb_connected_ts = None
-      elif self.usb_unknown and self.chestnut_present:
-        # An accelerator on its own supply is a cable long before it is a
-        # device: the Jetson's port has VBUS up from power-on, but it does not
-        # configure the gadget until its kernel is up, ~25 s after this UI
-        # started on a cold boot. Recognising it late still clears "unknown".
-        self.usb_unknown = False
     elif self.usb_connected:
       if self.usb_disconnected_ts is None:
         self.usb_disconnected_ts = now
