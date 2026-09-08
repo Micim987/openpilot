@@ -33,6 +33,7 @@ import time
 
 import openpilot.cereal.messaging as messaging
 from openpilot.sunnypilot import accelerators
+from openpilot.sunnypilot.accelerators.jetlink import helpers
 from openpilot.common.realtime import drop_realtime, set_core_affinity
 from openpilot.common.swaglog import cloudlog
 
@@ -44,6 +45,14 @@ REJOIN_DELAY = 5.0
 # demote and an alert every few seconds
 REJOIN_DELAY_MAX = 60.0
 STABLE_SECONDS = 60.0
+# after a join that held: a link that ran for minutes and then went is a USB
+# drop, and the host re-enumerates a rebound gadget in under a second. The
+# rest of the old delay was the driver's time, not the Jetson's
+REJOIN_DELAY_QUICK = 1.0
+# link drops in one drive before the status names the cable. One is weather;
+# the 2026-09-07 evening drive had six in twelve minutes, every one the
+# USB-C port losing its host, and nothing the driver could see said so
+DROPS_TO_BLAME_CABLE = 2
 ENGAGEMENT_POLL_MS = 100
 ENGAGEMENT_MAX_AGE = 0.25
 # how often a link that is ready but has nowhere to land gets checked, and
@@ -110,6 +119,10 @@ class JoiningModelState:
     self._rejoin_at = 0.0
     self._failures = 0
     self._joined_at = 0.0
+    # links lost after a swap this drive, and whether the join thread still
+    # owes the log and the UI a word about the last one
+    self._drops = 0
+    self._demoted = False
 
     # assume engaged and moving until a message says otherwise, so a swap can
     # never happen on no information
@@ -180,20 +193,31 @@ class JoiningModelState:
   def run(self, bufs, transforms, inputs, after_enqueue=None):
     self._maybe_swap()
     active = self._active
+    started = time.monotonic()
     try:
       result = active.run(bufs, transforms, inputs, after_enqueue)
     except Exception:
       if active is self._small:
         # nothing to do with the link; modeld's own handler owns this
         raise
+      failed = time.monotonic()
       cloudlog.exception("jetlink: large model failed mid-drive, back to the small model")
       self._demote()
       if self._reset_small is not None:
         self._reset_small()
+      demoted = time.monotonic()
       # re-run the frame rather than propagate: modeld's fallback is permanent,
       # this one is retryable. after_enqueue is dropped, the large model may
       # already have called it
-      return self._small.run(bufs, transforms, inputs, None)
+      result = self._small.run(bufs, transforms, inputs, None)
+      # all of it is one modeld frame. Measured 186 to 211 ms on the car,
+      # two or three dropped camera frames, and three is modeldLagging: a
+      # second soft disable for the same drop. Say which part it was
+      done = time.monotonic()
+      cloudlog.warning("jetlink: fallback frame %.0f ms: link %.0f, demote %.0f, small model %.0f",
+                       (done - started) * 1e3, (failed - started) * 1e3,
+                       (demoted - failed) * 1e3, (done - demoted) * 1e3)
+      return result
     if active is not self._small and self._loading:
       # a connected engine can still fail its first inference; only announce
       # readiness after a frame the caller can publish
@@ -247,9 +271,12 @@ class JoiningModelState:
     self._active = big
 
   def _demote(self) -> None:
+    """On the frame thread, so nothing here waits: the join thread reads the
+    port, reports and closes the link, moments later."""
     big, self._active = self._active, self._small
     self._loading = True
-    self._report('connect', 'lost the jetson, reconnecting')
+    self._drops += 1
+    self._demoted = True
     with self._lock:
       self._retired = big
     self._back_off()
@@ -267,16 +294,21 @@ class JoiningModelState:
     """Push the next attempt out, further each time one fails on its heels.
 
     Each failed cycle is a swap frame, a demote frame, a soft disable and a
-    "Big Model Ready" chime. A join that held for STABLE_SECONDS starts from
-    the bottom again.
+    "Big Model Ready" chime. A join that held for STABLE_SECONDS is retried
+    at once, as failure one; a failure on its heels is the second rung.
     """
-    stable = self._joined_at and time.monotonic() - self._joined_at > STABLE_SECONDS
+    held = time.monotonic() - self._joined_at if self._joined_at else 0.0
+    stable = bool(self._joined_at) and held > STABLE_SECONDS
     self._failures = 1 if stable else self._failures + 1
     self._joined_at = 0.0
-    delay = min(REJOIN_DELAY * 2 ** (self._failures - 1), REJOIN_DELAY_MAX)
+    if stable:
+      delay = REJOIN_DELAY_QUICK
+    else:
+      delay = min(REJOIN_DELAY * 2 ** (self._failures - 1), REJOIN_DELAY_MAX)
     self._rejoin_at = time.monotonic() + delay
     self._rejoin.set()
-    cloudlog.warning("jetlink: next attempt in %.0f s (failure %d)", delay, self._failures)
+    cloudlog.warning("jetlink: next attempt in %.0f s (failure %d, link held %.0f s, drop %d this drive)",
+                     delay, self._failures, held, self._drops)
 
   # -- background -------------------------------------------------------------
 
@@ -287,7 +319,33 @@ class JoiningModelState:
     that is not plugged in looked like one six seconds from loading. No
     fraction to give, and the panel does not invent one.
     """
-    accelerators.report_progress(stage, 0.0, msg)
+    accelerators.report_progress(stage, 0.0, self._status(msg))
+
+  def _status(self, msg: str) -> str:
+    # the count is the diagnosis. A link that runs for minutes and then goes,
+    # again and again, is the cable, and the cable is the one thing the
+    # driver can do something about
+    if self._drops >= DROPS_TO_BLAME_CABLE:
+      return f"{msg}; link dropped {self._drops} times this drive, check the USB cable"
+    return msg
+
+  def _note_link_loss(self) -> None:
+    """Off the frame thread: what the comma's USB-C port sees now.
+
+    The port controller reads the CC pin, so it says whether the cable is
+    electrically there: 0 is a port with no host on it (a legacy A-to-C
+    cable's pull-up rides on the host's VBUS, so a VBUS glitch reads the
+    same), 1 or 2 a cable with a live host, and then the data link alone
+    went. The kernel logs the same edge as a Type-C disconnect, in dmesg;
+    this puts it next to the failure.
+    """
+    try:
+      cc = int(helpers.CC_ORIENTATION.read_text())
+      port = f"port sees a host (cc {cc})" if cc else "port sees no host (cc 0)"
+    except (OSError, ValueError):
+      port = "port state unknown"
+    cloudlog.warning("jetlink: link lost, %s; drop %d this drive", port, self._drops)
+    self._report('connect', 'lost the jetson, reconnecting')
 
   def _join_loop(self) -> None:
     """Open the link and get the engine ready. No tinygrad in here."""
@@ -296,6 +354,11 @@ class JoiningModelState:
       # no timeout: once joined there is nothing to poll for, and close() sets
       # this. An idle wake per second is not free on modeld's core
       self._rejoin.wait()
+      if self._demoted and not self._stop.is_set():
+        # before the teardown below, which can block: the port is read about
+        # when it let go. Not after close(), which has cleared the progress
+        self._demoted = False
+        self._note_link_loss()
       # unbind and reader joins can block; only this thread does teardown,
       # and it finishes before opening another link
       self._close_retired()

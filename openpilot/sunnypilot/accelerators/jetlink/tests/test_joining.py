@@ -20,7 +20,7 @@ from unittest import mock
 
 from openpilot.common.basedir import BASEDIR
 
-from openpilot.sunnypilot.accelerators.jetlink.joining import STABLE_SECONDS, JoiningModelState
+from openpilot.sunnypilot.accelerators.jetlink.joining import REJOIN_DELAY_QUICK, STABLE_SECONDS, JoiningModelState
 
 
 class FakeModel:
@@ -376,10 +376,64 @@ class JoiningTest(unittest.TestCase):
     self.assertTrue(s.loading)
     self.assertFalse(s.chestnut)
     self.assertEqual(s.big_model_state, 'retrying')
-    self.progress.report_progress.assert_called_with('connect', 0.0, 'lost the jetson, reconnecting')
+    # reported from the join thread, not the frame that lost the link
+    self._wait_reported(s, 'lost the jetson, reconnecting')
 
     s.close()
     self.assertEqual(s.big_model_state, 'unavailable')
+
+  def _wait_reported(self, s, msg, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+      if any(c.args[:2] == ('connect', 0.0) and c.args[2].startswith(msg)
+             for c in self.progress.report_progress.call_args_list):
+        return
+      time.sleep(0.005)
+    self.fail(f"never reported {msg!r}: {self.progress.report_progress.call_args_list}")
+
+  def test_a_lost_link_is_counted_and_repeated_drops_blame_the_cable(self):
+    # every drop on the 2026-09-07 drives was the USB port letting go, and the
+    # driver saw "Big Model Failed" six times with no hint of a cause
+    s = self._state()
+    self._wait_joined(s)
+    s._engaged = False
+    self._run(s)
+    # held for a while: the rejoin is the quick one, so the test waits on it
+    s._joined_at = time.monotonic() - (STABLE_SECONDS + 1)
+    self.big.raises = RuntimeError("host dropped the gadget configuration (udc: not attached)")
+    self._run(s)
+    self._wait_reported(s, 'lost the jetson, reconnecting')
+    self.assertEqual(s._drops, 1)
+    first = [c for c in self.progress.report_progress.call_args_list if c.args[2].startswith('lost')]
+    self.assertNotIn('cable', first[-1].args[2])
+    # a second drop in the drive names the cable, on every status from then on
+    self.big.raises = None
+    self._wait_joined(s)
+    self._run(s)
+    self.assertTrue(s.chestnut)
+    s._joined_at = time.monotonic() - (STABLE_SECONDS + 1)
+    self.big.raises = RuntimeError("gadget write failed: [Errno 19] No such device (udc: default)")
+    self._run(s)
+    self._wait_reported(s, 'lost the jetson, reconnecting; link dropped 2 times this drive, check the USB cable')
+    self.assertEqual(s._drops, 2)
+    self._wait_reported(s, 'waiting for the jetson; link dropped 2 times this drive, check the USB cable')
+
+  def test_the_frame_that_loses_the_link_does_not_report_or_read_the_port(self):
+    # the frame thread is SCHED_FIFO on modeld's core; params and sysfs are
+    # for the join thread. The drop is only counted here
+    s = self._state()
+    self._wait_joined(s)
+    s._engaged = False
+    self._run(s)
+    self.big.raises = RuntimeError("link gone")
+    # the join thread is held asleep, so whatever reported did so on the frame
+    with mock.patch.object(s._rejoin, 'set'), mock.patch.object(s, '_note_link_loss') as note:
+      self.assertEqual(self._run(s), {'from': 'small'})
+      self.assertTrue(s._demoted)
+      self.assertEqual(s._drops, 1)
+      note.assert_not_called()
+      calls = [c for c in self.progress.report_progress.call_args_list if c.args[2].startswith('lost')]
+      self.assertEqual(calls, [])
 
   def test_build_failure_backs_off(self):
     self._build = mock.Mock(side_effect=RuntimeError("no warp"))
@@ -440,11 +494,16 @@ class JoiningTest(unittest.TestCase):
     self.assertEqual(delays, [5, 10, 20, 40, 60])
 
     # A join that held is not that link, and must not inherit its delay: a
-    # Jetson that reboots once an hour should be picked up in REJOIN_DELAY.
+    # link that ran for minutes and then went is a USB drop, and the host
+    # re-enumerates a rebound gadget in under a second.
     s._joined_at = time.monotonic() - (STABLE_SECONDS + 1)
     t = time.monotonic()
     s._back_off()
-    self.assertEqual(round(s._rejoin_at - t), 5)
+    self.assertEqual(round(s._rejoin_at - t), round(REJOIN_DELAY_QUICK))
+    self.assertEqual(s._failures, 1)
+    # and a failure on its heels is the second rung, not the first again
+    s._back_off()
+    self.assertEqual(round(s._rejoin_at - time.monotonic()), 10)
 
   def test_small_model_failure_is_modelds(self):
     s = self._state()
