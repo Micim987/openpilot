@@ -14,9 +14,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
+from openpilot.common.hardware import AGNOS
 from openpilot.common.hardware.hw import Paths
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
@@ -57,8 +59,10 @@ def link_endpoint() -> tuple[str, int] | None:
 GADGET_PATH = Path("/sys/kernel/config/usb_gadget/jetlink")
 FFS_MOUNT = Path("/dev/ffs-jetlink")
 UDC_PATH = Path("/sys/class/udc")
-# written by scripts/setup_gadget.sh at boot: "ok", or "error: <reason>"
+# written by scripts/setup_gadget.sh, at boot or from jetlinkd when the link is
+# turned on: "ok", or "error: <reason>"
 GADGET_STATUS = Path("/dev/shm/jetlink-gadget")
+GADGET_SETUP_TIMEOUT = 30.0
 CC_ORIENTATION = Path('/sys/class/power_supply/usb/typec_cc_orientation')
 
 
@@ -97,6 +101,39 @@ def host_attached() -> bool:
     return (UDC_PATH / udc / "state").read_text().strip() == "configured"
   except OSError:
     return False
+
+
+def package_installed() -> bool:
+  """Is the jetlink submodule checked out? A stat, not an import: the UI asks at 5 Hz."""
+  try:
+    return (repo_root() / 'jetlink_repo' / 'jetlink' / '__init__.py').is_file()
+  except OSError:
+    return False
+
+
+def _gadget_script() -> Path:
+  return repo_root() / 'jetlink_repo' / 'scripts' / 'setup_gadget.sh'
+
+
+def can_setup_gadget() -> bool:
+  """Only AGNOS has the gadget stack, and only the submodule has the script."""
+  return AGNOS and _gadget_script().is_file()
+
+
+def setup_gadget() -> bool:
+  """Create the gadget the way boot does. The link was off at boot and is on now.
+
+  The script records "ok" or the reason in GADGET_STATUS itself, so a failure
+  here reaches the offroad alert the same way a failure at boot does.
+  """
+  try:
+    subprocess.run(['sudo', '-n', 'bash', str(_gadget_script())], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=GADGET_SETUP_TIMEOUT)
+  except Exception:
+    cloudlog.exception("jetlink: could not set up the gadget")
+    return False
+  cloudlog.warning("jetlink: gadget set up, the link was turned on after boot")
+  return link_configured()
 
 
 def link_configured() -> bool:

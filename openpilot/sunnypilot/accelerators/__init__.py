@@ -42,6 +42,11 @@ class Daemon(NamedTuple):
   should_run: Callable[..., bool]
 
 
+def installed() -> bool:
+  """Is the backend's package checked out? What makes the link worth offering in the UI."""
+  return backend.installed()
+
+
 def present() -> bool:
   """Is a Jetson attached, or asleep and known to be there? USB-independent."""
   return backend.present()

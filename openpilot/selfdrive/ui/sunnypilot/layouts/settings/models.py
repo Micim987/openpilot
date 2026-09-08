@@ -14,7 +14,7 @@ from openpilot.sunnypilot import accelerators
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle, resolve_bundle_by_ref
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import device, ui_state
-from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (link_enabled, link_toggle_meaningful,
+from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (link_enabled, link_status, link_toggle_meaningful,
                                                                 selected_accelerator_model, set_link_enabled)
 from openpilot.selfdrive.ui.sunnypilot.model_info import big_model_state, bundles_for_source, carrying_model, default_model_name, queued_name
 from openpilot.system.ui.lib.multilang import tr
@@ -46,6 +46,7 @@ class ModelsLayout(Widget):
     self._downloading = False
     self._verifying = False
     self._last_note = None
+    self._link_status = None
     self.last_cache_calc_time = 0
 
     self._initialize_items()
@@ -81,7 +82,7 @@ class ModelsLayout(Widget):
     # is refused onroad, so it goes through accelerator_link by hand
     self.accelerator_link_item = toggle_item_sp(
       tr("Accelerator Link"),
-      tr("Run the big driving model on an attached accelerator."),
+      self._link_description(""),
       initial_state=link_enabled(), callback=self._set_link_state)
 
     self.download_item = download_status_item(lambda: tr("Download") if self._downloading else tr("Model Status"))
@@ -137,6 +138,10 @@ class ModelsLayout(Widget):
       return
     set_link_enabled(enabled)
 
+  @staticmethod
+  def _link_description(status: str) -> str:
+    return f"{tr('Run the big driving model on an attached accelerator.')} {status}".strip()
+
   def _refresh_accelerator_items(self):
     # present() and unavailable_reason() read sysfs, so this rides the half-second tick
     choices = accelerators.model_choices()
@@ -146,6 +151,10 @@ class ModelsLayout(Widget):
       self.accelerator_model_item.action_item.set_value(name, style.ITEM_TEXT_VALUE_COLOR)
     self.accelerator_link_item.set_visible(link_toggle_meaningful())
     self.accelerator_link_item.action_item.set_state(link_enabled())
+    status = link_status()
+    if status != self._link_status:
+      self._link_status = status
+      self.accelerator_link_item.set_description(self._link_description(status))
 
   def _open_accelerator_dialog(self):
     choices = accelerators.model_choices()

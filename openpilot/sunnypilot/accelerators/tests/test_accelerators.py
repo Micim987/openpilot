@@ -122,6 +122,8 @@ class MissingPackageTest(unittest.TestCase):
     with mock.patch.object(helpers, '_get', return_value=None):
       self.assertFalse(accelerators.ready())
       self.assertFalse(accelerators.uses_stock_runner())
+    # a stat on the submodule, so it answers without the package on the path
+    self.assertIsInstance(accelerators.installed(), bool)
 
 
 class DaemonTest(unittest.TestCase):

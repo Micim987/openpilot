@@ -44,6 +44,7 @@ POLL_HZ = 2.0
 RETRY_BACKOFF = 30.0       # after a failed provision
 RETRY_BACKOFF_MAX = 900.0  # ceiling once the failures keep coming
 RECONNECT_BACKOFF = 5.0    # after the link itself failed
+GADGET_SETUP_BACKOFF = 60.0  # between attempts to create a gadget boot did not
 
 # how long after ignition-off the gadget is released once there is nothing to
 # do. The server sleeps 120 s after the gadget goes; a stop inside the hold
@@ -160,6 +161,7 @@ class Jetlinkd:
     self.stop = False
     self.ready = False
     self.next_attempt = 0.0
+    self.next_gadget_attempt = 0.0
     self.next_provision = 0.0
     self.failures = 0
     self.was_attached = False
@@ -185,6 +187,24 @@ class Jetlinkd:
         client.close()
       except Exception:
         cloudlog.exception("jetlink: error closing the link")
+
+  def ensure_gadget(self) -> bool:
+    """Is there a gadget to present? Create it if boot did not.
+
+    Boot only sets the gadget up with the link already on, and manager starts
+    this daemon the moment the toggle flips, so a link turned on after boot
+    finds nothing to open. Setting it up here is what makes the toggle act
+    at once instead of at the next reboot. A device that cannot (a PC, or a
+    build without the script) is left to open_link, which says why.
+    """
+    if helpers.link_endpoint() is not None or helpers.link_configured():
+      return True
+    if not helpers.can_setup_gadget():
+      return True
+    if time.monotonic() < self.next_gadget_attempt:
+      return False
+    self.next_gadget_attempt = time.monotonic() + GADGET_SETUP_BACKOFF
+    return helpers.setup_gadget()
 
   def open_link(self) -> bool:
     """Present the gadget so a Jetson can enumerate whenever it powers on."""
@@ -458,6 +478,8 @@ class Jetlinkd:
     # will not start the large model without it
     self.build_warp()
 
+    if not self.ensure_gadget():
+      return
     if time.monotonic() < self.next_attempt:
       return
     if not self.open_link():

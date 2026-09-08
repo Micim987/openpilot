@@ -51,6 +51,50 @@ class TestGadgetStatus(unittest.TestCase):
       assert helpers.gadget_error() is None
 
 
+class TestGadgetSetup(unittest.TestCase):
+  """jetlinkd creates the gadget when the link was turned on after boot."""
+
+  def setUp(self):
+    self.tmp = Path(tempfile.mkdtemp())
+    script = self.tmp / 'jetlink_repo' / 'scripts' / 'setup_gadget.sh'
+    script.parent.mkdir(parents=True)
+    script.write_text('#!/bin/sh\n')
+    self.script = script
+    for name, value in (('repo_root', mock.Mock(return_value=self.tmp)), ('AGNOS', True)):
+      p = mock.patch.object(helpers, name, value)
+      self.addCleanup(p.stop)
+      p.start()
+
+  def test_the_package_is_installed_when_the_submodule_is_checked_out(self):
+    assert not helpers.package_installed()
+    pkg = self.tmp / 'jetlink_repo' / 'jetlink'
+    pkg.mkdir()
+    (pkg / '__init__.py').write_text('')
+    assert helpers.package_installed()
+
+  def test_only_agnos_with_the_script_can_set_one_up(self):
+    assert helpers.can_setup_gadget()
+    with mock.patch.object(helpers, 'AGNOS', False):
+      assert not helpers.can_setup_gadget()
+    self.script.unlink()
+    assert not helpers.can_setup_gadget()
+
+  def test_setup_runs_the_boot_script_as_root_and_reports_the_result(self):
+    with mock.patch.object(helpers.subprocess, 'run') as run, \
+         mock.patch.object(helpers, 'link_configured', return_value=True):
+      assert helpers.setup_gadget()
+    (argv,), kwargs = run.call_args
+    assert argv[:3] == ['sudo', '-n', 'bash'] and argv[3] == str(self.script)
+    assert kwargs['check'] and kwargs['timeout'] == helpers.GADGET_SETUP_TIMEOUT
+
+  def test_a_failed_script_is_a_false_not_a_raise(self):
+    # the script has already written the reason to the status file
+    with mock.patch.object(helpers.subprocess, 'run', side_effect=helpers.subprocess.CalledProcessError(1, 'bash')), \
+         mock.patch.object(helpers.cloudlog, 'exception') as log:
+      assert not helpers.setup_gadget()
+    assert log.call_count == 1
+
+
 class TestGadgetAlert(unittest.TestCase):
   """Only complain to someone who asked for the link. With it off, a device
   that cannot present the gadget should simply not offer the feature."""

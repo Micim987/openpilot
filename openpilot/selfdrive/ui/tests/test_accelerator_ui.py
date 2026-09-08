@@ -43,11 +43,11 @@ def params(gui):
   return p
 
 
-def accelerator(present=False, ready=False, progress=None, stock=False, choices=None):
+def accelerator(present=False, ready=False, progress=None, stock=False, choices=None, installed=False):
   stack = ExitStack()
   for name, value in (("present", present), ("ready", ready), ("progress", progress),
                       ("uses_stock_runner", stock), ("model_choices", choices or []),
-                      ("unavailable_reason", None)):
+                      ("unavailable_reason", None), ("installed", installed)):
     stack.enter_context(mock.patch(f"openpilot.sunnypilot.accelerators.{name}", return_value=value))
   return stack
 
@@ -202,6 +202,31 @@ class TestTiciModelsPanel:
       layout = self._layout()
     assert layout.accelerator_link_item.is_visible
     assert layout.accelerator_model_item.is_visible
+
+  def test_shown_wherever_the_package_is_installed(self, params):
+    # with the link off there is no gadget for a Jetson to enumerate, so present()
+    # alone would hide the toggle that turns the link on
+    params.remove("JetlinkEnabled")
+    with accelerator(installed=True):
+      layout = self._layout()
+    assert layout.accelerator_link_item.is_visible
+    assert not layout.accelerator_model_item.is_visible
+
+  def test_the_toggle_says_what_is_on_the_port(self, params):
+    link = "openpilot.selfdrive.ui.sunnypilot.accelerator_link"
+    with accelerator(installed=True), mock.patch(f"{link}.read", return_value="0"):
+      layout = self._layout()
+      assert layout.accelerator_link_item.description.endswith("Nothing on the USB port.")
+      with mock.patch(f"{link}.read", return_value="2"):
+        layout._refresh_accelerator_items()
+      assert layout.accelerator_link_item.description.endswith("A device is on the USB port.")
+    with accelerator(installed=True, present=True), mock.patch(f"{link}.read", return_value="0"):
+      layout._refresh_accelerator_items()
+      assert layout.accelerator_link_item.description.endswith("Accelerator connected.")
+    # a kernel without the CC pin in sysfs claims nothing rather than an empty port
+    with accelerator(installed=True), mock.patch(f"{link}.read", return_value=None):
+      layout._refresh_accelerator_items()
+      assert layout.accelerator_link_item.description.endswith("accelerator.")
 
   def test_toggle_writes_the_param_and_drops_the_runner_cache(self, params):
     params.put("ModelRunnerTypeCache", 1)

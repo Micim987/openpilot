@@ -284,6 +284,78 @@ class TestStepOnFailure(unittest.TestCase):
     assert d.ready is True
 
 
+class TestGadgetOnEnable(unittest.TestCase):
+  """Boot sets the gadget up only with the link already on. A link turned on
+  after boot has to get its gadget from the daemon, or the toggle does nothing
+  until the next reboot."""
+
+  def setUp(self):
+    for target, new in (('accelerators', mock.Mock()),):
+      p = mock.patch.object(jetlinkd, target, new)
+      self.addCleanup(p.stop)
+      p.start()
+    for name, value in (('enabled', True), ('pending_shutdown', None), ('link_endpoint', None),
+                        ('can_setup_gadget', True)):
+      p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
+      self.addCleanup(p.stop)
+      p.start()
+    self.setup = mock.patch.object(jetlinkd.helpers, 'setup_gadget', return_value=True)
+    self.addCleanup(self.setup.stop)
+    self.setup.start()
+
+  def daemon(self):
+    d = jetlinkd.Jetlinkd()
+    d.warp_built = True
+    for name in ('open_link', 'tune_vm'):
+      p = mock.patch.object(d, name, mock.Mock(return_value=False))
+      self.addCleanup(p.stop)
+      p.start()
+    return d
+
+  def test_a_missing_gadget_is_created_before_the_link_is_opened(self):
+    d = self.daemon()
+    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False):
+      d.step()
+    assert jetlinkd.helpers.setup_gadget.call_count == 1
+    assert d.open_link.call_count == 1
+
+  def test_an_existing_gadget_is_left_alone(self):
+    d = self.daemon()
+    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=True):
+      d.step()
+    assert jetlinkd.helpers.setup_gadget.call_count == 0
+    assert d.open_link.call_count == 1
+
+  def test_a_failed_setup_is_not_retried_every_tick(self):
+    # the reason is in the status file for the offroad alert; a bash script per
+    # tick would say it 120 times a minute
+    d = self.daemon()
+    jetlinkd.helpers.setup_gadget.return_value = False
+    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False):
+      for _ in range(3):
+        d.step()
+    assert jetlinkd.helpers.setup_gadget.call_count == 1
+    assert d.open_link.call_count == 0
+    assert d.next_gadget_attempt > time.monotonic()
+
+  def test_a_device_that_cannot_make_one_still_tries_the_link(self):
+    # a PC, or a build without the script: open_link fails and says why
+    d = self.daemon()
+    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False), \
+         mock.patch.object(jetlinkd.helpers, 'can_setup_gadget', return_value=False):
+      d.step()
+    assert jetlinkd.helpers.setup_gadget.call_count == 0
+    assert d.open_link.call_count == 1
+
+  def test_tcp_needs_no_gadget(self):
+    d = self.daemon()
+    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False), \
+         mock.patch.object(jetlinkd.helpers, 'link_endpoint', return_value=('10.0.0.2', 5599)):
+      d.step()
+    assert jetlinkd.helpers.setup_gadget.call_count == 0
+    assert d.open_link.call_count == 1
+
+
 class TestParked(unittest.TestCase):
   """Releasing the gadget once there is nothing to do, and taking it back."""
 

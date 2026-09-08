@@ -136,6 +136,10 @@ def enabled() -> bool:
   return helpers.enabled()
 
 
+def installed() -> bool:
+  return helpers.package_installed()
+
+
 def present() -> bool:
   return helpers.gadget_present()
 
