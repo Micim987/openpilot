@@ -16,6 +16,13 @@
   ],
   "models": [
     {
+      "name": "Cinque v2",
+      "date": "2026-09-08",
+      "commit": "37bfa1413e",
+      "oid": "09d080f36965bb2a0790500452bd328aa03c484d0222aa79d1ad9f021a522aec",
+      "size": 766040736
+    },
+    {
       "name": "Cinque Terre",
       "date": "2026-09-04",
       "commit": "68b5f8e486",
