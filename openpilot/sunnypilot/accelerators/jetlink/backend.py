@@ -282,10 +282,7 @@ def selected_model_name() -> str | None:
 
 
 def active_model_name() -> str | None:
-  if not ready():
-    return None
-  selected = helpers.selected_model()
-  return selected['name'] if selected else None
+  return selected_model_name() if ready() else None
 
 
 def shutdown(reason: str, timeout: float = SHUTDOWN_TIMEOUT) -> None:

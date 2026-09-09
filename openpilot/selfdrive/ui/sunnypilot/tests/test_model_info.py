@@ -60,7 +60,7 @@ class TestCarryingModel(OpenpilotTestCase):
       assert model_info.carrying_model() == ("accelerator", "big", "big")
 
   def test_fitted_board_is_chestnut_not_jetlink(self):
-    # a real chestnut ACTIVE keeps comma's semantics whatever JetlinkModel says
+    # a real chestnut ACTIVE keeps comma's semantics whatever the accelerator says
     self.ui_state.chestnut_present = True
     self.ui_state.chestnut_state = ChestnutState.ACTIVE
     self.ui_state.params.get.side_effect = lambda key: {"ModelManager_ActiveBundleChestnut": _raw_bundle("big_custom")}.get(key)

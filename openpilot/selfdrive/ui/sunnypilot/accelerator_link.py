@@ -56,7 +56,3 @@ def link_status() -> str:
     return ""
   return tr("Nothing on the USB port.") if raw == "0" else tr("A device is on the USB port.")
 
-
-def selected_accelerator_model() -> str:
-  """The big model the accelerator will run, '' when there is no catalog yet."""
-  return accelerators.selected_model_name() or ''

@@ -13,8 +13,8 @@ from openpilot.cereal import custom
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle, resolve_bundle_by_ref
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import device, ui_state
-from openpilot.selfdrive.ui.sunnypilot.accelerator_link import (link_enabled, link_status, link_toggle_meaningful,
-                                                                selected_accelerator_model, set_link_enabled)
+from openpilot.selfdrive.ui.sunnypilot.accelerator_link import link_enabled, link_status, link_toggle_meaningful, set_link_enabled
+from openpilot.sunnypilot import accelerators
 from openpilot.selfdrive.ui.sunnypilot.model_info import big_model_state, bundles_for_source, carrying_model, default_model_name, queued_name
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.application import gui_app
@@ -247,10 +247,13 @@ class ModelsLayout(Widget):
     fallback_name = default_model_name("qcom")
     state = big_model_state()
     if accelerator:
-      # the big-model slot's pick or the default; the small model the user
-      # picked drives in its place, so it reads like a Default big
-      big_name = selected_accelerator_model() or tr("The big model")
+      # named by the accelerator: the slot's pick, or its default, which can be
+      # newer than the chestnut's. The small model the user picked drives in
+      # its place, so it reads like a Default big
+      big_name = accelerators.selected_model_name() or tr("The big model")
       big_is_default = True
+      if small := get_selected_bundle(ui_state.params, "qcom"):
+        fallback_name = small.internalName
     else:
       big_bundle = get_selected_bundle(ui_state.params, "chestnut")
       big_name = big_bundle.internalName if big_bundle else default_model_name("chestnut")

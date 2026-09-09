@@ -166,10 +166,9 @@ class TestDormant(unittest.TestCase):
     assert helpers.await_shutdown(0.3)
 
 
-def bundle(ref: str, name: str, index: int = 0, folder: str = '', version=19) -> dict:
+def bundle(ref: str, name: str, index: int = 0, version=19) -> dict:
   """A bundle as the catalog JSON carries it."""
-  return {'ref': ref, 'display_name': name, 'index': index, 'minimum_selector_version': str(version),
-          'overrides': {'folder': folder} if folder else {}}
+  return {'ref': ref, 'display_name': name, 'index': index, 'minimum_selector_version': str(version)}
 
 
 REF_A, REF_B, REF_C = 'a' * 40, 'b' * 40, 'c' * 40
@@ -189,10 +188,9 @@ class TestCatalog(unittest.TestCase):
   def setUp(self):
     self.addCleanup(mock.patch.stopall)
 
-  def test_newest_first_with_names_and_folders(self):
-    catalog_param(bundle(REF_A, 'Alpha (September 04, 2026)', 3, 'Master Models'), bundle(REF_B, 'Beta', 9))
-    self.assertEqual(helpers.catalog(), [{'name': 'Beta', 'ref': REF_B, 'folder': ''},
-                                         {'name': 'Alpha (September 04, 2026)', 'ref': REF_A, 'folder': 'Master Models'}])
+  def test_newest_first_with_names(self):
+    catalog_param(bundle(REF_A, 'Alpha (September 04, 2026)', 3), bundle(REF_B, 'Beta', 9))
+    self.assertEqual(helpers.catalog(), [{'name': 'Beta', 'ref': REF_B}, {'name': 'Alpha (September 04, 2026)', 'ref': REF_A}])
 
   def test_only_commits_of_this_selector_version(self):
     # a bundle without a comma commit has no ONNX to find; one for another
@@ -225,13 +223,12 @@ class TestModelIndex(unittest.TestCase):
       return helpers.model_index()
 
   def test_a_resolved_model_carries_its_identity(self):
-    (entry,) = self.index_with([{'name': 'Alpha', 'ref': REF_A, 'folder': 'Master Models'}])
-    self.assertEqual(entry, {'name': 'Alpha', 'ref': REF_A, 'folder': 'Master Models',
-                             'oid': '1' * 64, 'size': 766_000_000})
+    (entry,) = self.index_with([{'name': 'Alpha', 'ref': REF_A}])
+    self.assertEqual(entry, {'name': 'Alpha', 'ref': REF_A, 'oid': '1' * 64, 'size': 766_000_000})
 
-  def test_an_unresolved_model_is_still_offered(self):
-    # the picker is the catalog; the pointer is fetched when the model is first asked for
-    (entry,) = self.index_with([{'name': 'Gamma', 'ref': REF_C, 'folder': ''}])
+  def test_an_unresolved_model_is_still_listed(self):
+    # the pointer is fetched when the model is first asked for
+    (entry,) = self.index_with([{'name': 'Gamma', 'ref': REF_C}])
     self.assertEqual((entry['name'], entry['oid'], entry['size']), ('Gamma', None, None))
 
   def test_a_second_read_within_the_ttl_costs_nothing(self):
@@ -288,8 +285,8 @@ class TestSelectedModel(unittest.TestCase):
   """The pick is the model manager's big-model slot, the same one a chestnut runs from."""
 
   INDEX = [
-    {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 10, 'folder': ''},
-    {'name': 'Beta', 'ref': REF_B, 'oid': 'b' * 64, 'size': 20, 'folder': ''},
+    {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 10},
+    {'name': 'Beta', 'ref': REF_B, 'oid': 'b' * 64, 'size': 20},
   ]
 
   def select_with(self, slot_ref, default=REF_B):
@@ -317,9 +314,22 @@ class TestSelectedModel(unittest.TestCase):
 
 
 class TestSelectedRef(unittest.TestCase):
+  def setUp(self):
+    helpers._slot_cache = None
+    self.addCleanup(setattr, helpers, '_slot_cache', None)
+
   def read_with(self, slot):
+    helpers._slot_cache = None
     with mock.patch.object(helpers, '_get', return_value=slot):
       return helpers.selected_ref()
+
+  def test_a_second_read_within_the_ttl_costs_nothing(self):
+    # the UI names the active model every frame
+    with mock.patch.object(helpers, '_get', return_value={'ref': REF_A}) as read:
+      helpers._slot_cache = None
+      assert helpers.selected_ref() == REF_A
+      assert helpers.selected_ref() == REF_A
+    assert read.call_count == 1
 
   def test_reads_the_slots_ref(self):
     assert self.read_with({'ref': REF_A, 'displayName': 'Alpha'}) == REF_A
@@ -334,13 +344,13 @@ class TestMigrateSelection(unittest.TestCase):
   once; a name from before the catalog maps to the engine that is ready, so a
   160 s rebuild is not the price of the rename."""
 
-  CATALOG = [{'name': 'Alpha', 'ref': REF_A, 'folder': ''}, {'name': 'Beta', 'ref': REF_B, 'folder': ''}]
+  CATALOG = [{'name': 'Alpha', 'ref': REF_A}, {'name': 'Beta', 'ref': REF_B}]
 
   def migrate(self, legacy, ready=None, slot_ref=None, resolve=None, listed=True):
     values = {helpers.P_MODEL_LEGACY: legacy, helpers.P_READY: ready}
     params = mock.patch.object(helpers, 'Params').start()
     self.addCleanup(mock.patch.stopall)
-    self.stored = mock.patch.object(helpers, '_store_slot', return_value=listed).start()
+    self.stored = mock.patch.object(helpers, '_store_slot', **({'side_effect': listed} if isinstance(listed, Exception) else {'return_value': listed})).start()
     with mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: values.get(k, d)), \
          mock.patch.object(helpers, 'selected_ref', return_value=slot_ref), \
          mock.patch.object(helpers, 'catalog', return_value=self.CATALOG), \
@@ -366,6 +376,10 @@ class TestMigrateSelection(unittest.TestCase):
   def test_a_ref_the_catalog_does_not_list_is_dropped(self):
     params = self.migrate(REF_C, listed=False)
     params.remove.assert_called_once_with(helpers.P_MODEL_LEGACY)
+
+  def test_no_catalog_yet_is_left_for_the_next_run(self):
+    params = self.migrate(REF_A, listed=LookupError('no catalog'))
+    params.remove.assert_not_called()
 
   def test_a_slot_already_picked_wins(self):
     params = self.migrate(REF_A, slot_ref=REF_B)
@@ -404,7 +418,7 @@ class TestShippedModelPath(unittest.TestCase):
   """A file counts only when it is the model we mean, at the size we expect.
   Models live one file per oid so switching back does not re-download."""
 
-  MODEL = {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 4096, 'folder': ''}
+  MODEL = {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 4096}
 
   def setUp(self):
     self.root = tempfile.mkdtemp()

@@ -17,9 +17,8 @@ must stay cheap.
 
 Both models are the model manager's. The small one runs on whichever modeld
 its bundle needs, and the accelerator joins that modeld. The big one is the
-big-model slot, the same pick a chestnut runs from; with no chestnut fitted
-the manager stores it without its files, and the accelerator fetches its own
-form of the model by the bundle's ref. Nothing here changes which modeld
+big-model slot, the same pick a chestnut runs from (the rule is with
+ModelManagerSP._fetch_big_model_files). Nothing here changes which modeld
 manager runs.
 """
 from __future__ import annotations

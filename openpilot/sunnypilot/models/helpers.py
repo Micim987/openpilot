@@ -82,7 +82,7 @@ def _bundle_is_valid_locally(bundle: custom.ModelManagerSP.ModelBundle) -> bool:
 
 
 def _bundle_needs_reset(active_bundle: custom.ModelManagerSP.ModelBundle, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None,
-                        check_files: bool = True) -> bool:
+                        check_files: bool) -> bool:
   if active_bundle is None:
     return False
 
@@ -149,9 +149,13 @@ def resolve_bundle_by_ref(
   return None
 
 
-def _validate_active_bundle(params: Params, source: str, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None = None,
-                            check_files: bool = True) -> None:
+def _validate_active_bundle(params: Params, source: str, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None = None) -> None:
   global _LAST_VALIDATED_RAW
+  # the big-model slot's missing files are fetched, not a reason to reset: an
+  # accelerator runs the pick without them, and for a chestnut the manager
+  # fetches them (ModelManagerSP._fetch_big_model_files). A change from
+  # upstream for chestnuts too: files gone means a re-fetch, not the default
+  check_files = source != "chestnut"
 
   key = ACTIVE_BUNDLE_KEYS[source]
   raw_bundle = params.get(key)
@@ -171,12 +175,9 @@ def _validate_active_bundle(params: Params, source: str, available_bundles: list
 
 
 def validate_active_bundles(params: Params, source_bundles: dict[str, list[custom.ModelManagerSP.ModelBundle]]) -> None:
-  # an empty list means the fetch failed, not that the catalog dropped the bundle.
-  # The big-model slot is a choice for whichever hardware runs it: a chestnut
-  # needs its files, an accelerator only the ref. Missing files are the
-  # manager's to fetch (ModelManagerSP._fetch_big_model_files), not a reset
+  # an empty list means the fetch failed, not that the catalog dropped the bundle
   for source, bundles in source_bundles.items():
-    _validate_active_bundle(params, source, bundles or None, check_files=(source != "chestnut"))
+    _validate_active_bundle(params, source, bundles or None)
   get_active_model_runner(params, force_check=True)
 
 

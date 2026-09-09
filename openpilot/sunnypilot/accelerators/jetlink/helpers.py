@@ -7,10 +7,11 @@ See the LICENSE.md file in the root directory for more details.
 Where the model is, whether the Jetson is attached, and how far along it is.
 
 The large model is the model manager's big-model pick, the same slot a
-chestnut runs from. Its bundles are tinygrad pkls for a GPU the Jetson does
-not have, but each one names the comma commit it was compiled from, and that
-commit's ONNX in comma's LFS is what the Jetson runs. The catalog says what
-exists, the slot says which one, the pointer at the commit says which bytes.
+chestnut runs from (see ModelManagerSP._fetch_big_model_files). Its bundles
+are tinygrad pkls for a GPU the Jetson does not have, but each one names the
+comma commit it was compiled from, and that commit's ONNX in comma's LFS is
+what the Jetson runs. The catalog says what exists, the slot says which one,
+the pointer at the commit says which bytes.
 """
 from __future__ import annotations
 
@@ -298,10 +299,11 @@ CATALOG_PARAM = "ModelManager_ModelsCache_Chestnut"
 POINTER_URL = 'https://raw.githubusercontent.com/commaai/openpilot/{ref}/openpilot/selfdrive/modeld/models/big_driving_supercombo.onnx'
 POINTER_TIMEOUT = 10.0
 _REF = re.compile(r'[0-9a-f]{40}')
-# the index is two JSON params, and the UI names the active model every frame;
-# a picker opened a moment after a catalog refresh can wait this long
+# the index and the slot are JSON params, and the UI names the active model
+# every frame; the status line can lag a new pick by this long
 INDEX_TTL = 2.0
 _index_cache: tuple[float, list[dict]] | None = None
+_slot_cache: tuple[float, str | None] | None = None
 
 
 def repo_root() -> Path:
@@ -309,11 +311,11 @@ def repo_root() -> Path:
 
 
 def catalog() -> list[dict]:
-  """sunnypilot's big-model bundles as {name, ref, folder}, newest first, as the
-  model manager's own picker lists them.
+  """sunnypilot's big-model bundles as {name, ref}, newest first, as the model
+  manager's own picker lists them.
 
   From the cached JSON rather than the parsed bundles: parsing builds capnp
-  objects and writes chunk manifests, for three fields. Read from the UI's
+  objects and writes chunk manifests, for two fields. Read from the UI's
   param thread, so nothing escapes.
   """
   try:
@@ -325,8 +327,7 @@ def catalog() -> list[dict]:
     cloudlog.exception("jetlink: could not read the big-model catalog")
     return []
   found.sort(key=lambda b: int(b.get('index', 0)), reverse=True)
-  return [{'name': str(b.get('display_name') or b['ref'][:10]), 'ref': b['ref'],
-           'folder': str((b.get('overrides') or {}).get('folder', ''))} for b in found]
+  return [{'name': str(b.get('display_name') or b['ref'][:10]), 'ref': b['ref']} for b in found]
 
 
 def pointers() -> dict[str, dict]:
@@ -361,8 +362,8 @@ def resolve_pointer(ref: str) -> tuple[str, int]:
 
 
 def model_index() -> list[dict]:
-  """Every catalog model, {name, ref, folder, oid, size}. oid and size are None
-  until the model has been selected and resolved. No network."""
+  """Every catalog model, {name, ref, oid, size}. oid and size are None until
+  the model has been selected and resolved. No network."""
   global _index_cache
   now = time.monotonic()
   if _index_cache is not None and now - _index_cache[0] < INDEX_TTL:
@@ -377,22 +378,27 @@ def model_index() -> list[dict]:
 
 
 def selected_ref() -> str | None:
-  """The big-model slot's pick. The raw dict, not a parsed bundle: the slot is
-  the model manager's to validate, and this runs every frame in the UI."""
+  """The big-model slot's pick. The raw dict, not a parsed bundle, and memoised:
+  the slot is the model manager's to validate, and the UI asks every frame."""
+  global _slot_cache
+  now = time.monotonic()
+  if _slot_cache is not None and now - _slot_cache[0] < INDEX_TTL:
+    return _slot_cache[1]
   from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS
   slot = _get(ACTIVE_BUNDLE_KEYS["chestnut"])
   ref = slot.get('ref') if isinstance(slot, dict) else None
-  return ref if isinstance(ref, str) and ref else None
+  _slot_cache = (now, ref if isinstance(ref, str) and ref else None)
+  return _slot_cache[1]
 
 
-def selected_model(models: list[dict] | None = None) -> dict | None:
+def selected_model() -> dict | None:
   """The big model the device picked, or the fork's default big model, or the newest.
 
   The pick is the model manager's big-model slot, a choice for whichever
   hardware runs it. A ref the catalog dropped falls back the same way: leaving
   the device with no model at all would be worse than quietly using the default.
   """
-  models = model_index() if models is None else models
+  models = model_index()
   if not models:
     return None
   wanted = selected_ref()
@@ -411,8 +417,8 @@ def migrate_selection() -> None:
   A ref is written as the slot the model manager would write, minus the files,
   which it fetches itself if a chestnut is fitted. A name from before the
   catalog maps to the ref of the engine that is ready, a pointer fetch per
-  catalog model until the match, and is left for the next run without the
-  network. A slot already picked wins.
+  catalog model until the match. Without the network, or the catalog, it is
+  left for the next run. A slot already picked wins.
   """
   wanted = _get(P_MODEL_LEGACY)
   if not wanted:
@@ -430,22 +436,34 @@ def migrate_selection() -> None:
         if oid == ready:
           ref = m['ref']
           break
-    if ref is not None and _store_slot(params, ref):
-      cloudlog.warning("jetlink: selection %r is now the big-model slot, %s", wanted, ref[:10])
-    else:
-      cloudlog.warning("jetlink: selection %r is not a catalog model, using the default", wanted)
+    if ref is not None:
+      try:
+        stored = _store_slot(params, ref)
+      except LookupError as e:
+        cloudlog.warning("jetlink: cannot migrate the selection %r yet: %s", wanted, e)
+        return
+      if stored:
+        cloudlog.warning("jetlink: selection %r is now the big-model slot, %s", wanted, ref[:10])
+      else:
+        cloudlog.warning("jetlink: selection %r is not a catalog model, using the default", wanted)
   params.remove(P_MODEL_LEGACY)
 
 
 def _store_slot(params, ref: str) -> bool:
   """Write the big-model slot as the model manager does for a bundle it has
-  downloaded. False if the catalog does not list the ref."""
+  downloaded. False if the catalog does not list the ref; LookupError if
+  there is no catalog to ask yet."""
+  global _slot_cache
   from openpilot.sunnypilot.models.fetcher import get_cached_bundles
   from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, resolve_bundle_by_ref
-  resolved = resolve_bundle_by_ref(ref, {"chestnut": get_cached_bundles(params, "chestnut")})
+  bundles = get_cached_bundles(params, "chestnut")
+  if not bundles:
+    raise LookupError("no big-model catalog cached")
+  resolved = resolve_bundle_by_ref(ref, {"chestnut": bundles})
   if resolved is None:
     return False
   params.put(ACTIVE_BUNDLE_KEYS["chestnut"], resolved[0].to_dict(), block=True)
+  _slot_cache = None
   return True
 
 

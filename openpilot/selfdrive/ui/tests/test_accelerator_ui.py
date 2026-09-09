@@ -6,7 +6,7 @@ See the LICENSE.md file in the root directory for more details.
 """
 
 # ui_state's accelerator view beside upstream's chestnut state, and the tici
-# models panel's link toggle and accelerator picker.
+# models panel's link toggle and status line.
 
 import os
 from contextlib import ExitStack
@@ -194,13 +194,11 @@ class TestTiciModelsPanel:
     with accelerator():
       layout = self._layout()
     assert not layout.accelerator_link_item.is_visible
-    assert layout.big_model_item.is_visible
 
   def test_shown_with_an_accelerator(self, params):
     with accelerator(present=True, selected='Cinque Terre'):
       layout = self._layout()
     assert layout.accelerator_link_item.is_visible
-    assert not hasattr(layout, 'accelerator_model_item'), "one big-model picker, the model manager's"
 
   def test_shown_wherever_the_package_is_installed(self, params):
     # with the link off there is no gadget for a Jetson to enumerate, so present()
