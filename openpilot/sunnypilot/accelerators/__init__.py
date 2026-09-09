@@ -15,9 +15,12 @@ feature off costs a param read, package absent answers the negative default.
 present(), ready(), progress() and enabled() are polled by the UI at 5 Hz and
 must stay cheap.
 
-The small model is the model manager's: whichever bundle the user picked runs,
-on whichever modeld that bundle needs, and the accelerator joins that modeld.
-Nothing here changes which modeld manager runs.
+Both models are the model manager's. The small one runs on whichever modeld
+its bundle needs, and the accelerator joins that modeld. The big one is the
+big-model slot, the same pick a chestnut runs from; with no chestnut fitted
+the manager stores it without its files, and the accelerator fetches its own
+form of the model by the bundle's ref. Nothing here changes which modeld
+manager runs.
 """
 from __future__ import annotations
 
@@ -86,16 +89,13 @@ def enabled() -> bool:
   return backend.enabled()
 
 
-def model_choices() -> list[dict]:
-  """{name, ref, folder, selected, cached} per large model the accelerator can run."""
-  return backend.model_choices()
-
-
-def select_model(ref: str) -> None:
-  backend.select_model(ref)
+def selected_model_name() -> str | None:
+  """The big model the accelerator will run: the model manager's big-model pick, or the default."""
+  return backend.selected_model_name()
 
 
 def active_model_name() -> str | None:
+  """selected_model_name() once the accelerator can run it, else None."""
   return backend.active_model_name()
 
 

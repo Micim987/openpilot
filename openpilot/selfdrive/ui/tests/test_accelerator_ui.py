@@ -43,10 +43,10 @@ def params(gui):
   return p
 
 
-def accelerator(present=False, ready=False, progress=None, enabled=False, choices=None, installed=False):
+def accelerator(present=False, ready=False, progress=None, enabled=False, selected=None, installed=False):
   stack = ExitStack()
   for name, value in (("present", present), ("ready", ready), ("progress", progress),
-                      ("enabled", enabled), ("model_choices", choices or []),
+                      ("enabled", enabled), ("selected_model_name", selected),
                       ("unavailable_reason", None), ("installed", installed)):
     stack.enter_context(mock.patch(f"openpilot.sunnypilot.accelerators.{name}", return_value=value))
   return stack
@@ -182,8 +182,8 @@ class TestUIStateAcceleratorView:
 
 
 class TestTiciModelsPanel:
-  CHOICES = [{'name': 'Cinque Terre', 'ref': 'c' * 40, 'folder': '', 'selected': True, 'cached': True},
-             {'name': 'Lebowski', 'ref': 'l' * 40, 'folder': '', 'selected': False, 'cached': False}]
+  """The big model is the model manager's slot for chestnut and accelerator alike;
+  the panel adds only the link toggle and a status line."""
 
   @staticmethod
   def _layout():
@@ -194,13 +194,13 @@ class TestTiciModelsPanel:
     with accelerator():
       layout = self._layout()
     assert not layout.accelerator_link_item.is_visible
-    assert not layout.accelerator_model_item.is_visible
+    assert layout.big_model_item.is_visible
 
   def test_shown_with_an_accelerator(self, params):
-    with accelerator(present=True, choices=self.CHOICES):
+    with accelerator(present=True, selected='Cinque Terre'):
       layout = self._layout()
     assert layout.accelerator_link_item.is_visible
-    assert layout.accelerator_model_item.is_visible
+    assert not hasattr(layout, 'accelerator_model_item'), "one big-model picker, the model manager's"
 
   def test_shown_wherever_the_package_is_installed(self, params):
     # with the link off there is no gadget for a Jetson to enumerate, so present()
@@ -209,7 +209,6 @@ class TestTiciModelsPanel:
     with accelerator(installed=True):
       layout = self._layout()
     assert layout.accelerator_link_item.is_visible
-    assert not layout.accelerator_model_item.is_visible
 
   def test_the_toggle_says_what_is_on_the_port(self, params):
     link = "openpilot.selfdrive.ui.sunnypilot.accelerator_link"
@@ -246,39 +245,13 @@ class TestTiciModelsPanel:
       assert params.get("JetlinkEnabled") is None
       assert layout.accelerator_link_item.action_item.get_state() is False
 
-  def test_picker_selects_through_the_module_api(self, params):
-    from openpilot.system.ui.widgets import DialogResult
-    with accelerator(present=True, choices=self.CHOICES), \
-         mock.patch("openpilot.sunnypilot.accelerators.select_model") as select, \
-         mock.patch.object(ui_state_module().ui_state, "is_offroad", return_value=True), \
-         mock.patch("openpilot.system.ui.lib.application.gui_app.push_widget"):
-      layout = self._layout()
-      layout._open_accelerator_dialog()
-      assert layout.accelerator_dialog is not None
-      layout.accelerator_dialog.selection_ref = 'l' * 40
-      layout._on_accelerator_selected(DialogResult.CONFIRM)
-      select.assert_called_once_with('l' * 40)
-      assert params.get("ModelManager_DownloadRef") is None
-
-  def test_picker_is_inert_onroad(self, params):
-    from openpilot.system.ui.widgets import DialogResult
-    with accelerator(present=True, choices=self.CHOICES), \
-         mock.patch("openpilot.sunnypilot.accelerators.select_model") as select, \
-         mock.patch.object(ui_state_module().ui_state, "is_offroad", return_value=False), \
-         mock.patch("openpilot.system.ui.lib.application.gui_app.push_widget"):
-      layout = self._layout()
-      layout._open_accelerator_dialog()
-      layout.accelerator_dialog.selection_ref = 'l' * 40
-      layout._on_accelerator_selected(DialogResult.CONFIRM)
-      select.assert_not_called()
-
   def test_status_note_names_the_accelerator_not_the_chestnut(self, params):
     from openpilot.selfdrive.ui.sunnypilot.ui_state import AcceleratorView
     ui_state = ui_state_module().ui_state
     saved = ui_state.accelerator_view, ui_state.chestnut_present
     try:
       ui_state.chestnut_present = False
-      with accelerator(present=True, choices=self.CHOICES), \
+      with accelerator(present=True, selected='Cinque Terre'), \
            mock.patch("openpilot.selfdrive.ui.sunnypilot.layouts.settings.models.big_model_state", return_value=None):
         layout = self._layout()
         ui_state.accelerator_view = AcceleratorView(True, False, None, 'none')
@@ -293,7 +266,7 @@ class TestTiciModelsPanel:
 
   def test_panel_renders(self, params):
     import pyray as rl
-    with accelerator(present=True, choices=self.CHOICES):
+    with accelerator(present=True, selected='Cinque Terre'):
       layout = self._layout()
       layout.render(rl.Rectangle(0, 0, 800, 600))
 

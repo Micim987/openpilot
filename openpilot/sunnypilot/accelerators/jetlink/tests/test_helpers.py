@@ -166,74 +166,6 @@ class TestDormant(unittest.TestCase):
     assert helpers.await_shutdown(0.3)
 
 
-class TestUnchunkedSuffix(unittest.TestCase):
-  def test_suffix_is_distinct_from_openpilots(self):
-    """openpilot's own '.unchunked' files are deleted by an atexit handler.
-    Ours must not collide with that or a provision loses its model mid-upload."""
-    assert helpers.UNCHUNKED_SUFFIX != '.unchunked'
-    assert not helpers.UNCHUNKED_SUFFIX.endswith('.unchunked')
-
-
-class TestActiveModelPath(unittest.TestCase):
-  def setUp(self):
-    self.root = tempfile.mkdtemp()
-    patcher = mock.patch('openpilot.sunnypilot.accelerators.jetlink.helpers.Paths')
-    self.addCleanup(patcher.stop)
-    patcher.start().model_root.return_value = self.root
-
-  def bundle_with(self, *file_names):
-    models = []
-    for name in file_names:
-      artifact = mock.Mock()
-      artifact.fileName = name
-      models.append(mock.Mock(artifact=artifact))
-    return mock.Mock(models=models)
-
-  def test_no_bundle_falls_through_to_the_pinned_model(self):
-    # no chestnut bundle ships an ONNX, so what runs is the model openpilot
-    # pins; None here would leave a provisioned device on the small model
-    pinned = Path(self.root) / 'big_driving_supercombo.onnx'
-    with mock.patch.object(helpers, 'active_bundle', return_value=None), \
-         mock.patch.object(helpers, 'shipped_model_path', return_value=pinned):
-      assert helpers.active_model_path() == pinned
-
-  def test_no_bundle_and_nothing_pinned_is_no_path(self):
-    with mock.patch.object(helpers, 'active_bundle', return_value=None), \
-         mock.patch.object(helpers, 'shipped_model_path', return_value=None):
-      assert helpers.active_model_path() is None
-
-  def test_finds_a_plain_onnx(self):
-    onnx = Path(self.root) / 'big.onnx'
-    onnx.write_bytes(b'\0' * 2_000_000)
-    with mock.patch.object(helpers, 'active_bundle', return_value=self.bundle_with('big.onnx')):
-      assert helpers.active_model_path() == onnx
-
-  def test_ignores_a_truncated_download(self):
-    (Path(self.root) / 'big.onnx').write_bytes(b'\0' * 16)
-    with mock.patch.object(helpers, 'active_bundle', return_value=self.bundle_with('big.onnx')), \
-         mock.patch('openpilot.selfdrive.modeld.helpers.MODELS_DIR', Path(self.root)):
-      assert helpers.active_model_path() is None
-
-  def test_ignores_non_onnx_artifacts(self):
-    (Path(self.root) / 'small.pkl').write_bytes(b'\0' * 2_000_000)
-    with mock.patch.object(helpers, 'active_bundle', return_value=self.bundle_with('small.pkl')), \
-         mock.patch('openpilot.selfdrive.modeld.helpers.MODELS_DIR', Path(self.root)):
-      assert helpers.active_model_path() is None
-
-  def test_cleanup_keeps_the_one_in_use(self):
-    keep = Path(self.root) / f'a.onnx{helpers.UNCHUNKED_SUFFIX}'
-    drop = Path(self.root) / f'b.onnx{helpers.UNCHUNKED_SUFFIX}'
-    keep.write_bytes(b'k')
-    drop.write_bytes(b'd')
-    helpers.cleanup_unchunked(keep=keep)
-    assert keep.is_file()
-    assert not drop.exists()
-
-
-if __name__ == '__main__':
-  unittest.main()
-
-
 def bundle(ref: str, name: str, index: int = 0, folder: str = '', version=19) -> dict:
   """A bundle as the catalog JSON carries it."""
   return {'ref': ref, 'display_name': name, 'index': index, 'minimum_selector_version': str(version),
@@ -353,29 +285,30 @@ class TestResolvePointer(unittest.TestCase):
 
 
 class TestSelectedModel(unittest.TestCase):
+  """The pick is the model manager's big-model slot, the same one a chestnut runs from."""
+
   INDEX = [
     {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 10, 'folder': ''},
     {'name': 'Beta', 'ref': REF_B, 'oid': 'b' * 64, 'size': 20, 'folder': ''},
   ]
 
-  def select_with(self, param, default=REF_B):
+  def select_with(self, slot_ref, default=REF_B):
     with mock.patch.object(helpers, 'model_index', return_value=self.INDEX), \
          mock.patch.object(helpers, 'DEFAULT_BIG_MODEL_REF', default), \
-         mock.patch.object(helpers, '_get', return_value=param):
+         mock.patch.object(helpers, 'selected_ref', return_value=slot_ref):
       return helpers.selected_model()
 
-  def test_unset_takes_the_forks_default_big_model(self):
+  def test_an_empty_slot_takes_the_forks_default_big_model(self):
     assert self.select_with(None)['name'] == 'Beta'
 
-  def test_a_ref_selects_it(self):
+  def test_the_slots_ref_selects_it(self):
     assert self.select_with(REF_A)['name'] == 'Alpha'
 
   def test_a_default_not_in_the_catalog_falls_to_the_newest(self):
     assert self.select_with(None, default='f' * 40)['name'] == 'Alpha'
 
-  def test_an_unknown_ref_falls_back(self):
-    # The catalog can drop a model under a param that outlived it; leaving the
-    # device with no model at all would be worse than quietly using the default.
+  def test_a_ref_the_catalog_dropped_falls_back(self):
+    # leaving the device with no model at all would be worse than quietly using the default
     assert self.select_with('9' * 40)['name'] == 'Beta'
 
   def test_an_empty_index_is_no_model(self):
@@ -383,42 +316,69 @@ class TestSelectedModel(unittest.TestCase):
       assert helpers.selected_model() is None
 
 
+class TestSelectedRef(unittest.TestCase):
+  def read_with(self, slot):
+    with mock.patch.object(helpers, '_get', return_value=slot):
+      return helpers.selected_ref()
+
+  def test_reads_the_slots_ref(self):
+    assert self.read_with({'ref': REF_A, 'displayName': 'Alpha'}) == REF_A
+
+  def test_anything_else_is_no_pick(self):
+    for slot in (None, {}, {'ref': ''}, {'ref': 7}, 'junk'):
+      assert self.read_with(slot) is None, slot
+
+
 class TestMigrateSelection(unittest.TestCase):
-  """builds before the catalog stored the index name; rebuilding a 160 s
-  engine over a rename would be the wrong surprise"""
+  """JetlinkModel was the accelerator's own pick. It moves into the big-model slot
+  once; a name from before the catalog maps to the engine that is ready, so a
+  160 s rebuild is not the price of the rename."""
 
   CATALOG = [{'name': 'Alpha', 'ref': REF_A, 'folder': ''}, {'name': 'Beta', 'ref': REF_B, 'folder': ''}]
 
-  def migrate(self, model, ready, resolve):
-    values = {helpers.P_MODEL: model, helpers.P_READY: ready}
+  def migrate(self, legacy, ready=None, slot_ref=None, resolve=None, listed=True):
+    values = {helpers.P_MODEL_LEGACY: legacy, helpers.P_READY: ready}
     params = mock.patch.object(helpers, 'Params').start()
     self.addCleanup(mock.patch.stopall)
+    self.stored = mock.patch.object(helpers, '_store_slot', return_value=listed).start()
     with mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: values.get(k, d)), \
+         mock.patch.object(helpers, 'selected_ref', return_value=slot_ref), \
          mock.patch.object(helpers, 'catalog', return_value=self.CATALOG), \
-         mock.patch.object(helpers, 'resolve_pointer', side_effect=resolve):
+         mock.patch.object(helpers, 'resolve_pointer', side_effect=resolve or (lambda ref: self.fail("nothing to look up"))):
       helpers.migrate_selection()
     return params.return_value
 
-  def test_an_old_name_becomes_the_ref_of_the_model_that_is_provisioned(self):
-    params = self.migrate('Beta v6', 'b' * 64, lambda ref: ({REF_A: 'a' * 64, REF_B: 'b' * 64}[ref], 1))
-    params.put.assert_called_once_with(helpers.P_MODEL, REF_B, block=True)
+  def test_a_ref_becomes_the_slot(self):
+    params = self.migrate(REF_A)
+    self.stored.assert_called_once_with(params, REF_A)
+    params.remove.assert_called_once_with(helpers.P_MODEL_LEGACY)
 
-  def test_an_old_name_with_nothing_provisioned_is_cleared(self):
-    params = self.migrate('Beta v6', None, lambda ref: self.fail("nothing to match against"))
-    params.remove.assert_called_once_with(helpers.P_MODEL)
+  def test_an_old_name_becomes_the_slot_of_the_model_that_is_provisioned(self):
+    params = self.migrate('Beta v6', ready='b' * 64, resolve=lambda ref: ({REF_A: 'a' * 64, REF_B: 'b' * 64}[ref], 1))
+    self.stored.assert_called_once_with(params, REF_B)
+    params.remove.assert_called_once_with(helpers.P_MODEL_LEGACY)
 
-  def test_an_old_name_matching_nothing_is_cleared(self):
-    params = self.migrate('Beta v6', 'z' * 64, lambda ref: ('a' * 64, 1))
-    params.remove.assert_called_once_with(helpers.P_MODEL)
+  def test_an_old_name_with_nothing_provisioned_is_dropped(self):
+    params = self.migrate('Beta v6')
+    self.stored.assert_not_called()
+    params.remove.assert_called_once_with(helpers.P_MODEL_LEGACY)
 
-  def test_a_ref_is_left_alone(self):
-    params = self.migrate(REF_A, 'b' * 64, lambda ref: self.fail("nothing to look up"))
-    params.put.assert_not_called()
+  def test_a_ref_the_catalog_does_not_list_is_dropped(self):
+    params = self.migrate(REF_C, listed=False)
+    params.remove.assert_called_once_with(helpers.P_MODEL_LEGACY)
+
+  def test_a_slot_already_picked_wins(self):
+    params = self.migrate(REF_A, slot_ref=REF_B)
+    self.stored.assert_not_called()
+    params.remove.assert_called_once_with(helpers.P_MODEL_LEGACY)
+
+  def test_nothing_to_migrate_touches_nothing(self):
+    params = self.migrate(None)
     params.remove.assert_not_called()
 
   def test_offline_is_left_for_the_next_run(self):
-    params = self.migrate('Beta v6', 'b' * 64, OSError('offline'))
-    params.put.assert_not_called()
+    params = self.migrate('Beta v6', ready='b' * 64, resolve=OSError('offline'))
+    self.stored.assert_not_called()
     params.remove.assert_not_called()
 
 

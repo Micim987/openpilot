@@ -27,7 +27,7 @@ class SelectionTest(unittest.TestCase):
   """ready() is params only, and every answer follows from three params."""
 
   def configure(self, enabled=None, model=None, ready_sha=None, spec_sha=None, gadget_error=None):
-    params = {helpers.P_ENABLED: enabled, helpers.P_MODEL: model, helpers.P_READY: ready_sha}
+    params = {helpers.P_ENABLED: enabled, helpers.P_READY: ready_sha}
     for p in (mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: params.get(k, d)),
               mock.patch.object(helpers, 'gadget_error', return_value=gadget_error),
               mock.patch.object(helpers, 'host_attached', return_value=False),

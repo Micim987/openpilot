@@ -7,7 +7,6 @@ See the LICENSE.md file in the root directory for more details.
 import pyray as rl
 
 from openpilot.cereal import custom
-from openpilot.sunnypilot import accelerators
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle
 from openpilot.selfdrive.ui.mici.widgets.button import BigButton, BigToggle
@@ -156,30 +155,7 @@ class ModelsLayoutMici(NavScroller):
       btn = BigButton(label.lower(), value=value)
       btn.set_click_callback(lambda s=source: self._select_hardware(s))
       hardware_btns.append(btn)
-    choices = accelerators.model_choices()
-    if choices:
-      selected = next((m['name'] for m in choices if m['selected']), '')
-      btn = BigButton(tr('accelerator models'), value=selected.lower())
-      btn.set_click_callback(self._select_accelerator)
-      hardware_btns.append(btn)
     self._push_selection_view(hardware_btns)
-
-  def _select_accelerator(self):
-    buttons = []
-    for choice in accelerators.model_choices():
-      value = tr('cached on accelerator') if choice['cached'] else tr('build required')
-      if choice['selected']:
-        value += f" ({tr('selected')})"
-      btn = BigButton(choice['name'].lower(), value=value)
-      btn.set_click_callback(lambda m=choice: self._choose_accelerator(m))
-      buttons.append(btn)
-    self._push_selection_view(buttons)
-
-  def _choose_accelerator(self, choice):
-    if not ui_state.is_offroad():
-      return
-    accelerators.select_model(choice['ref'])
-    self._pop_to_main()
 
   def _select_hardware(self, source):
     self._selection_source = source

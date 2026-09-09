@@ -81,7 +81,8 @@ def _bundle_is_valid_locally(bundle: custom.ModelManagerSP.ModelBundle) -> bool:
              for file_name, expected_hash in _bundle_artifacts(bundle))
 
 
-def _bundle_needs_reset(active_bundle: custom.ModelManagerSP.ModelBundle, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None) -> bool:
+def _bundle_needs_reset(active_bundle: custom.ModelManagerSP.ModelBundle, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None,
+                        check_files: bool = True) -> bool:
   if active_bundle is None:
     return False
 
@@ -105,7 +106,7 @@ def _bundle_needs_reset(active_bundle: custom.ModelManagerSP.ModelBundle, availa
     if set(_bundle_artifacts(active_bundle)) != set(_bundle_artifacts(matching_bundle)):
       return True
 
-  return not _bundle_is_valid_locally(active_bundle)
+  return check_files and not _bundle_is_valid_locally(active_bundle)
 
 
 def _parse_active_bundle(raw_bundle) -> "custom.ModelManagerSP.ModelBundle | None":
@@ -148,7 +149,8 @@ def resolve_bundle_by_ref(
   return None
 
 
-def _validate_active_bundle(params: Params, source: str, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None = None) -> None:
+def _validate_active_bundle(params: Params, source: str, available_bundles: list[custom.ModelManagerSP.ModelBundle] | None = None,
+                            check_files: bool = True) -> None:
   global _LAST_VALIDATED_RAW
 
   key = ACTIVE_BUNDLE_KEYS[source]
@@ -160,7 +162,7 @@ def _validate_active_bundle(params: Params, source: str, available_bundles: list
     return
 
   active_bundle = _parse_active_bundle(raw_bundle)
-  if active_bundle is None or _bundle_needs_reset(active_bundle, available_bundles):
+  if active_bundle is None or _bundle_needs_reset(active_bundle, available_bundles, check_files):
     cloudlog.warning(f"Active model bundle invalid for {source}; resetting to default")
     params.remove(key)
     _LAST_VALIDATED_RAW[key] = None
@@ -169,9 +171,12 @@ def _validate_active_bundle(params: Params, source: str, available_bundles: list
 
 
 def validate_active_bundles(params: Params, source_bundles: dict[str, list[custom.ModelManagerSP.ModelBundle]]) -> None:
-  # an empty list means the fetch failed, not that the catalog dropped the bundle
+  # an empty list means the fetch failed, not that the catalog dropped the bundle.
+  # The big-model slot is a choice for whichever hardware runs it: a chestnut
+  # needs its files, an accelerator only the ref. Missing files are the
+  # manager's to fetch (ModelManagerSP._fetch_big_model_files), not a reset
   for source, bundles in source_bundles.items():
-    _validate_active_bundle(params, source, bundles or None)
+    _validate_active_bundle(params, source, bundles or None, check_files=(source != "chestnut"))
   get_active_model_runner(params, force_check=True)
 
 

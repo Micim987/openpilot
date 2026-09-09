@@ -44,7 +44,8 @@ def main():
                  b'openpilot.selfdrive.modeld.modeld' in argv or
                  b'openpilot.sunnypilot.accelerators.jetlink.jetlinkd' in argv):
       raise SystemExit(f'physical resource already owned by {proc.parent.name}: {argv[:3]}')
-  keys = ('CarParamsPersistent', 'CalibrationParams', 'JetlinkModel', 'JetlinkSpec', 'JetlinkEngineReady', 'JetlinkEndpoint')
+  keys = ('CarParamsPersistent', 'CalibrationParams', 'ModelManager_ActiveBundleChestnut', 'JetlinkModelPointers',
+          'JetlinkSpec', 'JetlinkEngineReady', 'JetlinkEndpoint')
   saved = {key: live.get(key) for key in keys}
   if saved['CarParamsPersistent'] is None:
     raise SystemExit('no saved CarParams; bench cannot choose a vehicle configuration')

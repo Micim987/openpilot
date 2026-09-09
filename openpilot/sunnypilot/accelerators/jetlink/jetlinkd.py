@@ -328,7 +328,7 @@ class Jetlinkd:
 
     # only needed if the server turns out not to have this model; None is a
     # legitimate state here, see EngineMissing below
-    model_path = helpers.active_model_path()
+    model_path = helpers.shipped_model_path()
 
     cloudlog.warning("jetlink: provisioning %s (%d MB, sha %s)",
                      entry.get('name', sha256[:16]), nbytes >> 20, sha256[:16])
@@ -360,7 +360,6 @@ class Jetlinkd:
     Params().put('JetlinkCachedModels', sorted(set(cached) | {spec.sha256}))
     self.verified = True
     accelerators.report_progress('ready', 1.0, 'engine ready')
-    helpers.cleanup_unchunked(keep=model_path)
     cloudlog.warning("jetlink: engine ready for %s", spec.sha256[:16])
     return True
 

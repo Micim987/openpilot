@@ -275,24 +275,10 @@ def make_status_publisher(pm, model):
   return JetlinkStatus(pm, model)
 
 
-def model_choices() -> list[dict]:
-  if not helpers.link_configured():
-    return []
-  models = helpers.model_index()
-  selected = helpers.selected_model(models) or {}
-  cached = helpers._get('JetlinkCachedModels') or []
-  return [{'name': m['name'], 'ref': m['ref'], 'folder': m['folder'],
-           'selected': m['ref'] == selected.get('ref'), 'cached': m['oid'] in cached}
-          for m in models]
-
-
-def select_model(ref: str) -> None:
-  """By the catalog bundle's ref: names are sunnypilot's to change."""
-  from openpilot.common.params import Params
-  if ref not in {m['ref'] for m in helpers.model_index()}:
-    raise ValueError(f'unknown jetlink model: {ref}')
-  Params().put(helpers.P_MODEL, ref)
-  Params().put_bool(helpers.P_ENABLED, True)
+def selected_model_name() -> str | None:
+  """What the accelerator will run: the big-model slot's pick, or the default."""
+  selected = helpers.selected_model()
+  return selected['name'] if selected else None
 
 
 def active_model_name() -> str | None:

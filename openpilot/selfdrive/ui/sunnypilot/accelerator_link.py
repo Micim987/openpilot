@@ -58,5 +58,5 @@ def link_status() -> str:
 
 
 def selected_accelerator_model() -> str:
-  """The picked accelerator model's name, '' when the link has no registry."""
-  return next((m['name'] for m in accelerators.model_choices() if m['selected']), '')
+  """The big model the accelerator will run, '' when there is no catalog yet."""
+  return accelerators.selected_model_name() or ''

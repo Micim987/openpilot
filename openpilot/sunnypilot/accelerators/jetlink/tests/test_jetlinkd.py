@@ -99,7 +99,7 @@ class TestProvisionCost(unittest.TestCase):
       p = mock.patch.object(jetlinkd, target, new)
       self.addCleanup(p.stop)
       p.start()
-    for name, value in (('active_model_path', self.model), ('engine_ready_for', False),
+    for name, value in (('shipped_model_path', self.model), ('engine_ready_for', False),
                         ('selected_model', dict(self.ENTRY))):
       p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
       self.addCleanup(p.stop)
@@ -153,7 +153,7 @@ class TestProvisionCost(unittest.TestCase):
     # comma that has deleted its own can still use an engine already built.
     d = jetlinkd.Jetlinkd()
     d.client = serving_client()
-    with mock.patch.object(jetlinkd.helpers, 'active_model_path', return_value=None), \
+    with mock.patch.object(jetlinkd.helpers, 'shipped_model_path', return_value=None), \
          mock.patch.object(jetlinkd.helpers, 'set_engine_ready'):
       assert d.provision() is True
     assert d.client.ensure_engine.call_args.kwargs['onnx_path'] is None
@@ -163,7 +163,7 @@ class TestProvisionCost(unittest.TestCase):
     d = jetlinkd.Jetlinkd()
     d.client = serving_client()
     d.client.ensure_engine.side_effect = EngineMissing('no engine')
-    with mock.patch.object(jetlinkd.helpers, 'active_model_path', return_value=None), \
+    with mock.patch.object(jetlinkd.helpers, 'shipped_model_path', return_value=None), \
          mock.patch.object(d, 'fetch_model', return_value=self.model) as fetch:
       # False, not an exception: the download takes minutes and the link is
       # not held through it; the next poll tries again.
@@ -398,7 +398,7 @@ class TestParked(unittest.TestCase):
       p.start()
     for name, value in (('enabled', True), ('host_attached', True), ('engine_ready_for', True),
                         ('selected_model', {'oid': self.cache.spec.sha256}),
-                        ('active_model_path', self.model)):
+                        ('shipped_model_path', self.model)):
       p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
       self.addCleanup(p.stop)
       p.start()
@@ -458,7 +458,7 @@ class TestParked(unittest.TestCase):
     d.step()
     d.started = time.monotonic()
     with mock.patch.object(jetlinkd.helpers, 'selected_model', return_value={'oid': 'other'}), \
-         mock.patch.object(jetlinkd.helpers, 'active_model_path', return_value=None):
+         mock.patch.object(jetlinkd.helpers, 'shipped_model_path', return_value=None):
       d.step()
     assert not d.dormant
 
@@ -476,7 +476,7 @@ class TestParked(unittest.TestCase):
     d = self.daemon()
     d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
     d.step()
-    with mock.patch.object(jetlinkd.helpers, 'active_model_path', return_value=None):
+    with mock.patch.object(jetlinkd.helpers, 'shipped_model_path', return_value=None):
       d.step()
     assert d.dormant
 

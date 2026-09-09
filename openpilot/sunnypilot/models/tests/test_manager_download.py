@@ -26,7 +26,7 @@ from openpilot.selfdrive.test.helpers import http_server_context
 from openpilot.sunnypilot.models import manager as manager_module
 from openpilot.sunnypilot.models.fetcher import ModelFetcher, ModelParser, get_cached_bundles
 from openpilot.sunnypilot.models import helpers
-from openpilot.sunnypilot.models.helpers import (get_active_bundle, get_active_source, get_selected_bundle,
+from openpilot.sunnypilot.models.helpers import (ACTIVE_BUNDLE_KEYS, get_active_bundle, get_active_source, get_selected_bundle,
                                                   resolve_bundle_by_ref, validate_active_bundles)
 from openpilot.sunnypilot.models.manager import ModelManagerSP
 
@@ -112,6 +112,7 @@ class ManagerDownloadTestBase(OpenpilotTestCase):
     self.manager.chestnut_present = False
     self.manager._chunk_size = 1024
     self.manager._download_start_times = {}
+    self.manager._big_files_checked = set()
 
   def _record_progress(self, *args) -> None:
     """Runs on every real _report_status send."""
@@ -688,6 +689,89 @@ class TestActiveBundleValidation(OpenpilotTestCase):
     assert [call.args[1] for call in runner_puts] == [tinygrad]
 
 
+class TestBigModelSlotWithoutChestnut(ManagerDownloadTestBase):
+  """The big-model slot is a choice for whichever hardware runs it. Without a
+  chestnut it is stored without its files; an accelerator fetches its own form
+  of the model by the ref. Fitting a chestnut later fetches the files."""
+
+  @staticmethod
+  def _big_bundle(ref: str = "big") -> custom.ModelManagerSP.ModelBundle:
+    bundle = custom.ModelManagerSP.ModelBundle.new_message()
+    bundle.ref = ref
+    bundle.displayName = "Big"
+    bundle.minimumSelectorVersion = helpers.REQUIRED_JSON_VERSION
+    model = bundle.init('models', 1)[0]
+    model.artifact.fileName = "big.pkl"
+    model.artifact.downloadUri.uri = "https://example.com/big.pkl"
+    model.artifact.downloadUri.sha256 = "s"
+    return bundle
+
+  def test_no_chestnut_stores_the_slot_without_fetching(self):
+    self.manager.chestnut_present = False
+    with mock.patch.object(self.manager, '_process_artifact', new=mock.AsyncMock()) as fetch:
+      self.manager.download(self._big_bundle(), self.dest, "chestnut")
+    fetch.assert_not_called()
+    stored = [c for c in self.manager.params.put.call_args_list if c.args[0] == ACTIVE_BUNDLE_KEYS["chestnut"]]
+    assert len(stored) == 1 and stored[0].args[1]["ref"] == "big"
+
+  def test_a_chestnut_still_fetches_the_files(self):
+    self.manager.chestnut_present = True
+    with mock.patch.object(self.manager, '_process_artifact', new=mock.AsyncMock()) as fetch:
+      self.manager.download(self._big_bundle(), self.dest, "chestnut")
+    fetch.assert_called_once()
+
+  def test_the_small_slot_is_untouched_by_the_rule(self):
+    self.manager.chestnut_present = False
+    with mock.patch.object(self.manager, '_process_artifact', new=mock.AsyncMock()) as fetch:
+      self.manager.download(self._big_bundle("small"), self.dest, "qcom")
+    fetch.assert_called_once()
+
+  def _slot_files_missing(self, chestnut_present: bool, queued=None):
+    self.manager.chestnut_present = chestnut_present
+    raw = self._big_bundle().to_dict()
+    self.manager.params.get.side_effect = lambda key, *a, **k: {ACTIVE_BUNDLE_KEYS["chestnut"]: raw,
+                                                                 "ModelManager_DownloadRef": queued}.get(key)
+
+  def test_a_chestnut_fitted_later_fetches_the_files_once(self):
+    self._slot_files_missing(chestnut_present=True)
+    with mock.patch.object(manager_module, '_bundle_is_valid_locally', return_value=False):
+      self.manager._fetch_big_model_files()
+      self.manager._fetch_big_model_files()
+    queued = [c for c in self.manager.params.put.call_args_list if c.args[0] == "ModelManager_DownloadRef"]
+    assert [c.args[1] for c in queued] == ["big"], "once per ref, so a failing download cannot spin"
+
+  def test_files_present_queue_nothing(self):
+    self._slot_files_missing(chestnut_present=True)
+    with mock.patch.object(manager_module, '_bundle_is_valid_locally', return_value=True):
+      self.manager._fetch_big_model_files()
+    self.manager.params.put.assert_not_called()
+
+  def test_no_chestnut_queues_nothing(self):
+    self._slot_files_missing(chestnut_present=False)
+    with mock.patch.object(manager_module, '_bundle_is_valid_locally', return_value=False) as check:
+      self.manager._fetch_big_model_files()
+    check.assert_not_called()
+    self.manager.params.put.assert_not_called()
+
+  def test_a_download_in_flight_is_not_interrupted(self):
+    self._slot_files_missing(chestnut_present=True, queued="other")
+    with mock.patch.object(manager_module, '_bundle_is_valid_locally', return_value=False):
+      self.manager._fetch_big_model_files()
+    self.manager.params.put.assert_not_called()
+
+  def test_validation_keeps_a_big_slot_whose_files_are_missing(self):
+    # the files are the manager's to fetch; the small slot keeps upstream's reset
+    helpers._LAST_VALIDATED_RAW.clear()
+    big, small = self._big_bundle("big"), self._big_bundle("small")
+    params = mock.MagicMock()
+    params.get.side_effect = lambda key, *a, **k: {ACTIVE_BUNDLE_KEYS["chestnut"]: big.to_dict(),
+                                                   ACTIVE_BUNDLE_KEYS["qcom"]: small.to_dict()}.get(key)
+    with mock.patch("openpilot.sunnypilot.models.helpers._bundle_is_valid_locally", return_value=False), \
+         mock.patch("openpilot.sunnypilot.models.helpers.chestnut_present", return_value=True):
+      validate_active_bundles(params, {"qcom": [small], "chestnut": [big]})
+    params.remove.assert_called_once_with(ACTIVE_BUNDLE_KEYS["qcom"])
+
+
 def _jetlink_params(values: dict):
   """The jetlink param store as the models package would read it."""
   from openpilot.sunnypilot.accelerators.jetlink import helpers as jetlink_helpers
@@ -851,7 +935,7 @@ class TestSmallSlotUnderTheLink(OpenpilotTestCase):
 
   def test_the_stored_bundle_reads_the_same_whatever_the_link_says(self):
     params = self._params(self._raw_bundle("custom_small"))
-    for values in ({"JetlinkEnabled": True, "JetlinkModel": "m"}, {"JetlinkEnabled": True}, {"JetlinkModel": "m"}, {}):
+    for values in ({"JetlinkEnabled": True}, {}):
       with _jetlink_params(values), mock.patch("openpilot.sunnypilot.models.helpers.chestnut_present", return_value=False):
         assert get_selected_bundle(params, "qcom").ref == "custom_small"
         assert get_active_bundle(params).ref == "custom_small"

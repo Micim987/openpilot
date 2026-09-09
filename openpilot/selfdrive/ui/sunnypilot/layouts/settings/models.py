@@ -10,7 +10,6 @@ import time
 import pyray as rl
 
 from openpilot.cereal import custom
-from openpilot.sunnypilot import accelerators
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_selected_bundle, resolve_bundle_by_ref
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import device, ui_state
@@ -40,7 +39,6 @@ class ModelsLayout(Widget):
     super().__init__()
     self.model_manager = None
     self.model_dialog = None
-    self.accelerator_dialog = None
     self._selection_source = None
     self._downloading = False
     self._verifying = False
@@ -68,13 +66,6 @@ class ModelsLayout(Widget):
       title=tr("Big Model"),
       action_item=ScrollingButtonAction(tr("SELECT")),
       callback=lambda: self._open_source_dialog("chestnut")
-    )
-
-    self.accelerator_model_item = ListItemSP(
-      title=tr("Accelerator Model"),
-      description=tr("The big model an attached accelerator runs, from the big-model catalog. The model manager's slots do not apply to it."),
-      action_item=ScrollingButtonAction(tr("SELECT")),
-      callback=self._open_accelerator_dialog
     )
 
     # not a param-bound toggle: the write is refused onroad, so it goes through
@@ -126,7 +117,7 @@ class ModelsLayout(Widget):
                                         1, None, True, "", style.BUTTON_ACTION_WIDTH, None, True,
                                         lambda v: f"{v / 100:.2f} m")
 
-    self.items = [self.small_model_item, self.big_model_item, self.accelerator_model_item, self.accelerator_link_item, self.cancel_download_item,
+    self.items = [self.small_model_item, self.big_model_item, self.accelerator_link_item, self.cancel_download_item,
                   self.download_item, self.refresh_item, self.clear_cache_item,
                   self.lane_turn_desire_toggle, self.lane_turn_value_control, self.lagd_toggle, self.delay_control, self.camera_offset]
     self._refresh_accelerator_items()
@@ -143,41 +134,12 @@ class ModelsLayout(Widget):
 
   def _refresh_accelerator_items(self):
     # present() and unavailable_reason() read sysfs, so this rides the half-second tick
-    choices = accelerators.model_choices()
-    self.accelerator_model_item.set_visible(bool(choices))
-    if choices:
-      name = next((m['name'] for m in choices if m['selected']), tr("None"))
-      self.accelerator_model_item.action_item.set_value(name, style.ITEM_TEXT_VALUE_COLOR)
     self.accelerator_link_item.set_visible(link_toggle_meaningful())
     self.accelerator_link_item.action_item.set_state(link_enabled())
     status = link_status()
     if status != self._link_status:
       self._link_status = status
       self.accelerator_link_item.set_description(self._link_description(status))
-
-  def _open_accelerator_dialog(self):
-    choices = accelerators.model_choices()
-    if not choices:
-      return
-    # the catalog's folders, newest first as the choices come; keyed by ref
-    # like the model slots' dialog, since names are sunnypilot's to change
-    folders: dict[str, list[TreeNode]] = {}
-    for m in choices:
-      folders.setdefault(m['folder'], []).append(TreeNode(m['ref'], {'display_name': m['name']}))
-    selected = next((m['ref'] for m in choices if m['selected']), "")
-    self.accelerator_dialog = TreeOptionDialog(tr("Select an Accelerator Model"),
-                                               [TreeFolder(name, nodes) for name, nodes in folders.items()],
-                                               selected, on_exit=self._on_accelerator_selected)
-    gui_app.push_widget(self.accelerator_dialog)
-
-  def _on_accelerator_selected(self, result):
-    dialog, self.accelerator_dialog = self.accelerator_dialog, None
-    if result != DialogResult.CONFIRM or dialog is None or not dialog.selection_ref:
-      return
-    # a selection that crosses ignition must not change the model mid-drive
-    if not ui_state.is_offroad():
-      return
-    accelerators.select_model(dialog.selection_ref)
 
   def _update_lagd_description(self, lagd_toggle: bool):
     desc = tr("Enable this for the car to learn and adapt its steering response time. Disable to use a fixed steering response time. " +
@@ -285,7 +247,8 @@ class ModelsLayout(Widget):
     fallback_name = default_model_name("qcom")
     state = big_model_state()
     if accelerator:
-      # the accelerator's model comes from the big-model catalog, so it reads like a Default big
+      # the big-model slot's pick or the default; the small model the user
+      # picked drives in its place, so it reads like a Default big
       big_name = selected_accelerator_model() or tr("The big model")
       big_is_default = True
     else:
@@ -422,7 +385,6 @@ class ModelsLayout(Widget):
     offroad = ui_state.is_offroad()
     self.small_model_item.action_item.set_enabled(offroad)
     self.big_model_item.action_item.set_enabled(offroad)
-    self.accelerator_model_item.action_item.set_enabled(offroad)
     self.accelerator_link_item.action_item.set_enabled(offroad)
     self.small_model_item.set_description("" if offroad else tr("Only available when vehicle is off, or always offroad mode is on"))
 

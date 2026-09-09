@@ -6,18 +6,17 @@ See the LICENSE.md file in the root directory for more details.
 
 Where the model is, whether the Jetson is attached, and how far along it is.
 
-The list of large models is sunnypilot's big-model catalog, which the model
-manager already fetches and caches on every device. Its bundles are tinygrad
-pkls for a GPU the Jetson does not have, but each one names the comma commit
-it was compiled from, and that commit's ONNX in comma's LFS is what the Jetson
-runs. The catalog says what exists; the pointer at the commit says which bytes.
+The large model is the model manager's big-model pick, the same slot a
+chestnut runs from. Its bundles are tinygrad pkls for a GPU the Jetson does
+not have, but each one names the comma commit it was compiled from, and that
+commit's ONNX in comma's LFS is what the Jetson runs. The catalog says what
+exists, the slot says which one, the pointer at the commit says which bytes.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
-import shutil
 import subprocess
 import time
 import urllib.request
@@ -35,7 +34,6 @@ P_ENABLED = "JetlinkEnabled"        # user toggle; only True enables
 P_READY = "JetlinkEngineReady"      # sha256 of the model the Jetson has built
 P_ENDPOINT = "JetlinkEndpoint"      # optional "host:port" to use TCP instead of USB
 
-UNCHUNKED_SUFFIX = ".jetlink-unchunked"
 
 
 def _get(key: str, default=None):
@@ -288,42 +286,7 @@ def gadget_alert() -> str | None:
 
 # -- the model ------------------------------------------------------------
 
-def active_bundle():
-  from openpilot.sunnypilot.models.helpers import get_selected_bundle
-  return get_selected_bundle(Params(), "chestnut")
-
-
-def _artifact_names(bundle) -> list[str]:
-  out = []
-  for model in getattr(bundle, 'models', []) or []:
-    artifact = getattr(model, 'artifact', None)
-    name = getattr(artifact, 'fileName', None) if artifact else None
-    if name and name.endswith('.onnx'):
-      out.append(name)
-  return out
-
-
-def active_model_path() -> Path | None:
-  """Path to the selected large model's ONNX, materialising chunks if needed.
-
-  No bundle selected is the normal case: no model-manager bundle ships an
-  ONNX, so a Jetson runs the catalog model's ONNX fetched from LFS. None means
-  no large model here yet and the caller stays on the small model.
-  """
-  bundle = active_bundle()
-  root = Path(Paths.model_root())
-  for name in _artifact_names(bundle) if bundle is not None else []:
-    plain = root / name
-    if plain.is_file() and plain.stat().st_size > 1_000_000:
-      return plain
-    # chunked download: reassemble once, next to the chunks
-    manifest = root / f'{name}.chunkmanifest'
-    if manifest.is_file():
-      return _materialise(root / name)
-  return shipped_model_path()
-
-
-P_MODEL = "JetlinkModel"             # the chosen catalog bundle's ref, a comma commit
+P_MODEL_LEGACY = "JetlinkModel"      # the accelerator's own pick, before the big-model slot was the one choice
 P_POINTERS = "JetlinkModelPointers"  # ref -> {oid, size}; a commit's tree never changes
 # the model manager's copy of sunnypilot's big-model catalog; the key is
 # models.fetcher.ModelFetcher.MODEL_SOURCES['chestnut']'s
@@ -413,16 +376,26 @@ def model_index() -> list[dict]:
   return out
 
 
-def selected_model(models: list[dict] | None = None) -> dict | None:
-  """The entry the user picked, or the fork's default big model, or the newest.
+def selected_ref() -> str | None:
+  """The big-model slot's pick. The raw dict, not a parsed bundle: the slot is
+  the model manager's to validate, and this runs every frame in the UI."""
+  from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS
+  slot = _get(ACTIVE_BUNDLE_KEYS["chestnut"])
+  ref = slot.get('ref') if isinstance(slot, dict) else None
+  return ref if isinstance(ref, str) and ref else None
 
-  A ref the catalog dropped falls back the same way: leaving the device with
-  no model at all would be worse than quietly using the default.
+
+def selected_model(models: list[dict] | None = None) -> dict | None:
+  """The big model the device picked, or the fork's default big model, or the newest.
+
+  The pick is the model manager's big-model slot, a choice for whichever
+  hardware runs it. A ref the catalog dropped falls back the same way: leaving
+  the device with no model at all would be worse than quietly using the default.
   """
   models = model_index() if models is None else models
   if not models:
     return None
-  wanted = _get(P_MODEL)
+  wanted = selected_ref()
   if wanted:
     for m in models:
       if m['ref'] == wanted:
@@ -432,33 +405,48 @@ def selected_model(models: list[dict] | None = None) -> dict | None:
 
 
 def migrate_selection() -> None:
-  """A JetlinkModel written before the catalog holds an index name.
+  """JetlinkModel was the accelerator's own pick; the big-model slot is the one
+  choice now. Move it there, once, at jetlinkd start.
 
-  Rewrite it as the ref of the model that is provisioned, so the engine on the
-  Jetson is kept, or clear it so the default applies. jetlinkd, once at start:
-  it costs a pointer fetch per catalog model until the match, and is left for
-  the next run if the network is not there.
+  A ref is written as the slot the model manager would write, minus the files,
+  which it fetches itself if a chestnut is fitted. A name from before the
+  catalog maps to the ref of the engine that is ready, a pointer fetch per
+  catalog model until the match, and is left for the next run without the
+  network. A slot already picked wins.
   """
-  wanted = _get(P_MODEL)
-  if not wanted or _REF.fullmatch(wanted):
+  wanted = _get(P_MODEL_LEGACY)
+  if not wanted:
     return
-  ready = _get(P_READY)
-  ref = None
-  for m in (catalog() if ready else []):
-    try:
-      oid, _ = resolve_pointer(m['ref'])
-    except Exception as e:
-      cloudlog.warning("jetlink: cannot migrate the selection %r yet: %s", wanted, e)
-      return
-    if oid == ready:
-      ref = m['ref']
-      break
-  if ref:
-    Params().put(P_MODEL, ref, block=True)
-    cloudlog.warning("jetlink: selection %r is now %s, the model that is provisioned", wanted, ref[:10])
-  else:
-    Params().remove(P_MODEL)
-    cloudlog.warning("jetlink: selection %r is not a catalog model, using the default", wanted)
+  params = Params()
+  if selected_ref() is None:
+    ref = wanted if _REF.fullmatch(wanted) else None
+    if ref is None and (ready := _get(P_READY)):
+      for m in catalog():
+        try:
+          oid, _ = resolve_pointer(m['ref'])
+        except Exception as e:
+          cloudlog.warning("jetlink: cannot migrate the selection %r yet: %s", wanted, e)
+          return
+        if oid == ready:
+          ref = m['ref']
+          break
+    if ref is not None and _store_slot(params, ref):
+      cloudlog.warning("jetlink: selection %r is now the big-model slot, %s", wanted, ref[:10])
+    else:
+      cloudlog.warning("jetlink: selection %r is not a catalog model, using the default", wanted)
+  params.remove(P_MODEL_LEGACY)
+
+
+def _store_slot(params, ref: str) -> bool:
+  """Write the big-model slot as the model manager does for a bundle it has
+  downloaded. False if the catalog does not list the ref."""
+  from openpilot.sunnypilot.models.fetcher import get_cached_bundles
+  from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, resolve_bundle_by_ref
+  resolved = resolve_bundle_by_ref(ref, {"chestnut": get_cached_bundles(params, "chestnut")})
+  if resolved is None:
+    return False
+  params.put(ACTIVE_BUNDLE_KEYS["chestnut"], resolved[0].to_dict(), block=True)
+  return True
 
 
 def model_dir() -> Path:
@@ -485,29 +473,6 @@ def shipped_model_path() -> Path | None:
   if path.is_file() and path.stat().st_size == model['size']:
     return path
   return None
-
-
-def _materialise(path: Path) -> Path | None:
-  from openpilot.common.file_chunker import open_file_chunked
-  out = path.with_name(path.name + UNCHUNKED_SUFFIX)
-  if out.is_file() and out.stat().st_size > 1_000_000:
-    return out
-  free = shutil.disk_usage(path.parent).free
-  try:
-    with open_file_chunked(str(path)) as src, open(out, 'wb') as dst:
-      shutil.copyfileobj(src, dst, length=4 << 20)
-  except Exception:
-    cloudlog.exception("jetlink: could not reassemble %s (%d MB free)", path.name, free >> 20)
-    out.unlink(missing_ok=True)
-    return None
-  return out
-
-
-def cleanup_unchunked(keep: Path | None = None) -> None:
-  root = Path(Paths.model_root())
-  for p in root.glob(f'*{UNCHUNKED_SUFFIX}'):
-    if keep is None or p != keep:
-      p.unlink(missing_ok=True)
 
 
 def fetch_shipped_model(progress=None, should_stop=None) -> Path | None:
