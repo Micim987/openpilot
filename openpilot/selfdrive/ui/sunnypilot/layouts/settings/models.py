@@ -21,7 +21,6 @@ from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.widgets import DialogResult, Widget
 from openpilot.system.ui.widgets.confirm_dialog import alert_dialog, ConfirmDialog
-from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 from openpilot.system.ui.widgets.toggle import ON_COLOR
 
@@ -73,7 +72,7 @@ class ModelsLayout(Widget):
 
     self.accelerator_model_item = ListItemSP(
       title=tr("Accelerator Model"),
-      description=tr("The big model an attached accelerator runs, from its own registry. The model manager's slots do not apply to it."),
+      description=tr("The big model an attached accelerator runs, from the big-model catalog. The model manager's slots do not apply to it."),
       action_item=ScrollingButtonAction(tr("SELECT")),
       callback=self._open_accelerator_dialog
     )
@@ -160,18 +159,25 @@ class ModelsLayout(Widget):
     choices = accelerators.model_choices()
     if not choices:
       return
-    self.accelerator_dialog = MultiOptionDialog(tr("Select an Accelerator Model"), [m['name'] for m in choices],
-                                                selected_accelerator_model(), callback=self._on_accelerator_selected)
+    # the catalog's folders, newest first as the choices come; keyed by ref
+    # like the model slots' dialog, since names are sunnypilot's to change
+    folders: dict[str, list[TreeNode]] = {}
+    for m in choices:
+      folders.setdefault(m['folder'], []).append(TreeNode(m['ref'], {'display_name': m['name']}))
+    selected = next((m['ref'] for m in choices if m['selected']), "")
+    self.accelerator_dialog = TreeOptionDialog(tr("Select an Accelerator Model"),
+                                               [TreeFolder(name, nodes) for name, nodes in folders.items()],
+                                               selected, on_exit=self._on_accelerator_selected)
     gui_app.push_widget(self.accelerator_dialog)
 
   def _on_accelerator_selected(self, result):
     dialog, self.accelerator_dialog = self.accelerator_dialog, None
-    if result != DialogResult.CONFIRM or dialog is None or not dialog.selection:
+    if result != DialogResult.CONFIRM or dialog is None or not dialog.selection_ref:
       return
     # a selection that crosses ignition must not change the model mid-drive
     if not ui_state.is_offroad():
       return
-    accelerators.select_model(dialog.selection)
+    accelerators.select_model(dialog.selection_ref)
 
   def _update_lagd_description(self, lagd_toggle: bool):
     desc = tr("Enable this for the car to learn and adapt its steering response time. Disable to use a fixed steering response time. " +
@@ -279,7 +285,7 @@ class ModelsLayout(Widget):
     fallback_name = default_model_name("qcom")
     state = big_model_state()
     if accelerator:
-      # the accelerator's model comes from its own registry, so it reads like a Default big
+      # the accelerator's model comes from the big-model catalog, so it reads like a Default big
       big_name = selected_accelerator_model() or tr("The big model")
       big_is_default = True
     else:

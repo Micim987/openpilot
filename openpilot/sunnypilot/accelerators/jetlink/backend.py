@@ -278,24 +278,28 @@ def make_status_publisher(pm, model):
 def model_choices() -> list[dict]:
   if not helpers.link_configured():
     return []
-  selected = helpers.selected_model() or {}
+  models = helpers.model_index()
+  selected = helpers.selected_model(models) or {}
   cached = helpers._get('JetlinkCachedModels') or []
-  return [{'name': m['name'], 'selected': m['oid'] == selected.get('oid'),
-           'cached': m['oid'] in cached} for m in helpers.model_index()]
+  return [{'name': m['name'], 'ref': m['ref'], 'folder': m['folder'],
+           'selected': m['ref'] == selected.get('ref'), 'cached': m['oid'] in cached}
+          for m in models]
 
 
-def select_model(name: str) -> None:
+def select_model(ref: str) -> None:
+  """By the catalog bundle's ref: names are sunnypilot's to change."""
   from openpilot.common.params import Params
-  if name not in {m['name'] for m in helpers.model_index()}:
-    raise ValueError(f'unknown jetlink model: {name}')
-  Params().put(helpers.P_MODEL, name)
+  if ref not in {m['ref'] for m in helpers.model_index()}:
+    raise ValueError(f'unknown jetlink model: {ref}')
+  Params().put(helpers.P_MODEL, ref)
   Params().put_bool(helpers.P_ENABLED, True)
 
 
 def active_model_name() -> str | None:
   if not ready():
     return None
-  return next((m['name'] for m in model_choices() if m['selected']), None)
+  selected = helpers.selected_model()
+  return selected['name'] if selected else None
 
 
 def shutdown(reason: str, timeout: float = SHUTDOWN_TIMEOUT) -> None:

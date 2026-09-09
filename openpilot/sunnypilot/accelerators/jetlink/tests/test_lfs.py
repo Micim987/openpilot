@@ -45,33 +45,18 @@ class FakeResponse:
 
 
 class TestParsePointer(unittest.TestCase):
-  def setUp(self):
-    self.tmp = Path(tempfile.mkdtemp())
-
-  def write(self, name: str, data) -> Path:
-    path = self.tmp / name
-    path.write_bytes(data if isinstance(data, bytes) else data.encode())
-    return path
-
   def test_reads_oid_and_size(self):
-    assert lfs.parse_pointer(self.write('p', POINTER)) == (OID, SIZE)
+    # what the raw host serves for a commit, straight from the response
+    assert lfs.parse_pointer_text(POINTER) == (OID, SIZE)
 
-  def test_a_real_object_is_not_a_pointer(self):
-    # The worktree holds the object once it has been fetched, and it must not
-    # be mistaken for something still to download.
-    assert lfs.parse_pointer(self.write('big', b'\0' * 8192)) is None
-
-  def test_binary_that_is_small_is_not_a_pointer(self):
-    assert lfs.parse_pointer(self.write('junk', b'\x00\x01\x02')) is None
-
-  def test_missing_file_is_not_a_pointer(self):
-    assert lfs.parse_pointer(self.tmp / 'absent') is None
+  def test_something_else_is_not_a_pointer(self):
+    assert lfs.parse_pointer_text('<html>404</html>') is None
 
   def test_incomplete_pointer_is_rejected(self):
-    assert lfs.parse_pointer(self.write('p', 'version x\noid sha256:abc\n')) is None
+    assert lfs.parse_pointer_text('version x\noid sha256:abc\n') is None
 
   def test_non_numeric_size_is_rejected(self):
-    assert lfs.parse_pointer(self.write('p', f'oid sha256:{OID}\nsize huge\n')) is None
+    assert lfs.parse_pointer_text(f'oid sha256:{OID}\nsize huge\n') is None
 
 
 class TestEndpoints(unittest.TestCase):
@@ -80,16 +65,16 @@ class TestEndpoints(unittest.TestCase):
 
   def test_configured_endpoint_comes_first(self):
     (self.root / '.lfsconfig').write_text('[lfs]\n\turl = https://example.com/info/lfs\n')
-    assert lfs.endpoints(self.root) == ['https://example.com/info/lfs', lfs.COMMA_LFS]
+    assert lfs.endpoints(self.root) == ['https://example.com/info/lfs', *lfs.COMMA_ENDPOINTS]
 
-  def test_commas_endpoint_is_always_there(self):
-    # sunnypilot substitutes its own big model, but comma's server is still the
-    # only one that has comma's.
-    assert lfs.endpoints(self.root) == [lfs.COMMA_LFS]
+  def test_commas_endpoints_are_always_there(self):
+    # sunnypilot's mirror carries master's objects; only comma's servers have
+    # the PR-branch ones, and only GitLab has the older ones
+    assert lfs.endpoints(self.root) == list(lfs.COMMA_ENDPOINTS)
 
   def test_no_duplicate_when_already_commas(self):
-    (self.root / '.lfsconfig').write_text(f'[lfs]\n\turl = {lfs.COMMA_LFS}\n')
-    assert lfs.endpoints(self.root) == [lfs.COMMA_LFS]
+    (self.root / '.lfsconfig').write_text(f'[lfs]\n\turl = {lfs.COMMA_ENDPOINTS[0]}\n')
+    assert lfs.endpoints(self.root) == list(lfs.COMMA_ENDPOINTS)
 
 
 class TestResolve(unittest.TestCase):
@@ -161,35 +146,29 @@ class TestDownload(unittest.TestCase):
     assert seen == sorted(seen)
 
 
-class TestFetch(unittest.TestCase):
+class TestFetchOid(unittest.TestCase):
   def setUp(self):
     self.tmp = Path(tempfile.mkdtemp())
-    self.pointer = self.tmp / 'big.onnx'
-    self.dest = self.tmp / 'out.onnx'
-
-  def test_a_real_object_needs_no_fetch(self):
-    self.pointer.write_bytes(b'\0' * 8192)
-    assert lfs.fetch(self.pointer, self.dest, self.tmp) is None
+    self.dest = self.tmp / 'models' / 'out.onnx'   # a directory the downloader has to make
 
   def test_already_fetched_is_returned_as_is(self):
-    self.pointer.write_text(POINTER)
+    self.dest.parent.mkdir()
     self.dest.write_bytes(BODY)
     with mock.patch.object(lfs, 'resolve') as resolve:
-      assert lfs.fetch(self.pointer, self.dest, self.tmp) == self.dest
+      assert lfs.fetch_oid(OID, SIZE, self.dest, self.tmp) == self.dest
       resolve.assert_not_called()
 
   def test_falls_through_to_the_next_endpoint(self):
-    self.pointer.write_text(POINTER)
     (self.tmp / '.lfsconfig').write_text('[lfs]\n\turl = https://dead.example/info/lfs\n')
     with mock.patch.object(lfs, 'resolve', side_effect=[None, 'https://x/y']) as resolve, \
          mock.patch.object(lfs.urllib.request, 'urlopen', return_value=FakeResponse(BODY)):
-      assert lfs.fetch(self.pointer, self.dest, self.tmp) == self.dest
-    assert [call.args[0] for call in resolve.call_args_list] == ['https://dead.example/info/lfs', lfs.COMMA_LFS]
+      assert lfs.fetch_oid(OID, SIZE, self.dest, self.tmp) == self.dest
+    assert self.dest.read_bytes() == BODY
+    assert [call.args[0] for call in resolve.call_args_list] == ['https://dead.example/info/lfs', lfs.COMMA_ENDPOINTS[0]]
 
   def test_nowhere_to_get_it_raises(self):
-    self.pointer.write_text(POINTER)
     with mock.patch.object(lfs, 'resolve', return_value=None), self.assertRaises(lfs.LfsError):
-      lfs.fetch(self.pointer, self.dest, self.tmp)
+      lfs.fetch_oid(OID, SIZE, self.dest, self.tmp)
 
 
 if __name__ == '__main__':

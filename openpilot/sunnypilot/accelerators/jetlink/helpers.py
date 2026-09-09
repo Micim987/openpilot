@@ -6,22 +6,28 @@ See the LICENSE.md file in the root directory for more details.
 
 Where the model is, whether the Jetson is attached, and how far along it is.
 
-Models come from models.json and comma's LFS, not the model manager: every
-bundle it offers is a tinygrad pkl for a GPU the Jetson does not have.
+The list of large models is sunnypilot's big-model catalog, which the model
+manager already fetches and caches on every device. Its bundles are tinygrad
+pkls for a GPU the Jetson does not have, but each one names the comma commit
+it was compiled from, and that commit's ONNX in comma's LFS is what the Jetson
+runs. The catalog says what exists; the pointer at the commit says which bytes.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
+import urllib.request
 from pathlib import Path
 
 from openpilot.common.hardware import AGNOS
 from openpilot.common.hardware.hw import Paths
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
+from openpilot.sunnypilot.models.model_name import DEFAULT_BIG_MODEL_REF
 
 # none of these are CLEAR_ON_MANAGER_START: readiness must survive a reboot or
 # every ignition rebuilds a 160 s engine
@@ -301,8 +307,8 @@ def active_model_path() -> Path | None:
   """Path to the selected large model's ONNX, materialising chunks if needed.
 
   No bundle selected is the normal case: no model-manager bundle ships an
-  ONNX, so a Jetson runs the model from models.json. None means no large
-  model here yet and the caller stays on the small model.
+  ONNX, so a Jetson runs the catalog model's ONNX fetched from LFS. None means
+  no large model here yet and the caller stays on the small model.
   """
   bundle = active_bundle()
   root = Path(Paths.model_root())
@@ -317,61 +323,165 @@ def active_model_path() -> Path | None:
   return shipped_model_path()
 
 
-BIG_MODEL_NAME = 'big_driving_supercombo.onnx'
-MODEL_INDEX = Path(__file__).with_name('models.json')
-P_MODEL = "JetlinkModel"          # name of the chosen entry in models.json
+P_MODEL = "JetlinkModel"             # the chosen catalog bundle's ref, a comma commit
+P_POINTERS = "JetlinkModelPointers"  # ref -> {oid, size}; a commit's tree never changes
+# the model manager's copy of sunnypilot's big-model catalog; the key is
+# models.fetcher.ModelFetcher.MODEL_SOURCES['chestnut']'s
+CATALOG_PARAM = "ModelManager_ModelsCache_Chestnut"
+
+# comma overwrites this one file, so the commit is the only name a big model's
+# ONNX has. GitHub's raw host serves the LFS pointer for any commit it holds,
+# merged or not, and the pointer is the oid and size the Jetson is asked for
+POINTER_URL = 'https://raw.githubusercontent.com/commaai/openpilot/{ref}/openpilot/selfdrive/modeld/models/big_driving_supercombo.onnx'
+POINTER_TIMEOUT = 10.0
+_REF = re.compile(r'[0-9a-f]{40}')
+# the index is two JSON params, and the UI names the active model every frame;
+# a picker opened a moment after a catalog refresh can wait this long
+INDEX_TTL = 2.0
+_index_cache: tuple[float, list[dict]] | None = None
 
 
 def repo_root() -> Path:
   return Path(__file__).resolve().parents[4]
 
 
-def big_model_pointer() -> Path:
-  from openpilot.selfdrive.modeld.helpers import MODELS_DIR
-  return MODELS_DIR / BIG_MODEL_NAME
+def catalog() -> list[dict]:
+  """sunnypilot's big-model bundles as {name, ref, folder}, newest first, as the
+  model manager's own picker lists them.
+
+  From the cached JSON rather than the parsed bundles: parsing builds capnp
+  objects and writes chunk manifests, for three fields. Read from the UI's
+  param thread, so nothing escapes.
+  """
+  try:
+    from openpilot.sunnypilot.models.helpers import REQUIRED_JSON_VERSION
+    bundles = (Params().get(CATALOG_PARAM) or {}).get('bundles', [])
+    found = [b for b in bundles if _REF.fullmatch(str(b.get('ref')))
+             and int(b.get('minimum_selector_version', 0)) == REQUIRED_JSON_VERSION]
+  except Exception:
+    cloudlog.exception("jetlink: could not read the big-model catalog")
+    return []
+  found.sort(key=lambda b: int(b.get('index', 0)), reverse=True)
+  return [{'name': str(b.get('display_name') or b['ref'][:10]), 'ref': b['ref'],
+           'folder': str((b.get('overrides') or {}).get('folder', ''))} for b in found]
+
+
+def pointers() -> dict[str, dict]:
+  value = _get(P_POINTERS)
+  return value if isinstance(value, dict) else {}
+
+
+def fetch_pointer(ref: str) -> tuple[str, int]:
+  """The oid and size of the ONNX at a comma commit."""
+  from openpilot.sunnypilot.accelerators.jetlink import lfs
+  with urllib.request.urlopen(POINTER_URL.format(ref=ref), timeout=POINTER_TIMEOUT) as response:
+    text = response.read(4096).decode()
+  parsed = lfs.parse_pointer_text(text)
+  if parsed is None:
+    raise ValueError(f"{ref[:10]} did not serve an lfs pointer")
+  return parsed
+
+
+def resolve_pointer(ref: str) -> tuple[str, int]:
+  """The oid and size behind a catalog model, fetched the first time and kept for good."""
+  global _index_cache
+  known = pointers()
+  if ref in known:
+    return known[ref]['oid'], int(known[ref]['size'])
+  oid, size = fetch_pointer(ref)
+  known[ref] = {'oid': oid, 'size': size}
+  # blocking: the next lookup reads this back, and a put still in flight would be lost under it
+  Params().put(P_POINTERS, known, block=True)
+  _index_cache = None
+  cloudlog.warning("jetlink: %s is %s, %d MB", ref[:10], oid[:16], size >> 20)
+  return oid, size
 
 
 def model_index() -> list[dict]:
-  """The large models a Jetson can run.
+  """Every catalog model, {name, ref, folder, oid, size}. oid and size are None
+  until the model has been selected and resolved. No network."""
+  global _index_cache
+  now = time.monotonic()
+  if _index_cache is not None and now - _index_cache[0] < INDEX_TTL:
+    return _index_cache[1]
+  known = pointers()
+  out = []
+  for b in catalog():
+    p = known.get(b['ref']) or {}
+    out.append({**b, 'oid': p.get('oid'), 'size': int(p['size']) if p.get('size') else None})
+  _index_cache = (now, out)
+  return out
 
-  Hand-maintained: openpilot overwrites one file, so older models exist only
-  as git-lfs objects no manifest lists. See models.json.
+
+def selected_model(models: list[dict] | None = None) -> dict | None:
+  """The entry the user picked, or the fork's default big model, or the newest.
+
+  A ref the catalog dropped falls back the same way: leaving the device with
+  no model at all would be worse than quietly using the default.
   """
-  try:
-    with open(MODEL_INDEX) as f:
-      return json.load(f).get('models', [])
-  except Exception:
-    cloudlog.exception("jetlink: could not read the model index")
-    return []
-
-
-def selected_model() -> dict | None:
-  """The entry the user picked, or the default.
-
-  An unknown name falls back: the index can shrink under a param that outlived it.
-  """
-  models = model_index()
+  models = model_index() if models is None else models
   if not models:
     return None
   wanted = _get(P_MODEL)
   if wanted:
     for m in models:
-      if m.get('name') == wanted:
+      if m['ref'] == wanted:
         return m
-    cloudlog.warning("jetlink: no model called %r in the index, using the default", wanted)
-  return next((m for m in models if m.get('default')), models[0])
+    cloudlog.warning("jetlink: no catalog model for %r, using the default", wanted)
+  return next((m for m in models if m['ref'] == DEFAULT_BIG_MODEL_REF), models[0])
+
+
+def migrate_selection() -> None:
+  """A JetlinkModel written before the catalog holds an index name.
+
+  Rewrite it as the ref of the model that is provisioned, so the engine on the
+  Jetson is kept, or clear it so the default applies. jetlinkd, once at start:
+  it costs a pointer fetch per catalog model until the match, and is left for
+  the next run if the network is not there.
+  """
+  wanted = _get(P_MODEL)
+  if not wanted or _REF.fullmatch(wanted):
+    return
+  ready = _get(P_READY)
+  ref = None
+  for m in (catalog() if ready else []):
+    try:
+      oid, _ = resolve_pointer(m['ref'])
+    except Exception as e:
+      cloudlog.warning("jetlink: cannot migrate the selection %r yet: %s", wanted, e)
+      return
+    if oid == ready:
+      ref = m['ref']
+      break
+  if ref:
+    Params().put(P_MODEL, ref, block=True)
+    cloudlog.warning("jetlink: selection %r is now %s, the model that is provisioned", wanted, ref[:10])
+  else:
+    Params().remove(P_MODEL)
+    cloudlog.warning("jetlink: selection %r is not a catalog model, using the default", wanted)
+
+
+def model_dir() -> Path:
+  """Ours, under the model manager's root: its cache clear removes every file
+  it does not recognise and leaves directories alone."""
+  return Path(Paths.model_root()) / 'jetlink'
+
+
+def model_file_name(model: dict) -> str:
+  """One file per model, so switching back does not re-download."""
+  return f"{model['oid'][:16]}.onnx"
 
 
 def shipped_model_path() -> Path | None:
   """The chosen large model, if it has been fetched.
 
-  Keyed on the index entry, not the in-tree pointer, which moves with upstream
-  syncs. Size is the cheap check that the file is the one we mean.
+  Keyed on the oid, not the in-tree pointer, which moves with upstream syncs.
+  Size is the cheap check that the file is the one we mean.
   """
   model = selected_model()
-  if model is None:
+  if model is None or not model['oid']:
     return None
-  path = Path(Paths.model_root()) / model_file_name(model)
+  path = model_dir() / model_file_name(model)
   if path.is_file() and path.stat().st_size == model['size']:
     return path
   return None
@@ -400,18 +510,13 @@ def cleanup_unchunked(keep: Path | None = None) -> None:
       p.unlink(missing_ok=True)
 
 
-def model_file_name(model: dict) -> str:
-  """One file per model, so switching back does not re-download."""
-  return f"{model['oid'][:16]}.onnx"
-
-
 def fetch_shipped_model(progress=None, should_stop=None) -> Path | None:
   """Download the chosen large model if it is not here yet. None when nothing is chosen."""
   from openpilot.sunnypilot.accelerators.jetlink import lfs
   model = selected_model()
-  if model is None:
+  if model is None or not model['oid']:
     return None
-  dest = Path(Paths.model_root()) / model_file_name(model)
+  dest = model_dir() / model_file_name(model)
   return lfs.fetch_oid(model['oid'], model['size'], dest, repo_root(),
                        progress=progress, should_stop=should_stop)
 

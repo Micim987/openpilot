@@ -87,11 +87,12 @@ def enabled() -> bool:
 
 
 def model_choices() -> list[dict]:
+  """{name, ref, folder, selected, cached} per large model the accelerator can run."""
   return backend.model_choices()
 
 
-def select_model(name: str) -> None:
-  backend.select_model(name)
+def select_model(ref: str) -> None:
+  backend.select_model(ref)
 
 
 def active_model_name() -> str | None:

@@ -182,8 +182,8 @@ class TestUIStateAcceleratorView:
 
 
 class TestTiciModelsPanel:
-  CHOICES = [{'name': 'Cinque Terre', 'selected': True, 'cached': True},
-             {'name': 'Lebowski', 'selected': False, 'cached': False}]
+  CHOICES = [{'name': 'Cinque Terre', 'ref': 'c' * 40, 'folder': '', 'selected': True, 'cached': True},
+             {'name': 'Lebowski', 'ref': 'l' * 40, 'folder': '', 'selected': False, 'cached': False}]
 
   @staticmethod
   def _layout():
@@ -255,9 +255,9 @@ class TestTiciModelsPanel:
       layout = self._layout()
       layout._open_accelerator_dialog()
       assert layout.accelerator_dialog is not None
-      layout.accelerator_dialog.selection = 'Lebowski'
+      layout.accelerator_dialog.selection_ref = 'l' * 40
       layout._on_accelerator_selected(DialogResult.CONFIRM)
-      select.assert_called_once_with('Lebowski')
+      select.assert_called_once_with('l' * 40)
       assert params.get("ModelManager_DownloadRef") is None
 
   def test_picker_is_inert_onroad(self, params):
@@ -268,7 +268,7 @@ class TestTiciModelsPanel:
          mock.patch("openpilot.system.ui.lib.application.gui_app.push_widget"):
       layout = self._layout()
       layout._open_accelerator_dialog()
-      layout.accelerator_dialog.selection = 'Lebowski'
+      layout.accelerator_dialog.selection_ref = 'l' * 40
       layout._on_accelerator_selected(DialogResult.CONFIRM)
       select.assert_not_called()
 

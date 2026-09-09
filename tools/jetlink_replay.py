@@ -97,6 +97,8 @@ def model_name() -> str:
   chosen = helpers.selected_model()
   if chosen is None:
     return 'unknown'
+  if not chosen['oid']:
+    return f"{chosen['name']} (not resolved yet)"
   return f"{chosen['name']} ({chosen['size'] / 1e6:.0f} MB, oid {chosen['oid'][:16]})"
 
 
@@ -106,7 +108,9 @@ def jetlink_params() -> dict:
   from openpilot.common.params import Params
   params = Params()
   out: dict = {'JetlinkEnabled': True}
-  for key in ('JetlinkEngineReady', 'JetlinkSpec', 'JetlinkModel', 'JetlinkEndpoint'):
+  # the selection is a catalog ref and the identity its pointer, both params
+  for key in ('JetlinkEngineReady', 'JetlinkSpec', 'JetlinkModel', 'JetlinkEndpoint',
+              'JetlinkModelPointers', 'ModelManager_ModelsCache_Chestnut'):
     value = params.get(key)
     if value is not None:
       out[key] = value

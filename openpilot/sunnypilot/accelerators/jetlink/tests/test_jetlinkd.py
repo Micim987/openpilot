@@ -80,11 +80,11 @@ def serving_client(spec=None):
 class TestProvisionCost(unittest.TestCase):
   """What provisioning is allowed to cost when nothing needs doing.
 
-  The identity comes from models.json, so a parked car asks the Jetson what it
+  The identity comes from the catalog's pointer, so a parked car asks the Jetson what it
   already has without reading, hashing or even having the ONNX.
   """
 
-  ENTRY = {'name': 'Fake', 'oid': 'deadbeef', 'size': 4096}
+  ENTRY = {'name': 'Fake', 'ref': 'f' * 40, 'oid': 'deadbeef', 'size': 4096}
 
   def setUp(self):
     self.model = Path(tempfile.mkdtemp()) / 'big_driving_supercombo.onnx'
@@ -115,6 +115,27 @@ class TestProvisionCost(unittest.TestCase):
       assert d.provision() is True
     args = d.client.ensure_engine.call_args.args
     assert args[0] == self.ENTRY['oid'] and args[1] == self.ENTRY['size']
+
+  def test_a_model_asked_for_the_first_time_has_its_pointer_looked_up(self):
+    d = jetlinkd.Jetlinkd()
+    d.client = serving_client()
+    with mock.patch.object(jetlinkd.helpers, 'selected_model', return_value={**self.ENTRY, 'oid': None, 'size': None}), \
+         mock.patch.object(jetlinkd.helpers, 'resolve_pointer', return_value=('deadbeef', 4096)) as resolve, \
+         mock.patch.object(jetlinkd.helpers, 'set_engine_ready'):
+      assert d.provision() is True
+    resolve.assert_called_once_with('f' * 40)
+    args = d.client.ensure_engine.call_args.args
+    assert args[0] == 'deadbeef' and args[1] == 4096
+
+  def test_a_pointer_that_cannot_be_looked_up_is_a_failed_provision(self):
+    # the ordinary failure path: logged, backed off, tried again next poll
+    d = jetlinkd.Jetlinkd()
+    d.client = serving_client()
+    with mock.patch.object(jetlinkd.helpers, 'selected_model', return_value={**self.ENTRY, 'oid': None, 'size': None}), \
+         mock.patch.object(jetlinkd.helpers, 'resolve_pointer', side_effect=OSError('offline')), \
+         self.assertRaises(OSError):
+      d.provision()
+    d.client.ensure_engine.assert_not_called()
 
   def test_a_server_that_already_has_it_never_reads_the_file(self):
     # the steady state of a parked car: the 766 MB hash is not paid per retry
@@ -157,7 +178,7 @@ class TestProvisionCost(unittest.TestCase):
     return d, EngineMissing
 
   def test_a_file_that_is_not_the_registry_model_is_never_uploaded(self):
-    # Trusting models.json for the identity is right for asking and wrong for
+    # Trusting the pointer for the identity is right for asking and wrong for
     # answering: uploading under a sha the bytes do not have would leave the
     # Jetson with a plan whose name lies about its contents.
     d, EngineMissing = self._wants_the_bytes()
@@ -687,13 +708,13 @@ class TestVmTuning(unittest.TestCase):
 
 
 class BuildEtaTest(unittest.TestCase):
-  """built_seconds is what tells a driver watching "build 12%" whether that is
+  """The estimate is what tells a driver watching "build 12%" whether that is
   five minutes or thirty."""
 
   def test_the_build_stage_gets_a_time_remaining(self):
     from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
     seen = []
-    with mock.patch.object(J.helpers, 'selected_model', return_value={'built_seconds': 300}), \
+    with mock.patch.object(J.helpers, 'selected_model', return_value={'size': 1_850_000_000}), \
          mock.patch.object(J.accelerators, 'report_progress', lambda *a: seen.append(a)):
       J.Jetlinkd._report_with_eta(J.Jetlinkd, 'build', 0.0, 'building the engine')
       J.Jetlinkd._report_with_eta(J.Jetlinkd, 'build', 0.8, 'building the engine')
@@ -704,15 +725,20 @@ class BuildEtaTest(unittest.TestCase):
     from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
     seen = []
     # The upload already counts MB of MB, and a connect has nothing to predict.
-    with mock.patch.object(J.helpers, 'selected_model', return_value={'built_seconds': 300}), \
+    with mock.patch.object(J.helpers, 'selected_model', return_value={'size': 1_850_000_000}), \
          mock.patch.object(J.accelerators, 'report_progress', lambda *a: seen.append(a)):
       J.Jetlinkd._report_with_eta(J.Jetlinkd, 'upload', 0.5, '380/766 MB')
     self.assertEqual(seen[0][2], '380/766 MB')
 
-  def test_a_model_with_no_measured_build_time_is_survived(self):
+  def test_the_estimate_follows_the_measurements(self):
+    from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
+    self.assertTrue(100 <= J.Jetlinkd.estimated_build_seconds(766_000_000) <= 200)     # built in 102 to 166 s
+    self.assertTrue(230 <= J.Jetlinkd.estimated_build_seconds(1_757_000_000) <= 320)   # 230 to 294 s
+
+  def test_a_model_not_resolved_yet_is_survived(self):
     from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
     seen = []
-    with mock.patch.object(J.helpers, 'selected_model', return_value={}), \
+    with mock.patch.object(J.helpers, 'selected_model', return_value={'size': None}), \
          mock.patch.object(J.accelerators, 'report_progress', lambda *a: seen.append(a)):
       J.Jetlinkd._report_with_eta(J.Jetlinkd, 'build', 0.3, 'building the engine')
     self.assertEqual(seen[0][2], 'building the engine')

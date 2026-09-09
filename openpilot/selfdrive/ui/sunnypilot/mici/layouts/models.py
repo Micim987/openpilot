@@ -178,7 +178,7 @@ class ModelsLayoutMici(NavScroller):
   def _choose_accelerator(self, choice):
     if not ui_state.is_offroad():
       return
-    accelerators.select_model(choice['name'])
+    accelerators.select_model(choice['ref'])
     self._pop_to_main()
 
   def _select_hardware(self, source):

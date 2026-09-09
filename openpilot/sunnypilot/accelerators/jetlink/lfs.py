@@ -4,13 +4,13 @@ Copyright (c) 2026-, Zeph Leggett.
 This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Fetching the large model's ONNX, which the install deliberately does not carry.
+Fetching a large model's ONNX by its git-lfs oid.
 
 The big model is a git-lfs object .lfsconfig excludes from the install: it is
 0.8 to 1.8 GB and only a device with a Jetson attached needs it, so it is
-fetched on demand. The pointer file says which model; which server has it
-varies (sunnypilot substitutes its own big model, comma's LFS holds comma's),
-so each endpoint is asked in turn.
+fetched on demand. Which server has it varies (sunnypilot mirrors comma's
+master objects, comma's own servers hold the rest), so each endpoint is asked
+in turn.
 """
 from __future__ import annotations
 
@@ -25,8 +25,11 @@ from openpilot.common.swaglog import cloudlog
 
 LFS_MEDIA_TYPE = 'application/vnd.git-lfs+json'
 # comma's LFS is on GitLab, not GitHub: GitHub's LFS API and
-# media.githubusercontent both 404 these. Both endpoints serve anonymously
-COMMA_LFS = 'https://gitlab.com/commaai/openpilot-lfs.git/info/lfs'
+# media.githubusercontent both 404 these. Both serve anonymously
+COMMA_ENDPOINTS = (
+  'https://gitlab.com/commaai/openpilot-lfs.git/info/lfs',      # every object, older and PR-branch models included
+  'https://huggingface.co/commaai/openpilot-lfs.git/info/lfs',  # where comma is moving them (openpilot PR 38824); the current ones
+)
 CONNECT_TIMEOUT = 30.0
 CHUNK = 4 << 20
 
@@ -35,18 +38,8 @@ class LfsError(Exception):
   pass
 
 
-def parse_pointer(path: Path) -> tuple[str, int] | None:
-  """Read a git-lfs pointer file, or None if this is the real object.
-
-  A pointer is a few hundred bytes of text, so size tells them apart cheaply.
-  """
-  try:
-    if path.stat().st_size > 4096:
-      return None
-    text = path.read_text()
-  except (OSError, UnicodeDecodeError):
-    return None
-
+def parse_pointer_text(text: str) -> tuple[str, int] | None:
+  """The oid and size in a git-lfs pointer's text, or None if it is not one."""
   oid = size = None
   for line in text.splitlines():
     key, _, value = line.partition(' ')
@@ -81,8 +74,7 @@ def endpoints(repo_root: Path) -> list[str]:
   configured = lfsconfig_endpoint(repo_root)
   if configured:
     out.append(configured.removesuffix('/'))
-  if COMMA_LFS not in out:
-    out.append(COMMA_LFS)
+  out.extend(e for e in COMMA_ENDPOINTS if e not in out)
   return out
 
 
@@ -121,6 +113,7 @@ def download(href: str, oid: str, size: int, dest: Path,
 
   A half-written model must never be where the next boot would hand it to TensorRT.
   """
+  dest.parent.mkdir(parents=True, exist_ok=True)
   free = shutil.disk_usage(dest.parent).free
   if free < size + (64 << 20):
     raise LfsError(f"need {size >> 20} MB for the large model, {free >> 20} MB free")
@@ -164,15 +157,6 @@ def download(href: str, oid: str, size: int, dest: Path,
   part.replace(dest)
   return dest
 
-
-def fetch(pointer: Path, dest: Path, repo_root: Path,
-          progress: Callable[[float], None] | None = None,
-          should_stop: Callable[[], bool] | None = None) -> Path | None:
-  """Materialise the object a pointer file describes. None if it is not one."""
-  parsed = parse_pointer(pointer)
-  if parsed is None:
-    return None
-  return fetch_oid(*parsed, dest, repo_root, progress=progress, should_stop=should_stop)
 
 
 def fetch_oid(oid: str, size: int, dest: Path, repo_root: Path,

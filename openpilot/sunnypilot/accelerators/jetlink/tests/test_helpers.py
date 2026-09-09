@@ -192,7 +192,7 @@ class TestActiveModelPath(unittest.TestCase):
   def test_no_bundle_falls_through_to_the_pinned_model(self):
     # no chestnut bundle ships an ONNX, so what runs is the model openpilot
     # pins; None here would leave a provisioned device on the small model
-    pinned = Path(self.root) / helpers.BIG_MODEL_NAME
+    pinned = Path(self.root) / 'big_driving_supercombo.onnx'
     with mock.patch.object(helpers, 'active_bundle', return_value=None), \
          mock.patch.object(helpers, 'shipped_model_path', return_value=pinned):
       assert helpers.active_model_path() == pinned
@@ -234,60 +234,192 @@ if __name__ == '__main__':
   unittest.main()
 
 
+def bundle(ref: str, name: str, index: int = 0, folder: str = '', version=19) -> dict:
+  """A bundle as the catalog JSON carries it."""
+  return {'ref': ref, 'display_name': name, 'index': index, 'minimum_selector_version': str(version),
+          'overrides': {'folder': folder} if folder else {}}
+
+
+REF_A, REF_B, REF_C = 'a' * 40, 'b' * 40, 'c' * 40
+POINTERS = {REF_A: {'oid': '1' * 64, 'size': 766_000_000},
+            REF_B: {'oid': '2' * 64, 'size': 1_757_000_000}}
+
+
+def catalog_param(*bundles):
+  params = mock.patch.object(helpers, 'Params')
+  params.start().return_value.get.return_value = {'bundles': list(bundles)}
+  return params
+
+
+class TestCatalog(unittest.TestCase):
+  """The list is sunnypilot's big-model catalog, read as the model manager cached it."""
+
+  def setUp(self):
+    self.addCleanup(mock.patch.stopall)
+
+  def test_newest_first_with_names_and_folders(self):
+    catalog_param(bundle(REF_A, 'Alpha (September 04, 2026)', 3, 'Master Models'), bundle(REF_B, 'Beta', 9))
+    self.assertEqual(helpers.catalog(), [{'name': 'Beta', 'ref': REF_B, 'folder': ''},
+                                         {'name': 'Alpha (September 04, 2026)', 'ref': REF_A, 'folder': 'Master Models'}])
+
+  def test_only_commits_of_this_selector_version(self):
+    # a bundle without a comma commit has no ONNX to find; one for another
+    # selector version is one the model manager itself would not list
+    catalog_param(bundle('not-a-commit', 'Odd', 5), bundle(REF_A, 'Alpha', 1), {'display_name': 'Blank'},
+                  bundle(REF_C, 'Gamma', 7, version=18))
+    self.assertEqual([b['ref'] for b in helpers.catalog()], [REF_A])
+
+  def test_no_catalog_yet_is_empty(self):
+    catalog_param()
+    self.assertEqual(helpers.catalog(), [])
+
+  def test_an_unreadable_catalog_is_empty_not_an_error(self):
+    # read from the UI's param thread, where an exception takes the panel down
+    params = mock.patch.object(helpers, 'Params').start()
+    params.return_value.get.side_effect = RuntimeError('no params')
+    self.assertEqual(helpers.catalog(), [])
+
+
 class TestModelIndex(unittest.TestCase):
-  """comma overwrites one ONNX file, so every earlier big model exists only as a
-  git-lfs object no manifest lists. The index is how we keep hold of them."""
+  """Every catalog model, with the ONNX behind it once that has been looked up."""
 
-  def test_the_shipped_index_parses(self):
-    models = helpers.model_index()
-    assert models, "no models in models.json"
+  def setUp(self):
+    helpers._index_cache = None
+    self.addCleanup(setattr, helpers, '_index_cache', None)
 
-  def test_every_entry_is_complete(self):
-    for m in helpers.model_index():
-      for field in ('name', 'oid', 'size', 'commit', 'date'):
-        assert m.get(field), f"{m.get('name')!r} is missing {field}"
-      assert len(m['oid']) == 64, f"{m['name']}: oid is not a sha256"
-      assert m['size'] > 1_000_000, f"{m['name']}: implausible size"
+  def index_with(self, bundles, pointers=POINTERS):
+    with mock.patch.object(helpers, 'catalog', return_value=bundles), \
+         mock.patch.object(helpers, 'pointers', return_value=pointers):
+      return helpers.model_index()
 
-  def test_names_and_oids_are_unique(self):
-    models = helpers.model_index()
-    assert len({m['name'] for m in models}) == len(models)
-    assert len({m['oid'] for m in models}) == len(models)
+  def test_a_resolved_model_carries_its_identity(self):
+    (entry,) = self.index_with([{'name': 'Alpha', 'ref': REF_A, 'folder': 'Master Models'}])
+    self.assertEqual(entry, {'name': 'Alpha', 'ref': REF_A, 'folder': 'Master Models',
+                             'oid': '1' * 64, 'size': 766_000_000})
 
-  def test_exactly_one_default(self):
-    # Two defaults, or none, and selected_model() silently picks by list order.
-    assert sum(1 for m in helpers.model_index() if m.get('default')) == 1
+  def test_an_unresolved_model_is_still_offered(self):
+    # the picker is the catalog; the pointer is fetched when the model is first asked for
+    (entry,) = self.index_with([{'name': 'Gamma', 'ref': REF_C, 'folder': ''}])
+    self.assertEqual((entry['name'], entry['oid'], entry['size']), ('Gamma', None, None))
 
-  def test_file_names_do_not_collide(self):
-    names = [helpers.model_file_name(m) for m in helpers.model_index()]
-    assert len(set(names)) == len(names)
+  def test_a_second_read_within_the_ttl_costs_nothing(self):
+    # the UI names the active model every frame
+    with mock.patch.object(helpers, 'catalog', return_value=[]) as read, mock.patch.object(helpers, 'pointers', return_value={}):
+      first = helpers.model_index()
+      self.assertIs(helpers.model_index(), first)
+    self.assertEqual(read.call_count, 1)
+
+
+class TestResolvePointer(unittest.TestCase):
+  """The pointer at a commit is the oid and size the Jetson is asked for,
+  fetched the first time a model is asked for and kept for good."""
+
+  POINTER = f"version https://git-lfs.github.com/spec/v1\noid sha256:{'3' * 64}\nsize 766040736\n"
+
+  def setUp(self):
+    self.params = mock.patch.object(helpers, 'Params').start()
+    self.addCleanup(mock.patch.stopall)
+    helpers._index_cache = (float('inf'), [])   # a stale index must be dropped on a hit
+    self.addCleanup(setattr, helpers, '_index_cache', None)
+
+  def response(self, body: bytes):
+    r = mock.MagicMock()
+    r.__enter__.return_value = r
+    r.read.return_value = body
+    return r
+
+  def test_fetches_once_and_records_it(self):
+    with mock.patch.object(helpers, '_get', return_value=dict(POINTERS)), \
+         mock.patch.object(helpers.urllib.request, 'urlopen', return_value=self.response(self.POINTER.encode())) as urlopen:
+      self.assertEqual(helpers.resolve_pointer(REF_C), ('3' * 64, 766040736))
+    self.assertEqual(urlopen.call_args.args[0], helpers.POINTER_URL.format(ref=REF_C))
+    written = self.params.return_value.put.call_args.args[1]
+    self.assertEqual(written[REF_C], {'oid': '3' * 64, 'size': 766040736})
+    self.assertEqual(written[REF_A], POINTERS[REF_A])
+    self.assertIsNone(helpers._index_cache)
+
+  def test_a_known_pointer_needs_no_fetch(self):
+    with mock.patch.object(helpers, '_get', return_value=dict(POINTERS)), \
+         mock.patch.object(helpers.urllib.request, 'urlopen') as urlopen:
+      self.assertEqual(helpers.resolve_pointer(REF_A), ('1' * 64, 766_000_000))
+    urlopen.assert_not_called()
+
+  def test_a_miss_raises_and_records_nothing(self):
+    for failure in ({'side_effect': OSError('offline')}, {'return_value': self.response(b'<html>not found</html>')}):
+      with self.subTest(failure), mock.patch.object(helpers, '_get', return_value={}), \
+           mock.patch.object(helpers.urllib.request, 'urlopen', **failure), self.assertRaises((OSError, ValueError)):
+        helpers.resolve_pointer(REF_C)
+    self.params.return_value.put.assert_not_called()
 
 
 class TestSelectedModel(unittest.TestCase):
   INDEX = [
-    {'name': 'Alpha', 'oid': 'a' * 64, 'size': 10, 'commit': 'c1', 'date': 'd'},
-    {'name': 'Beta', 'oid': 'b' * 64, 'size': 20, 'commit': 'c2', 'date': 'd', 'default': True},
+    {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 10, 'folder': ''},
+    {'name': 'Beta', 'ref': REF_B, 'oid': 'b' * 64, 'size': 20, 'folder': ''},
   ]
 
-  def select_with(self, param):
+  def select_with(self, param, default=REF_B):
     with mock.patch.object(helpers, 'model_index', return_value=self.INDEX), \
+         mock.patch.object(helpers, 'DEFAULT_BIG_MODEL_REF', default), \
          mock.patch.object(helpers, '_get', return_value=param):
       return helpers.selected_model()
 
-  def test_unset_takes_the_default(self):
+  def test_unset_takes_the_forks_default_big_model(self):
     assert self.select_with(None)['name'] == 'Beta'
 
-  def test_a_name_selects_it(self):
-    assert self.select_with('Alpha')['name'] == 'Alpha'
+  def test_a_ref_selects_it(self):
+    assert self.select_with(REF_A)['name'] == 'Alpha'
 
-  def test_an_unknown_name_falls_back(self):
-    # The index can shrink under a param that outlived it; leaving the device
-    # with no model at all would be worse than quietly using the default.
-    assert self.select_with('Gone')['name'] == 'Beta'
+  def test_a_default_not_in_the_catalog_falls_to_the_newest(self):
+    assert self.select_with(None, default='f' * 40)['name'] == 'Alpha'
+
+  def test_an_unknown_ref_falls_back(self):
+    # The catalog can drop a model under a param that outlived it; leaving the
+    # device with no model at all would be worse than quietly using the default.
+    assert self.select_with('9' * 40)['name'] == 'Beta'
 
   def test_an_empty_index_is_no_model(self):
     with mock.patch.object(helpers, 'model_index', return_value=[]):
       assert helpers.selected_model() is None
+
+
+class TestMigrateSelection(unittest.TestCase):
+  """builds before the catalog stored the index name; rebuilding a 160 s
+  engine over a rename would be the wrong surprise"""
+
+  CATALOG = [{'name': 'Alpha', 'ref': REF_A, 'folder': ''}, {'name': 'Beta', 'ref': REF_B, 'folder': ''}]
+
+  def migrate(self, model, ready, resolve):
+    values = {helpers.P_MODEL: model, helpers.P_READY: ready}
+    params = mock.patch.object(helpers, 'Params').start()
+    self.addCleanup(mock.patch.stopall)
+    with mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: values.get(k, d)), \
+         mock.patch.object(helpers, 'catalog', return_value=self.CATALOG), \
+         mock.patch.object(helpers, 'resolve_pointer', side_effect=resolve):
+      helpers.migrate_selection()
+    return params.return_value
+
+  def test_an_old_name_becomes_the_ref_of_the_model_that_is_provisioned(self):
+    params = self.migrate('Beta v6', 'b' * 64, lambda ref: ({REF_A: 'a' * 64, REF_B: 'b' * 64}[ref], 1))
+    params.put.assert_called_once_with(helpers.P_MODEL, REF_B, block=True)
+
+  def test_an_old_name_with_nothing_provisioned_is_cleared(self):
+    params = self.migrate('Beta v6', None, lambda ref: self.fail("nothing to match against"))
+    params.remove.assert_called_once_with(helpers.P_MODEL)
+
+  def test_an_old_name_matching_nothing_is_cleared(self):
+    params = self.migrate('Beta v6', 'z' * 64, lambda ref: ('a' * 64, 1))
+    params.remove.assert_called_once_with(helpers.P_MODEL)
+
+  def test_a_ref_is_left_alone(self):
+    params = self.migrate(REF_A, 'b' * 64, lambda ref: self.fail("nothing to look up"))
+    params.put.assert_not_called()
+    params.remove.assert_not_called()
+
+  def test_offline_is_left_for_the_next_run(self):
+    params = self.migrate('Beta v6', 'b' * 64, OSError('offline'))
+    params.put.assert_not_called()
+    params.remove.assert_not_called()
 
 
 class TestSelectedModelReadiness(unittest.TestCase):
@@ -312,7 +444,7 @@ class TestShippedModelPath(unittest.TestCase):
   """A file counts only when it is the model we mean, at the size we expect.
   Models live one file per oid so switching back does not re-download."""
 
-  MODEL = {'name': 'Alpha', 'oid': 'a' * 64, 'size': 4096, 'commit': 'c', 'date': 'd'}
+  MODEL = {'name': 'Alpha', 'ref': REF_A, 'oid': 'a' * 64, 'size': 4096, 'folder': ''}
 
   def setUp(self):
     self.root = tempfile.mkdtemp()
@@ -324,9 +456,14 @@ class TestShippedModelPath(unittest.TestCase):
     chosen.start()
 
   def fetched(self, size: int) -> Path:
-    path = Path(self.root) / helpers.model_file_name(self.MODEL)
+    path = helpers.model_dir() / helpers.model_file_name(self.MODEL)
+    path.parent.mkdir()
     path.write_bytes(b'\0' * size)
     return path
+
+  def test_a_model_not_resolved_yet_is_no_path(self):
+    with mock.patch.object(helpers, 'selected_model', return_value={**self.MODEL, 'oid': None, 'size': None}):
+      assert helpers.shipped_model_path() is None
 
   def test_nothing_fetched_yet(self):
     assert helpers.shipped_model_path() is None

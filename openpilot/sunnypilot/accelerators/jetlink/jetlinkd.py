@@ -271,6 +271,12 @@ class Jetlinkd:
     self.warp_thread.start()
 
   @staticmethod
+  def estimated_build_seconds(size: int) -> int:
+    """Orin Nano Super, TensorRT 10.3: the 766 MB models built in 102 to 166 s,
+    the 1.75 GB ones in 230 to 294 s."""
+    return int(60 + 130 * size / 1e9)
+
+  @staticmethod
   def _eta(seconds: float) -> str:
     if seconds >= 90:
       return f"about {seconds / 60:.0f} min left"
@@ -279,22 +285,23 @@ class Jetlinkd:
   def _report_with_eta(self, stage: str, frac: float, msg: str) -> None:
     """Progress, with how long the build still has to run.
 
-    built_seconds in models.json is measured on this hardware. It belongs here
-    rather than in the UI, which knows nothing about jetlink. Only the build is
-    estimated: the upload reports MB of MB and a connect has nothing to predict.
+    Estimated from the model's size, on measurements of this hardware. It
+    belongs here rather than in the UI, which knows nothing about jetlink. Only
+    the build is estimated: the upload reports MB of MB and a connect has
+    nothing to predict.
     """
     if stage == 'build':
-      entry = helpers.selected_model() or {}
-      built = entry.get('built_seconds')
-      if built:
-        msg = self._eta(float(built) * max(0.0, 1.0 - frac))
+      size = (helpers.selected_model() or {}).get('size')
+      if size:
+        msg = self._eta(self.estimated_build_seconds(size) * max(0.0, 1.0 - frac))
     accelerators.report_progress(stage, frac, msg)
 
   def provision(self) -> bool:
     """Make the Jetson ready for the selected model. Host must be attached.
 
-    The identity comes from models.json (the git-lfs oid is the sha256, size
-    the byte count), so the comma can ask without holding or hashing the ONNX.
+    The identity comes from the catalog model's LFS pointer (the oid is the
+    sha256, size the byte count), so the comma can ask without holding or
+    hashing the ONNX.
     The file is only fetched when the server asks for the bytes; the Jetson
     keeps its own copy of every ONNX and never prunes it.
     """
@@ -303,14 +310,16 @@ class Jetlinkd:
     from jetlink.client import EngineMissing
 
     entry = helpers.selected_model()
-    sha256 = (entry or {}).get('oid')
-    nbytes = (entry or {}).get('size')
-    if not sha256 or not nbytes:
-      # nothing selected, or an entry with no identity; not an error
+    if entry is None:
+      # no catalog yet; not an error
       helpers.set_engine_ready(None)
       accelerators.clear_progress()
       return False
-    nbytes = int(nbytes)
+    sha256, nbytes = entry['oid'], entry['size']
+    if not sha256 or not nbytes:
+      # the first time this model is asked for: its pointer, fetched once and kept
+      accelerators.report_progress('connect', 0.0, 'looking up the model')
+      sha256, nbytes = helpers.resolve_pointer(entry['ref'])
 
     # the param says ready, but the Jetson's cache may have been pruned or
     # re-flashed since. Ask once per attach
@@ -527,6 +536,10 @@ class Jetlinkd:
   def run(self) -> None:
     if helpers.enabled():
       self.tune_vm()
+      try:
+        helpers.migrate_selection()
+      except Exception:
+        cloudlog.exception("jetlink: could not migrate the model selection")
     rk = Ratekeeper(POLL_HZ)
     try:
       while not self.stop:
