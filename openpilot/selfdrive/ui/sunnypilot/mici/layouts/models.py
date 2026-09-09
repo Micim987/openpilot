@@ -24,7 +24,7 @@ from openpilot.system.ui.widgets.scroller import NavScroller
 
 
 class AcceleratorLinkToggle(BigToggle):
-  """not BigParamControl: the write also drops manager's runner cache and is refused onroad"""
+  """not BigParamControl: the write is refused onroad"""
 
   def __init__(self):
     super().__init__(tr("accelerator link"), initial_state=link_enabled(), toggle_callback=self._store)

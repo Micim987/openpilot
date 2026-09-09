@@ -188,6 +188,48 @@ class JoiningModelState:
     if self._active is not self._small:
       self._active.lat_delay = value
 
+  # -- what modeld_tinygrad reads ---------------------------------------------
+  # sunnypilot's modeld_v2 keeps the constants, the smoothing and the action
+  # function on the ModelState, so a custom small bundle can carry its own.
+  # Each follows the model that is driving; what the loop writes lands on both.
+  # The frame's inputs are built for the small bundle (its desire name, its
+  # optional slots); the large model reads the desire under any name and the
+  # loop always supplies what it needs, so a swap can land on any frame
+
+  @property
+  def constants(self):
+    return self._active.constants
+
+  @property
+  def desire_key(self) -> str:
+    return self._small.desire_key
+
+  @property
+  def numpy_inputs(self):
+    return self._small.numpy_inputs
+
+  @property
+  def LAT_SMOOTH_SECONDS(self):
+    return self._active.LAT_SMOOTH_SECONDS
+
+  @property
+  def LONG_SMOOTH_SECONDS(self):
+    return self._active.LONG_SMOOTH_SECONDS
+
+  @property
+  def PLANPLUS_CONTROL(self):
+    return self._active.PLANPLUS_CONTROL
+
+  @PLANPLUS_CONTROL.setter
+  def PLANPLUS_CONTROL(self, value):
+    self._small.PLANPLUS_CONTROL = value
+    if self._active is not self._small:
+      self._active.PLANPLUS_CONTROL = value
+
+  def get_action_from_model(self, *args, **kwargs):
+    # swaps and demotes happen inside run(), so this is the model whose output it is
+    return self._active.get_action_from_model(*args, **kwargs)
+
   # -- the frame path ---------------------------------------------------------
 
   def run(self, bufs, transforms, inputs, after_enqueue=None):

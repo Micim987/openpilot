@@ -36,7 +36,6 @@ class AcceleratorView(NamedTuple):
   present: bool
   ready: bool
   progress: dict | None
-  uses_stock_runner: bool
   state: str  # modelDataV2SP.acceleratorState, by enum name
 
 
@@ -203,17 +202,14 @@ class UIStateSP:
     self.model_runner_tinygrad = self.active_bundle is not None and self.active_bundle.get("runner") == "tinygrad"
     # read on the 5 Hz params pass, not per frame in a layout
     self.accelerator_progress = accelerators.progress()
-    stock_runner = accelerators.uses_stock_runner()
-    # a downloaded big bundle runs on the chestnut too, so it counts as available, except
-    # under the accelerator override where stock modeld never loads it
-    if not stock_runner:
-      self.chestnut_compiled = self.chestnut_compiled or self.model_runner_tinygrad
+    link_enabled = accelerators.enabled()
+    self.chestnut_compiled = self.chestnut_compiled or self.model_runner_tinygrad
     # a fitted chestnut owns chestnut_state; the view exists only when there is something to show
     view = None
     if not self.sm['deviceState'].chestnutPresent:
       present, ready = accelerators.present(), accelerators.ready()
-      if present or ready or self.accelerator_progress is not None or stock_runner:
-        view = AcceleratorView(present, ready, self.accelerator_progress, stock_runner, self._accelerator_state_name)
+      if present or ready or self.accelerator_progress is not None or link_enabled:
+        view = AcceleratorView(present, ready, self.accelerator_progress, self._accelerator_state_name)
     self.accelerator_view = view
     # the Jetson configures the gadget ~25 s after a cold boot, after the one-shot
     # usb_unknown decision; recognising it late still clears "unknown"

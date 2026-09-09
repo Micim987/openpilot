@@ -559,3 +559,82 @@ class ContractTest(unittest.TestCase):
 
 if __name__ == '__main__':
   unittest.main()
+
+
+class FakeV2Model(FakeModel):
+  """A modeld_v2 ModelState: constants, smoothing and the action function are its own."""
+
+  def __init__(self, name, chestnut=False, client=None, desire_key='desire', slots=('desire', 'lateral_control_params')):
+    super().__init__(name, chestnut, client)
+    self.constants = mock.Mock(name=f'{name}.constants', MODEL_FREQ=20, DESIRE_LEN=8)
+    self.desire_key = desire_key
+    self.numpy_inputs = dict.fromkeys(slots)
+    self.LAT_SMOOTH_SECONDS = 0.1 if name == 'small' else 0.0
+    self.LONG_SMOOTH_SECONDS = 0.2 if name == 'small' else 0.3
+    self.PLANPLUS_CONTROL = 1.0
+    self.seen_inputs = None
+
+  def run(self, bufs, transforms, inputs, after_enqueue=None):
+    self.seen_inputs = inputs
+    return super().run(bufs, transforms, inputs, after_enqueue)
+
+  def get_action_from_model(self, *args):
+    return (self.name, args)
+
+
+class ModeldV2FaceTest(JoiningTest):
+  """What sunnypilot's modeld_tinygrad reads off the model: per-model, following the
+  model that is driving, and the frame it built for the small bundle handed to
+  whichever model takes it."""
+
+  def setUp(self):
+    super().setUp()
+    self.small = FakeV2Model('small')
+    self.big = FakeV2Model('big', chestnut=True, client=object(), desire_key='desire_pulse', slots=('desire', 'action_t', 'traffic_convention'))
+
+  def _run_with(self, s, inputs):
+    s._engagement_updated = time.monotonic()
+    return s.run({}, {}, inputs)
+
+  def _swap(self, s):
+    self._wait_joined(s)
+    s._engaged = False
+    self._run(s)
+    self.assertIs(s._active, self.big)
+
+  def test_the_face_follows_the_model_that_drives(self):
+    s = self._state()
+    self.assertIs(s.constants, self.small.constants)
+    self.assertEqual((s.LAT_SMOOTH_SECONDS, s.LONG_SMOOTH_SECONDS), (0.1, 0.2))
+    self.assertEqual(s.get_action_from_model('out', 'prev'), ('small', ('out', 'prev')))
+    self._swap(s)
+    self.assertIs(s.constants, self.big.constants)
+    self.assertEqual((s.LAT_SMOOTH_SECONDS, s.LONG_SMOOTH_SECONDS), (0.0, 0.3))
+    self.assertEqual(s.get_action_from_model('out', 'prev'), ('big', ('out', 'prev')))
+
+  def test_what_the_loop_writes_lands_on_both(self):
+    s = self._state()
+    s.PLANPLUS_CONTROL = 0.5
+    self.assertEqual(self.small.PLANPLUS_CONTROL, 0.5)
+    self._swap(s)
+    self.assertEqual(self.big.PLANPLUS_CONTROL, 1.0)  # not yet written since the join
+    s.PLANPLUS_CONTROL = 0.7
+    self.assertEqual((self.small.PLANPLUS_CONTROL, self.big.PLANPLUS_CONTROL), (0.7, 0.7))
+
+  def test_the_frame_is_built_for_the_small_bundle_and_handed_over_as_is(self):
+    # the loop keys the desire input and probes the slots by the small bundle,
+    # before and after the join; the large model takes the frame as built
+    s = self._state()
+    self.assertEqual(s.desire_key, 'desire')
+    self.assertIs(s.numpy_inputs, self.small.numpy_inputs)
+    self._wait_joined(s)
+    s._engaged = False
+    inputs = {'desire': object(), 'action_t': 1}
+    self.assertEqual(self._run_with(s, inputs), {'from': 'big'})
+    self.assertIs(self.big.seen_inputs, inputs)
+    self.assertEqual(s.desire_key, 'desire')
+    self.assertIs(s.numpy_inputs, self.small.numpy_inputs)
+    # and back on a demote, the same frame
+    self.big.raises = RuntimeError('link died')
+    self.assertEqual(self._run_with(s, inputs), {'from': 'small'})
+    self.assertIs(self.small.seen_inputs, inputs)

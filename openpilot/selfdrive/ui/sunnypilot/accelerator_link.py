@@ -5,7 +5,9 @@ This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
 The user's say over the accelerator link, shared by the mici and tici models panels.
-On is the only enable; the backend reads the param, the panels only write it.
+On is the only enable; the backend reads the param, the panels only write it. The
+small model is picked as ever: manager runs whichever modeld that bundle needs and
+the accelerator joins it, so the toggle never changes which modeld runs.
 """
 from openpilot.common.hardware.usb import TYPEC_CC_ORIENTATION_PATH, read
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -26,8 +28,6 @@ def link_enabled() -> bool:
 def set_link_enabled(enabled: bool) -> None:
   try:
     ui_state.params.put_bool(LINK_PARAM, enabled, block=True)
-    # manager caches which modeld it runs; the link decides that
-    ui_state.params.remove('ModelRunnerTypeCache')
   except Exception:
     pass  # same unknown-key case as the read
 

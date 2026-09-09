@@ -31,9 +31,11 @@ from openpilot.common.realtime import PROCESS_NAME
 
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.modeld.constants import ModelConstants
+from openpilot.selfdrive.modeld.modeld import LAT_SMOOTH_SECONDS, LONG_SMOOTH_SECONDS, get_action_from_model
 from openpilot.selfdrive.modeld.parse_model_outputs import Parser
 from openpilot.system.camerad.cameras.nv12_info import get_nv12_info
 from openpilot.sunnypilot.accelerators.jetlink import warp_cache
+from openpilot.sunnypilot.modeld_v2.constants import ModelConstants as V2ModelConstants
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
 
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
@@ -41,11 +43,23 @@ SLOW_FRAME = 0.05  # the full 20 Hz budget, not just the largest outliers
 
 
 class JetlinkModelState(ModelStateBase):
-  """Duck-types selfdrive.modeld.modeld.ModelState."""
+  """Duck-types selfdrive.modeld.modeld.ModelState, and modeld_v2's where it differs.
+
+  The small model is whatever bundle the user picked, on whichever modeld that
+  bundle needs. sunnypilot's modeld_v2 reads constants, smoothing and the
+  action function off the ModelState; stock modeld has them as module
+  constants. This is comma's large model, so they are comma's.
+  """
 
   prev_desire: np.ndarray  # for tracking the rising edge of the pulse
 
-  def __init__(self, cam_w: int, cam_h: int, client, spec, small=None, warp=None):
+  constants = V2ModelConstants
+  LAT_SMOOTH_SECONDS = LAT_SMOOTH_SECONDS
+  LONG_SMOOTH_SECONDS = LONG_SMOOTH_SECONDS
+  PLANPLUS_CONTROL = 1.0
+  get_action_from_model = staticmethod(get_action_from_model)
+
+  def __init__(self, cam_w: int, cam_h: int, client, spec, warp=None):
     ModelStateBase.__init__(self)
     self.client = client
     self.spec = spec
@@ -59,12 +73,6 @@ class JetlinkModelState(ModelStateBase):
     # a warm warp is handed in when there is one: the first call costs ~2 s and
     # this can run on modeld's frame thread (warp_cache.warm)
     self.warp = warp if warp is not None else warp_cache.load_warp(cam_w, cam_h, img_w * 2, img_h * 2)
-
-    # the small ModelState is only a geometry cross-check now
-    small_img = small.input_shapes['img'] if small is not None else None
-    if small_img is not None and tuple(small_img[2:]) != tuple(spec.input_shapes['img'][2:]):
-      raise RuntimeError(f"warp geometry {small_img[2:]} does not match the large model "
-                         + f"{spec.input_shapes['img'][2:]}; a large-model warp JIT is needed")
 
     self.input_shapes = spec.input_shapes
     self.output_slices = spec.output_slices
@@ -112,10 +120,12 @@ class JetlinkModelState(ModelStateBase):
         self._blob_cache[cache_key] = Tensor.from_blob(ptr, (yuv_size,), dtype='uint8', device=self.warp_dev)
       self.full_frames[key] = self._blob_cache[cache_key]
 
-    # Model decides when action is completed, so desire input is just a pulse triggered on rising edge
-    inputs['desire_pulse'][0] = 0
-    self.npy['desire'][:] = np.where(inputs['desire_pulse'] - self.prev_desire > .99, inputs['desire_pulse'], 0)
-    self.prev_desire[:] = inputs['desire_pulse']
+    # Model decides when action is completed, so desire input is just a pulse triggered on rising edge.
+    # Under whichever name the loop keyed it: stock modeld's desire_pulse, or a modeld_v2 bundle's own
+    desire = inputs[next(k for k in inputs if k.startswith('desire'))]
+    desire[0] = 0
+    self.npy['desire'][:] = np.where(desire - self.prev_desire > .99, desire, 0)
+    self.prev_desire[:] = desire
     self.npy['traffic_convention'][:] = inputs['traffic_convention']
     self.npy['action_t'][:] = inputs['action_t']
     self.npy['tfm'][:, :] = transforms['img'][:, :]

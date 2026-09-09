@@ -54,6 +54,7 @@ from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 from openpilot.sunnypilot.selfdrive.controls.lib.relc import RoadEdgeLaneChangeController
+from openpilot.sunnypilot import accelerators
 
 PROCESS_NAME = "openpilot.selfdrive.modeld.modeld_tinygrad"
 BIG_MODEL_TIMEOUT = 60
@@ -321,11 +322,14 @@ def main(demo=False):
   sentry.set_tag("daemon", PROCESS_NAME)
   cloudlog.bind(daemon=PROCESS_NAME)
   setproctitle(PROCESS_NAME)
-  config_realtime_process(7, 54)
 
   CHESTNUT = chestnut_present()
   if CHESTNUT:
     os.environ['HCQDEV_WAIT_TIMEOUT_MS'] = '3000'
+  # before going realtime: prepare() starts tinygrad's device thread, which would inherit FIFO 54 on core 7
+  JETLINK = not CHESTNUT and accelerators.ready() and accelerators.prepare()
+
+  config_realtime_process(7, 54)
 
   params = Params()
   params.put_bool("ChestnutLoading", CHESTNUT)
@@ -377,8 +381,16 @@ def main(demo=False):
     params.put_bool("ChestnutActive", model is not None)
     if model is not None:
       params.remove("ChestnutModelError")
+  elif JETLINK:
+    small_model = ModelState(cam_w=vipc_client_main.width, cam_h=vipc_client_main.height, chestnut=False)
+    try:
+      model = accelerators.make_model_state(vipc_client_main.width, vipc_client_main.height, small_model)
+    except Exception:
+      cloudlog.exception("jetlink load failed")
+      model = None
 
-  small_model = ModelState(cam_w=vipc_client_main.width, cam_h=vipc_client_main.height, chestnut=False) if model is None or CHESTNUT else None
+  if not JETLINK:
+    small_model = ModelState(cam_w=vipc_client_main.width, cam_h=vipc_client_main.height, chestnut=False) if model is None or CHESTNUT else None
   if model is None:
     model = small_model
   params.put_bool("ChestnutLoading", False)
@@ -392,6 +404,8 @@ def main(demo=False):
 
   publish_state = PublishState()
   chestnut_state = ChestnutState(pm, model.chestnut) if CHESTNUT else None
+  if JETLINK:
+    chestnut_state = accelerators.make_status_publisher(pm, model)
 
   # setup filter to track dropped frames
   frame_dropped_filter = FirstOrderFilter(0., 10., 1. / model.constants.MODEL_FREQ)
@@ -416,7 +430,6 @@ def main(demo=False):
   model.lat_delay = get_lat_delay(params, model.lat_delay, CP.steerActuatorDelay)
 
   # TODO Move smooth seconds to action function
-  long_delay = CP.longitudinalActuatorDelay + model.LONG_SMOOTH_SECONDS
   prev_action = log.ModelDataV2.Action()
 
   DH = DesireHelper()
@@ -467,6 +480,7 @@ def main(demo=False):
       model.PLANPLUS_CONTROL = params.get("PlanplusControl", return_default=True)
       camera_offset_helper.set_offset(params.get("CameraOffset", return_default=True))
     lat_delay = model.lat_delay + model.LAT_SMOOTH_SECONDS
+    long_delay = CP.longitudinalActuatorDelay + model.LONG_SMOOTH_SECONDS
     if sm.updated["extrinsicsCalibration"] and sm.seen['narrowRoadCameraState'] and sm.seen['deviceState']:
       device_from_calib_euler = np.array(sm["extrinsicsCalibration"].rpyCalib, dtype=np.float32)
       dc = DEVICE_CAMERAS[(str(sm['deviceState'].deviceType), str(sm['narrowRoadCameraState'].sensor))]
@@ -501,16 +515,16 @@ def main(demo=False):
     lat_action_t = lat_delay + frame_delay + action_delay
     long_action_t = long_delay + frame_delay + action_delay
 
+    # action_t for every model: run() takes what it has a slot for, and a large
+    # model joining mid-drive reads it from a frame built for the small one
     inputs:dict[str, np.ndarray] = {
       model.desire_key: vec_desire,
       'traffic_convention': traffic_convention,
+      'action_t': np.array([lat_action_t, long_action_t], dtype=np.float32),
     }
 
     if 'lateral_control_params' in model.numpy_inputs:
       inputs['lateral_control_params'] = np.array([v_ego, lat_delay], dtype=np.float32)
-
-    if 'action_t' in model.numpy_inputs:
-      inputs['action_t'] = np.array([lat_action_t, long_action_t], dtype=np.float32)
 
     mt1 = time.perf_counter()
     try:
@@ -518,6 +532,9 @@ def main(demo=False):
                        run_count % round(model.constants.MODEL_FREQ / SERVICE_LIST['chestnutState'].frequency) == 0)
       model_output = model.run(bufs, transforms, inputs, chestnut_state.send if send_chestnut else None)
     except Exception:
+      # the joining state does its own fallback; the handler below would orphan its threads and link
+      if JETLINK:
+        raise
       if not params.get_bool("ChestnutActive"):
         raise
       cloudlog.exception("chestnut failed, falling back to small")
@@ -537,6 +554,9 @@ def main(demo=False):
       drivingdata_send = messaging.new_message('drivingModelData')
       posenet_send = messaging.new_message('cameraOdometry')
       mdv2sp_send = messaging.new_message('modelDataV2SP')
+      mdv2sp_send.modelDataV2SP.bigModelAvailable = getattr(model, 'big_model_available', False)
+      mdv2sp_send.modelDataV2SP.acceleratorState = getattr(model, 'big_model_state', 'none')
+      mdv2sp_send.modelDataV2SP.acceleratorName = 'jetlink' if JETLINK else ''
 
       action = model.get_action_from_model(model_output, prev_action, lat_action_t, long_action_t, v_ego)
       prev_action = action

@@ -688,16 +688,16 @@ class TestActiveBundleValidation(OpenpilotTestCase):
     assert [call.args[1] for call in runner_puts] == [tinygrad]
 
 
+def _jetlink_params(values: dict):
+  """The jetlink param store as the models package would read it."""
+  from openpilot.sunnypilot.accelerators.jetlink import helpers as jetlink_helpers
+  return mock.patch.object(jetlink_helpers, "_get", side_effect=lambda key, default=None: values.get(key, default))
+
+
 class TestActiveBundleSelection(OpenpilotTestCase):
   """The effective active bundle is the active source's slot: chestnut when a GPU is
   present, qcom otherwise. An empty active slot means the hardware default (stock
   runner), never the other slot's pick - modeld_v2 requires a real bundle."""
-
-  def setUp(self):
-    super().setUp()
-    patcher = mock.patch('openpilot.sunnypilot.accelerators.uses_stock_runner', return_value=False)
-    patcher.start()
-    self.addCleanup(patcher.stop)
 
   @staticmethod
   def _raw_bundle(ref: str) -> dict:
@@ -724,17 +724,18 @@ class TestActiveBundleSelection(OpenpilotTestCase):
     assert get_selected_bundle(params, "qcom").ref == "small"
     assert get_selected_bundle(params, "chestnut").ref == "big"
 
-  def test_jetlink_override_preserves_both_bundle_slots(self):
-    params = self._params(qcom=self._raw_bundle('small'), chestnut=self._raw_bundle('big'))
-    with mock.patch('openpilot.sunnypilot.accelerators.uses_stock_runner', return_value=True):
-      assert get_active_bundle(params) is None
-      assert helpers.get_active_model_runner(params, force_check=True) == custom.ModelManagerSP.Runner.stock
-      assert get_selected_bundle(params, 'qcom').ref == 'small'
-      assert get_selected_bundle(params, 'chestnut').ref == 'big'
-    params.remove.assert_not_called()
-    with mock.patch('openpilot.sunnypilot.accelerators.uses_stock_runner', return_value=False), \
+  def test_the_accelerator_link_leaves_the_small_pick_in_charge(self):
+    # the small model is the fallback under an accelerator, so it stays the
+    # user's: with the link on the stored qcom bundle still decides the runner
+    raw = self._raw_bundle('small')
+    raw['runner'] = int(custom.ModelManagerSP.Runner.tinygrad)
+    params = self._params(qcom=raw, chestnut=self._raw_bundle('big'))
+    with _jetlink_params({'JetlinkEnabled': True}), \
          mock.patch('openpilot.sunnypilot.models.helpers.chestnut_present', return_value=False):
       assert get_active_bundle(params).ref == 'small'
+      assert helpers.get_active_model_runner(params, force_check=True) == custom.ModelManagerSP.Runner.tinygrad
+      assert get_selected_bundle(params, 'chestnut').ref == 'big'
+    params.remove.assert_not_called()
 
   def test_no_gpu_uses_qcom_slot(self):
     params = self._params(qcom=self._raw_bundle("small"), chestnut=self._raw_bundle("big"))
@@ -757,12 +758,6 @@ class TestEffectiveSource(OpenpilotTestCase):
   attached); display callers (mici) pass the ui_state flags, which additionally
   require the big model to be loading, active, or the device offroad. The active
   bundle is simply the selected bundle of that source."""
-
-  def setUp(self):
-    super().setUp()
-    patcher = mock.patch('openpilot.sunnypilot.accelerators.uses_stock_runner', return_value=False)
-    patcher.start()
-    self.addCleanup(patcher.stop)
 
   @staticmethod
   def _raw_bundle(ref: str) -> dict:
@@ -833,9 +828,10 @@ class TestLiveModelManifest(OpenpilotTestCase):
     assert not dead, "unreachable model URLs:\n" + "\n".join(dead)
 
 
-class TestEffectiveSmallBundle(OpenpilotTestCase):
-  """Under the jetlink override manager runs stock modeld, which loads the default
-  small model and never reads the stored qcom bundle, so the UI must not name it."""
+class TestSmallSlotUnderTheLink(OpenpilotTestCase):
+  """The accelerator's fallback is the small model the user picked. The qcom slot
+  reads the same with the link on, off or unset, and nothing in the models
+  package asks the accelerator which modeld to run."""
 
   @staticmethod
   def _params(qcom: dict | None) -> mock.MagicMock:
@@ -853,30 +849,12 @@ class TestEffectiveSmallBundle(OpenpilotTestCase):
     bundle.runner = custom.ModelManagerSP.Runner.tinygrad
     return bundle.to_dict()
 
-  def test_override_hides_the_stored_bundle(self):
+  def test_the_stored_bundle_reads_the_same_whatever_the_link_says(self):
     params = self._params(self._raw_bundle("custom_small"))
-    with mock.patch("openpilot.sunnypilot.accelerators.uses_stock_runner", return_value=True):
-      assert helpers.effective_small_bundle(params) is None
-
-  def test_without_override_reports_the_stored_bundle(self):
-    params = self._params(self._raw_bundle("custom_small"))
-    with mock.patch("openpilot.sunnypilot.accelerators.uses_stock_runner", return_value=False):
-      assert helpers.effective_small_bundle(params).ref == "custom_small"
-
-  def test_override_is_exactly_the_toggle(self):
-    # JetlinkEnabled true, nothing about the model (it defaults), link state or readiness
-    from openpilot.sunnypilot.accelerators.jetlink import helpers as jetlink_helpers
-    params = self._params(self._raw_bundle("custom_small"))
-
-    def stub(values):
-      return mock.patch.object(jetlink_helpers, "_get", side_effect=lambda key, default=None: values.get(key, default))
-
-    with stub({"JetlinkEnabled": True, "JetlinkModel": "m"}):
-      assert helpers.effective_small_bundle(params) is None
-    with stub({"JetlinkEnabled": True}):
-      assert helpers.effective_small_bundle(params) is None
-    with stub({"JetlinkModel": "m"}):
-      assert helpers.effective_small_bundle(params).ref == "custom_small"
+    for values in ({"JetlinkEnabled": True, "JetlinkModel": "m"}, {"JetlinkEnabled": True}, {"JetlinkModel": "m"}, {}):
+      with _jetlink_params(values), mock.patch("openpilot.sunnypilot.models.helpers.chestnut_present", return_value=False):
+        assert get_selected_bundle(params, "qcom").ref == "custom_small"
+        assert get_active_bundle(params).ref == "custom_small"
 
 
 class TestChunkManifestRepair(OpenpilotTestCase):

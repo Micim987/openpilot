@@ -25,8 +25,9 @@ def _raw_bundle(ref: str) -> dict:
 
 
 class TestCarryingModel(OpenpilotTestCase):
-  """What the UI names as driving has to be what stock modeld loads. Under the
-  jetlink override that is the default small model, never the stored qcom bundle."""
+  """What the UI names as driving has to be what manager runs. The small model is
+  the model manager's whatever the accelerator link says: the stored qcom bundle
+  drives until the accelerator joins, and again if it goes."""
 
   def setUp(self):
     super().setUp()
@@ -41,21 +42,20 @@ class TestCarryingModel(OpenpilotTestCase):
     patcher.start()
     self.addCleanup(patcher.stop)
 
-  def test_override_names_the_default_small_model(self):
-    with mock.patch("openpilot.sunnypilot.accelerators.uses_stock_runner", return_value=True):
-      assert model_info.carrying_model() == ("qcom", f"{DEFAULT_MODEL} (Default)", f"{DEFAULT_MODEL} (Default)")
-      source, active, _ = model_info.model_info()
-    assert (source, active) == ("qcom", f"{DEFAULT_MODEL} (Default)")
+  def test_the_link_on_still_names_the_stored_bundle(self):
+    for enabled in (True, False):
+      with mock.patch("openpilot.sunnypilot.accelerators.enabled", return_value=enabled):
+        assert model_info.carrying_model() == ("qcom", "custom_small", "custom_small")
+        source, active, _ = model_info.model_info()
+      assert (source, active) == ("qcom", "custom_small")
 
-  def test_without_override_names_the_stored_bundle(self):
-    with mock.patch("openpilot.sunnypilot.accelerators.uses_stock_runner", return_value=False):
-      assert model_info.carrying_model() == ("qcom", "custom_small", "custom_small")
-      source, active, _ = model_info.model_info()
-    assert (source, active) == ("qcom", "custom_small")
+  def test_an_empty_slot_names_the_default_small_model(self):
+    self.ui_state.params.get.side_effect = lambda key: None
+    assert model_info.carrying_model() == ("qcom", f"{DEFAULT_MODEL} (Default)", f"{DEFAULT_MODEL} (Default)")
 
   def test_link_active_names_the_accelerator_model(self):
     self.ui_state.chestnut_state = ChestnutState.ACTIVE
-    with mock.patch("openpilot.sunnypilot.accelerators.uses_stock_runner", return_value=True), \
+    with mock.patch("openpilot.sunnypilot.accelerators.enabled", return_value=True), \
          mock.patch("openpilot.sunnypilot.accelerators.active_model_name", return_value="big"):
       assert model_info.carrying_model() == ("accelerator", "big", "big")
 

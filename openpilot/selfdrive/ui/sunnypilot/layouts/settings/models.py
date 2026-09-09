@@ -78,8 +78,8 @@ class ModelsLayout(Widget):
       callback=self._open_accelerator_dialog
     )
 
-    # not a param-bound toggle: the write also drops manager's runner cache and
-    # is refused onroad, so it goes through accelerator_link by hand
+    # not a param-bound toggle: the write is refused onroad, so it goes through
+    # accelerator_link by hand
     self.accelerator_link_item = toggle_item_sp(
       tr("Accelerator Link"),
       self._link_description(""),

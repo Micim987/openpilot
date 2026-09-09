@@ -63,6 +63,28 @@ def _tests_name(stmt: ast.stmt, name: str) -> bool:
   return isinstance(stmt, ast.If) and isinstance(stmt.test, ast.Name) and stmt.test.id == name
 
 
+def _accelerator_calls(tree: ast.AST) -> list[tuple[int, str]]:
+  """Every `accelerators.<attr>` in the module, as (line, attr)."""
+  return [(n.lineno, n.attr) for n in ast.walk(tree)
+          if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == 'accelerators']
+
+
+def _realtime_index(body: list[ast.stmt]) -> int:
+  return _index(body, lambda s: isinstance(s, ast.Expr) and isinstance(s.value, ast.Call)
+                and isinstance(s.value.func, ast.Name) and s.value.func.id == 'config_realtime_process',
+                'the config_realtime_process call')
+
+
+def _assert_chestnut_blocks_ignore_the_accelerator(case: unittest.TestCase, tree: ast.AST) -> None:
+  for stmt in ast.walk(tree):
+    if not _tests_name(stmt, 'CHESTNUT'):
+      continue
+    # body only: the orelse of the load is the `elif JETLINK` hunk.
+    names = {n.id for stmt_ in stmt.body for n in ast.walk(stmt_) if isinstance(n, ast.Name)}
+    case.assertNotIn('accelerators', names, f"an `if CHESTNUT:` block at line {stmt.lineno} reaches the accelerator module")
+    case.assertNotIn('JETLINK', names, f"an `if CHESTNUT:` block at line {stmt.lineno} reads JETLINK")
+
+
 def _run(src: str, stmts: list[ast.stmt]) -> str:
   """The verbatim source of a run of statements, dedented so it can be exec'd."""
   lines = src.splitlines()
@@ -173,9 +195,7 @@ class ModeldSeam:
     pub_start = _index(self.body, lambda s: _assigns(s, 'chestnut_state'), 'the chestnut_state assignment')
     self.publish = _run(self.src, self.body[pub_start:pub_start + 2])
 
-    self.realtime = _index(self.body, lambda s: isinstance(s, ast.Expr) and isinstance(s.value, ast.Call)
-                           and isinstance(s.value.func, ast.Name) and s.value.func.id == 'config_realtime_process',
-                           'the config_realtime_process call')
+    self.realtime = _realtime_index(self.body)
 
   def decide_and_load(self, accel, present: bool, compiled: bool, trained: bool) -> dict:
     """Run the three blocks in order, exactly as main() does, and hand back its locals."""
@@ -290,8 +310,7 @@ class UpstreamFootprint(unittest.TestCase):
 
   def test_the_module_is_reachable_from_four_calls_in_five_hunks(self):
     lines = self.src.splitlines()
-    calls = [(n.lineno, n.attr) for n in ast.walk(self.tree)
-             if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == 'accelerators']
+    calls = _accelerator_calls(self.tree)
     sites = [f"  modeld.py:{lineno} {lines[lineno - 1].strip()}" for lineno, _ in calls]
 
     # the five hunks: decision, load, status publisher, fallback re-raise and
@@ -307,13 +326,7 @@ class UpstreamFootprint(unittest.TestCase):
     self.assertEqual(len(hunk_starts), 5, f"modeld.py's jetlink path is no longer five hunks:\n{detail}")
 
   def test_the_chestnut_block_never_mentions_the_accelerator_module(self):
-    for stmt in ast.walk(self.tree):
-      if not _tests_name(stmt, 'CHESTNUT'):
-        continue
-      # body only: the orelse of the load is the `elif JETLINK` hunk.
-      names = {n.id for stmt_ in stmt.body for n in ast.walk(stmt_) if isinstance(n, ast.Name)}
-      self.assertNotIn('accelerators', names, f"an `if CHESTNUT:` block at line {stmt.lineno} reaches the accelerator module")
-      self.assertNotIn('JETLINK', names, f"an `if CHESTNUT:` block at line {stmt.lineno} reads JETLINK")
+    _assert_chestnut_blocks_ignore_the_accelerator(self, self.tree)
 
   def test_chestnut_state_is_the_baselines(self):
     body = self._baseline_body()

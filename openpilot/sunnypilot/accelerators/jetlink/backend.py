@@ -215,7 +215,7 @@ def make_model_state(cam_w: int, cam_h: int, small=None):
     warp = ready.get('warp') if ready.get('geometry') == (img_w * 2, img_h * 2) else None
     if warp is None:
       raise RuntimeError('no prepared warp for the server model geometry')
-    return JetlinkModelState(cam_w, cam_h, client, spec, small, warp=warp)
+    return JetlinkModelState(cam_w, cam_h, client, spec, warp=warp)
 
   def connect():
     # the early client is good for one attempt; after that the join thread
@@ -275,13 +275,6 @@ def make_status_publisher(pm, model):
   return JetlinkStatus(pm, model)
 
 
-def uses_stock_runner() -> bool:
-  # the toggle alone. JetlinkModel defaults through selected_model(), so gating
-  # on it left an enabled device on modeld_tinygrad where jetlink never runs.
-  # Not presence or readiness: a late boot must not move manager mid-drive
-  return helpers.enabled()
-
-
 def model_choices() -> list[dict]:
   if not helpers.link_configured():
     return []
@@ -297,7 +290,6 @@ def select_model(name: str) -> None:
     raise ValueError(f'unknown jetlink model: {name}')
   Params().put(helpers.P_MODEL, name)
   Params().put_bool(helpers.P_ENABLED, True)
-  Params().remove('ModelRunnerTypeCache')
 
 
 def active_model_name() -> str | None:

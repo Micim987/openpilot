@@ -13,8 +13,13 @@ def prepare_reset(model):
   Its history is stale after the Jetson ran, so fallback starts from the same
   zero history as modeld startup. Nothing is allocated or compiled on the
   failure frame.
+
+  The small model is whatever bundle the user picked, stock modeld's or a
+  modeld_v2 one, so the history is whatever GPU queues it has; the NPY tensors
+  are zeroed through their numpy views.
   """
-  queues = tuple(model.input_queues[k] for k in ('img_q', 'big_img_q', 'feat_q', 'desire_q'))
+  queues = tuple(q for q in model.input_queues.values() if q.device != 'NPY')
+  npy = model.numpy_inputs if hasattr(model, 'numpy_inputs') else model.npy
 
   @TinyJit
   def clear():
@@ -26,7 +31,7 @@ def prepare_reset(model):
   def reset():
     clear()
     model.prev_desire.fill(0)
-    model.npy['prev_feat'].fill(0)
-    model.npy['desire'].fill(0)
+    for array in npy.values():
+      array.fill(0)
 
   return reset

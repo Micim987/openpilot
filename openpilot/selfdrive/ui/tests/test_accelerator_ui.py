@@ -43,10 +43,10 @@ def params(gui):
   return p
 
 
-def accelerator(present=False, ready=False, progress=None, stock=False, choices=None, installed=False):
+def accelerator(present=False, ready=False, progress=None, enabled=False, choices=None, installed=False):
   stack = ExitStack()
   for name, value in (("present", present), ("ready", ready), ("progress", progress),
-                      ("uses_stock_runner", stock), ("model_choices", choices or []),
+                      ("enabled", enabled), ("model_choices", choices or []),
                       ("unavailable_reason", None), ("installed", installed)):
     stack.enter_context(mock.patch(f"openpilot.sunnypilot.accelerators.{name}", return_value=value))
   return stack
@@ -89,7 +89,7 @@ class TestUIStateAcceleratorView:
     from openpilot.selfdrive.ui.ui_state import ui_state, ChestnutState
     saved = self._with(FakeSM(board=True))
     try:
-      with accelerator(present=True, ready=True, stock=True):
+      with accelerator(present=True, ready=True, enabled=True):
         ui_state.update_params()
       assert ui_state.accelerator_view is None
       ui_state.chestnut_compiled = True
@@ -116,18 +116,19 @@ class TestUIStateAcceleratorView:
     from openpilot.selfdrive.ui.ui_state import ui_state, ChestnutState
     saved = self._with(FakeSM(board=False))
     try:
-      with accelerator(present=True, ready=True, stock=True):
+      with accelerator(present=True, ready=True, enabled=True):
         ui_state.update_params()
       view = ui_state.accelerator_view
-      assert view is not None and view.present and view.ready and view.uses_stock_runner
+      assert view is not None and view.present and view.ready
       ui_state._update_chestnut_state()
       assert ui_state.chestnut_state == ChestnutState.READY
     finally:
       self._restore(saved)
 
-  def test_a_bundle_that_is_not_running_does_not_read_compiled(self, params):
-    """Under the accelerator override manager runs stock modeld, so a stored tinygrad
-    bundle must not make the icon say the big model is ready."""
+  def test_a_stored_tinygrad_bundle_reads_compiled_with_the_link_on_or_off(self, params):
+    """The small model is the model manager's under the link too: manager runs the
+    stored bundle's modeld, so a stored tinygrad bundle counts as compiled as it
+    does on develop, whatever the toggle says."""
     from openpilot.selfdrive.ui.ui_state import ui_state
     from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS
     saved = self._with(FakeSM(board=False))
@@ -137,15 +138,13 @@ class TestUIStateAcceleratorView:
     fake = mock.Mock(wraps=real)
     fake.get.side_effect = lambda key, *a, **k: {"runner": "tinygrad"} if key == ACTIVE_BUNDLE_KEYS["qcom"] else real.get(key, *a, **k)
     try:
-      ui_state.chestnut_compiled = False
-      ui_state.params = fake
-      with accelerator(present=True, stock=True):
-        ui_state.update_params()
-      assert ui_state.model_runner_tinygrad
-      assert ui_state.chestnut_compiled is False
-      with accelerator(present=True, stock=False):
-        ui_state.update_params()
-      assert ui_state.chestnut_compiled is True
+      for enabled in (True, False):
+        ui_state.chestnut_compiled = False
+        ui_state.params = fake
+        with accelerator(present=True, enabled=enabled):
+          ui_state.update_params()
+        assert ui_state.model_runner_tinygrad
+        assert ui_state.chestnut_compiled is True
     finally:
       ui_state.params = real
       ui_state.chestnut_compiled = compiled
@@ -155,14 +154,14 @@ class TestUIStateAcceleratorView:
     from openpilot.selfdrive.ui.ui_state import ui_state, ChestnutState
     saved = self._with(FakeSM(board=False, alive=True, recv=1, state='retrying'), started=True)
     try:
-      with accelerator(present=False, ready=True, stock=True):
+      with accelerator(present=False, ready=True, enabled=True):
         ui_state.update_params()
       assert ui_state.accelerator_view is not None
       ui_state._update_chestnut_state()
       assert ui_state.chestnut_state == ChestnutState.DISCONNECTED
 
       ui_state.sm = FakeSM(board=False, big=True, alive=True, recv=1, state='running')
-      with accelerator(present=True, ready=True, stock=True):
+      with accelerator(present=True, ready=True, enabled=True):
         ui_state.update_params()
       ui_state._update_chestnut_state()
       assert ui_state.chestnut_state == ChestnutState.ACTIVE
@@ -228,15 +227,16 @@ class TestTiciModelsPanel:
       layout._refresh_accelerator_items()
       assert layout.accelerator_link_item.description.endswith("accelerator.")
 
-  def test_toggle_writes_the_param_and_drops_the_runner_cache(self, params):
-    params.put("ModelRunnerTypeCache", 1)
-    with accelerator(present=True), mock.patch.object(ui_state_module().ui_state, "is_offroad", return_value=True):
+  def test_toggle_writes_the_param_and_leaves_the_runner_alone(self, params):
+    # the small model is the model manager's: the link does not decide which modeld runs
+    with accelerator(present=True), mock.patch.object(ui_state_module().ui_state, "is_offroad", return_value=True), \
+         mock.patch.object(params, "remove", wraps=params.remove) as remove:
       layout = self._layout()
       layout._set_link_state(True)
       assert params.get_bool("JetlinkEnabled") is True
-      assert params.get("ModelRunnerTypeCache") is None
       layout._set_link_state(False)
       assert params.get_bool("JetlinkEnabled") is False
+    assert "ModelRunnerTypeCache" not in {c.args[0] for c in remove.call_args_list}
 
   def test_toggle_is_inert_onroad(self, params):
     params.remove("JetlinkEnabled")
@@ -281,11 +281,11 @@ class TestTiciModelsPanel:
       with accelerator(present=True, choices=self.CHOICES), \
            mock.patch("openpilot.selfdrive.ui.sunnypilot.layouts.settings.models.big_model_state", return_value=None):
         layout = self._layout()
-        ui_state.accelerator_view = AcceleratorView(True, False, None, True, 'none')
+        ui_state.accelerator_view = AcceleratorView(True, False, None, 'none')
         note = layout._status_note()
         assert "chestnut" not in note
         assert "Cinque Terre will drive when the accelerator is ready." == note
-        ui_state.accelerator_view = AcceleratorView(True, True, None, True, 'none')
+        ui_state.accelerator_view = AcceleratorView(True, True, None, 'none')
         note = layout._status_note()
         assert note.startswith("Cinque Terre will drive.") and "chestnut" not in note
     finally:

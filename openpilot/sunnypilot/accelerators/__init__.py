@@ -12,8 +12,12 @@ it natively and only ask here when no board is fitted. Selection is
 
 Every function is a thin call into jetlink.backend and is safe on any device:
 feature off costs a param read, package absent answers the negative default.
-present(), ready(), progress() and uses_stock_runner() are polled by the UI at
-5 Hz and must stay cheap.
+present(), ready(), progress() and enabled() are polled by the UI at 5 Hz and
+must stay cheap.
+
+The small model is the model manager's: whichever bundle the user picked runs,
+on whichever modeld that bundle needs, and the accelerator joins that modeld.
+Nothing here changes which modeld manager runs.
 """
 from __future__ import annotations
 
@@ -77,13 +81,9 @@ def make_status_publisher(pm, model):
   return backend.make_status_publisher(pm, model)
 
 
-def uses_stock_runner() -> bool:
-  """Should manager run stock modeld regardless of the stored bundle?
-
-  Configuration only, never link state or ready(): a Jetson that boots late
-  must not move manager between modelds mid-drive.
-  """
-  return backend.uses_stock_runner()
+def enabled() -> bool:
+  """Has the user turned the link on? Configuration only, never link state or ready()."""
+  return backend.enabled()
 
 
 def model_choices() -> list[dict]:

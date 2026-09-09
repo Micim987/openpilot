@@ -7,7 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 from openpilot.selfdrive.ui.ui_state import ui_state, ChestnutState
 from openpilot.sunnypilot import accelerators
 from openpilot.sunnypilot.models.fetcher import get_cached_bundles
-from openpilot.sunnypilot.models.helpers import effective_small_bundle, get_active_source, get_selected_bundle, resolve_bundle_by_ref
+from openpilot.sunnypilot.models.helpers import get_active_source, get_selected_bundle, resolve_bundle_by_ref
 from openpilot.sunnypilot.models.model_name import DEFAULT_BIG_MODEL, DEFAULT_MODEL
 
 
@@ -71,7 +71,7 @@ def carrying_model() -> tuple[str | None, str | None, str | None]:
       name = default_model_name("qcom")
       return "qcom", name, name
     return None, None, None
-  bundle = effective_small_bundle(ui_state.params)
+  bundle = get_selected_bundle(ui_state.params, "qcom")
   if bundle:
     return "qcom", bundle.internalName, bundle.displayName
   name = default_model_name("qcom")
@@ -88,10 +88,6 @@ def queued_name(current_ref) -> str | None:
 
 
 def slot_bundle(source: str):
-  # the qcom slot reads through effective_small_bundle: under the jetlink override
-  # stock modeld runs the default small model and the stored bundle is not loaded
-  if source == "qcom":
-    return effective_small_bundle(ui_state.params)
   return get_selected_bundle(ui_state.params, source)
 
 

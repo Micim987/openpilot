@@ -45,7 +45,7 @@ class SelectionTest(unittest.TestCase):
     self.assertFalse(accelerators.present())
     self.assertFalse(accelerators.ready())
     self.assertIsNone(accelerators.unavailable_reason())
-    self.assertFalse(accelerators.uses_stock_runner())
+    self.assertFalse(accelerators.enabled())
 
   def test_disabled_explicitly(self):
     self.configure(enabled=False, model='m', ready_sha='a' * 64, spec_sha='a' * 64, gadget_error='no gadget')
@@ -53,7 +53,7 @@ class SelectionTest(unittest.TestCase):
     self.assertFalse(accelerators.ready())
     # A device with the feature off is never nagged about its kernel.
     self.assertIsNone(accelerators.unavailable_reason())
-    self.assertFalse(accelerators.uses_stock_runner())
+    self.assertFalse(accelerators.enabled())
 
   def test_enabled_but_not_provisioned(self):
     self.configure(enabled=True, model='m', ready_sha=None, spec_sha=None)
@@ -70,24 +70,23 @@ class SelectionTest(unittest.TestCase):
     self.configure(enabled=True, model='m', ready_sha='a' * 64, spec_sha='a' * 64)
     self.assertTrue(accelerators.ready())
     self.assertIsNone(accelerators.unavailable_reason())
-    self.assertTrue(accelerators.uses_stock_runner())
+    self.assertTrue(accelerators.enabled())
 
   def test_an_old_engine_is_not_the_new_selection(self):
     self.configure(enabled=True, model='m', ready_sha='b' * 64, spec_sha='b' * 64)
     self.assertFalse(accelerators.ready())
 
-  def test_stock_runner_is_the_toggle_alone(self):
-    # configuration only, never link state or ready(): a late boot cannot move
-    # manager between modelds mid-drive. The model defaults through
-    # selected_model(), so it is not part of it either
+  def test_enabled_is_the_toggle_alone(self):
+    # configuration only, never link state or ready(). The model defaults
+    # through selected_model(), so it is not part of it either
     self.configure(enabled=True, model=None)
-    self.assertTrue(accelerators.uses_stock_runner())
+    self.assertTrue(accelerators.enabled())
     self.configure(enabled=True, model='m')
     with mock.patch.object(helpers, 'link_configured', return_value=False):
-      self.assertTrue(accelerators.uses_stock_runner())
+      self.assertTrue(accelerators.enabled())
     self.configure(enabled=None, model='m')
     with mock.patch.object(helpers, 'link_configured', return_value=True):
-      self.assertFalse(accelerators.uses_stock_runner())
+      self.assertFalse(accelerators.enabled())
 
   def test_present_is_usb_independent_while_dormant(self):
     self.configure(enabled=True, model='m')
@@ -121,7 +120,7 @@ class MissingPackageTest(unittest.TestCase):
     self.hide_package()
     with mock.patch.object(helpers, '_get', return_value=None):
       self.assertFalse(accelerators.ready())
-      self.assertFalse(accelerators.uses_stock_runner())
+      self.assertFalse(accelerators.enabled())
     # a stat on the submodule, so it answers without the package on the path
     self.assertIsInstance(accelerators.installed(), bool)
 
