@@ -34,7 +34,7 @@ class LendingTest(unittest.TestCase):
     p = mock.patch.object(lending, 'RETRY', 0.01)
     self.addCleanup(p.stop)
     p.start()
-    p = mock.patch.object(lending.helpers, 'bound_udc', side_effect=lambda: self.udc)
+    p = mock.patch.object(lending.gadget, 'bound_udc', side_effect=lambda: self.udc)
     self.addCleanup(p.stop)
     self.udc = 'udc0'
     p.start()
@@ -71,7 +71,7 @@ class Borrowing(LendingTest):
     loan = self.take()
     assert loan is not None
     assert loan.udc == 'udc0'
-    assert loan.mount == str(lending.helpers.FFS_MOUNT)
+    assert loan.mount == str(lending.gadget.FFS_MOUNT)
     assert lender.lent and lender.borrower == 'modeld'
 
   def test_nobody_listening_is_not_an_error(self):

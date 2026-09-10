@@ -30,9 +30,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from openpilot.common.swaglog import cloudlog
-
-from openpilot.sunnypilot.accelerators.jetlink import helpers
+from openpilot.sunnypilot.accelerators.jetlink import gadget
 
 SOCKET = Path('/dev/shm/jetlink-lend.sock')
 # how long a borrower waits for jetlinkd to put the gadget down. It only has
@@ -110,7 +108,7 @@ class Loan:
         _send(self.conn, {'op': 'bounce'})
         reply = _recv_line(self.conn, self._buf, time.monotonic() + BOUNCE_TIMEOUT)
       except OSError:
-        cloudlog.exception("jetlink: could not ask for a gadget bounce")
+        gadget.log.exception("jetlink: could not ask for a gadget bounce")
         return False
       return bool(reply and reply.get('ok'))
 
@@ -145,14 +143,14 @@ def borrow(name: str = 'modeld', timeout: float = BORROW_TIMEOUT, path: Path = S
       if reply is None:
         break   # out of time
       if reply.get('ok'):
-        cloudlog.warning("jetlink: borrowed the gadget from jetlinkd (udc %s)", reply.get('udc'))
+        gadget.log.warning("jetlink: borrowed the gadget from jetlinkd (udc %s)", reply.get('udc'))
         return Loan(conn, buf, str(reply['mount']), str(reply['udc']))
       if not reply.get('retry'):
-        cloudlog.warning("jetlink: jetlinkd would not lend the gadget (%s)", reply.get('detail'))
+        gadget.log.warning("jetlink: jetlinkd would not lend the gadget (%s)", reply.get('detail'))
         break
       time.sleep(RETRY)
   except (OSError, ValueError, KeyError):
-    cloudlog.exception("jetlink: could not borrow the gadget")
+    gadget.log.exception("jetlink: could not borrow the gadget")
   conn.close()
   return None
 
@@ -199,7 +197,7 @@ class Lender:
     except OSError:
       # a read-only /dev/shm, or a path somebody else owns. modeld opens the
       # gadget itself when nobody answers, so this is not fatal
-      cloudlog.exception("jetlink: could not listen on %s", self.path)
+      gadget.log.exception("jetlink: could not listen on %s", self.path)
       return False
     self._sock = sock
     self._thread = threading.Thread(target=self._serve, name='jetlink_lend', daemon=True)
@@ -242,11 +240,11 @@ class Lender:
       try:
         self._handle(conn)
       except Exception:
-        cloudlog.exception("jetlink: the borrower's connection failed")
+        gadget.log.exception("jetlink: the borrower's connection failed")
       finally:
         conn.close()
         if self._lent.is_set():
-          cloudlog.warning("jetlink: %s handed the gadget back", self.borrower or 'the borrower')
+          gadget.log.warning("jetlink: %s handed the gadget back", self.borrower or 'the borrower')
         self._lent.clear()
         self.borrower = ''
 
@@ -269,17 +267,17 @@ class Lender:
       first = not self._lent.is_set()
       self.borrower = str(msg.get('name') or 'a borrower')
       self._lent.set()
-      udc = helpers.bound_udc()
+      udc = gadget.bound_udc()
       if not (udc and self._lendable()):
         # the daemon is mid-exchange, or has not bound yet. It sees `lent` on
         # its next cycle and puts the endpoints down for us
         _send(conn, {'ok': False, 'retry': True, 'detail': 'the gadget is still in use here'})
         return
       if first:
-        cloudlog.warning("jetlink: lending the gadget to %s, udc %s", self.borrower, udc)
-      _send(conn, {'ok': True, 'udc': udc, 'mount': str(helpers.FFS_MOUNT)})
+        gadget.log.warning("jetlink: lending the gadget to %s, udc %s", self.borrower, udc)
+      _send(conn, {'ok': True, 'udc': udc, 'mount': str(gadget.FFS_MOUNT)})
     elif op == 'bounce':
-      cloudlog.warning("jetlink: %s asked for a gadget bounce", self.borrower)
+      gadget.log.warning("jetlink: %s asked for a gadget bounce", self.borrower)
       _send(conn, {'ok': bool(self._bounce())})
     else:
       _send(conn, {'ok': False, 'detail': f'unknown op {op!r}'})

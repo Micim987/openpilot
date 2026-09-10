@@ -119,10 +119,14 @@ def active_model_name() -> str | None:
 
 
 def daemons() -> list[Daemon]:
-  """Processes for process_config to build. They run onroad too: jetlinkd owns
-  the USB gadget for as long as the link is enabled, and a gadget whose owner
-  exits is an unplug the far end has to recover from."""
-  return [Daemon("jetlinkd", "openpilot.sunnypilot.accelerators.jetlink.jetlinkd",
+  """Processes for process_config to build.
+
+  One, and it runs onroad too: it owns the USB gadget for as long as the link
+  is enabled, and a gadget whose owner exits is an unplug the far end has to
+  recover from. It is about 13 MB because it does nothing else; the heavy half
+  is a run it starts when there is provisioning to do, and that exits.
+  """
+  return [Daemon("jetlinkd", "openpilot.sunnypilot.accelerators.jetlink.owner",
                  lambda started, params, CP: _backend().enabled())]
 
 
