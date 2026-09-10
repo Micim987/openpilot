@@ -1,3 +1,14 @@
+zoompilot v2026.09.10-14
+========================
+Jetlink: models build while you drive, a lighter footprint, and a link that stays up
+* Large models build onroad. A model that is not built yet no longer waits for a parked car. The small model drives, the Jetson builds, the panel counts it down, and the large model joins at the first stop with cruise off. For anyone whose Jetson only powers up with the ignition, this is the difference between building and never building.
+* Jetlink costs the comma less. The process that holds the USB link is about 10 MB and almost no CPU while driving. Everything heavy, the download, the upload and the TensorRT build, now runs only while it is working and exits when it is done.
+* The link stays up across engage, disengage and the offroad and onroad edges. The comma holds one connection to the Jetson for as long as the link is enabled instead of dropping and reopening it at every transition, so the icon no longer blinks and the large model no longer has to rejoin mid-drive.
+
+zoompilot v2026.09.07-13
+========================
+* Jetlink: support for Jetson Nano hardware as an accelerator
+
 sunnypilot Version 2026.002.000 (2026-06-28)
 ========================
 * What's Changed (sunnypilot/sunnypilot)
