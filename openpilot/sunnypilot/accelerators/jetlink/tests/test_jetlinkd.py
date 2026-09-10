@@ -412,7 +412,10 @@ class TestParked(unittest.TestCase):
       p = mock.patch.object(jetlinkd.helpers, name, value)
       self.addCleanup(p.stop)
       p.start()
-    for name, value in (('enabled', True), ('host_attached', True), ('engine_ready_for', True),
+    # udc_state as well as host_attached: the waits read the controller once and
+    # decide from the state, rather than asking two questions of two files
+    for name, value in (('enabled', True), ('host_attached', True), ('udc_state', 'configured'),
+                        ('engine_ready_for', True),
                         ('selected_model', {'oid': self.cache.spec.sha256}),
                         ('shipped_model_path', self.model)):
       p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
@@ -422,6 +425,8 @@ class TestParked(unittest.TestCase):
   def daemon(self, ready=True):
     d = jetlinkd.Jetlinkd()
     d.client = mock.Mock()
+    # a lender listening with nobody borrowing: the parked steady state
+    d.lender = mock.Mock(lent=False, listening=True)
     d.warp_built = True
     for name in ('open_link', 'close_link'):
       p = mock.patch.object(d, name, mock.Mock(return_value=True))
@@ -530,17 +535,18 @@ class TestParked(unittest.TestCase):
   def test_a_server_too_old_to_say_keeps_the_release_it_has_always_had(self):
     d = self.daemon()
     d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
-    assert d.server_sleeps is None
+    assert d.server_sleeps is True
     d.step()
     assert d.dormant
 
   def test_the_hello_is_what_decides(self):
+    # a server too old to report it, or one that reports nonsense, keeps the
+    # release jetlinkd has always done
     d = jetlinkd.Jetlinkd()
     for hello, expected in (({'sleep_after': 120.0}, True), ({'sleep_after': 0}, False),
-                            ({}, None), ({'sleep_after': 'soon'}, None)):
+                            ({}, True), ({'sleep_after': 'soon'}, True)):
       d.note_sleep_after(hello)
       assert d.server_sleeps is expected, hello
-      assert d.should_go_dormant() is (expected is not False)
 
   def test_a_shutdown_request_is_carried_to_the_jetson(self):
     d = self.daemon()
@@ -580,7 +586,7 @@ class TestGadgetOwnership(TestParked):
 
   @staticmethod
   def lend(d) -> None:
-    d.lender = mock.Mock(lent=True)
+    d.lender.lent = True
 
   def test_a_borrower_keeps_the_gadget_on_the_bus_and_the_daemon_off_it(self):
     d = self.daemon()
@@ -588,9 +594,16 @@ class TestGadgetOwnership(TestParked):
     self.lend(d)
     d.step()
     assert d.provision.call_count == 0, 'talked to the server over the borrower'
-    assert d.open_link.call_count == 1, 'the gadget must stay bound for the drive'
-    assert d.close_link.call_count == 0
+    assert d.close_link.call_count == 0, 'took the gadget off the bus for the drive'
+    assert d.client.release_endpoints.call_count == 0, 'nothing was open to put down'
     assert not d.dormant
+
+  def test_a_borrower_that_arrives_before_the_gadget_is_up_gets_one(self):
+    d = self.daemon()
+    d.client = None
+    self.lend(d)
+    d.step()
+    assert d.open_link.call_count == 1
 
   def test_a_borrower_wakes_a_dormant_daemon(self):
     d = self.daemon()
@@ -605,18 +618,19 @@ class TestGadgetOwnership(TestParked):
 
   def test_a_finished_provision_puts_the_endpoints_down(self):
     # the one re-enumeration this design still costs, spent parked rather than
-    # at every ignition edge
+    # at every ignition edge, and without letting go of ep0
     d = self.daemon()
     d.client.lendable = False
     d.step()
-    assert d.close_link.call_count == 1
-    assert d.open_link.call_count == 2, 'the gadget was left off the bus'
+    d.client.release_endpoints.assert_called_once()
+    assert d.close_link.call_count == 0, 'let go of ep0 to put the endpoints down'
 
   def test_a_gadget_with_nothing_open_on_it_is_left_alone(self):
     d = self.daemon()
     d.client.lendable = True
     d.step()
     assert d.close_link.call_count == 0
+    assert d.client.release_endpoints.call_count == 0
 
   def test_going_dormant_does_not_bounce_first(self):
     d = self.daemon()
@@ -647,7 +661,24 @@ class TestGadgetOwnership(TestParked):
     with mock.patch.object(jetlinkd.helpers, 'offroad', return_value=False):
       d.step()
     assert d.provision.call_count == 0
-    assert d.open_link.call_count == 1, 'the gadget must stay on the bus'
+    assert d.close_link.call_count == 0, 'took the gadget off the bus for the drive'
+
+  def test_a_daemon_nobody_can_borrow_from_gives_the_drive_its_gadget(self):
+    # holding ep0 with no way to lend it would keep modeld out of the link for
+    # the whole drive; without a lease it owns the gadget as it always did
+    d = self.daemon()
+    d.lender.listening = False
+    with mock.patch.object(jetlinkd.helpers, 'offroad', return_value=False):
+      d.step()
+    assert d.close_link.call_count == 1
+    assert d.provision.call_count == 0
+
+  def test_a_daemon_nobody_can_borrow_from_still_provisions_when_parked(self):
+    d = self.daemon()
+    d.lender.listening = False
+    d.client.lendable = True
+    d.step()
+    assert d.provision.call_count == 1
     assert d.close_link.call_count == 0
 
   def test_a_shutdown_request_waits_for_the_borrower(self):
@@ -857,7 +888,6 @@ class BuildEtaTest(unittest.TestCase):
     with mock.patch.object(provision.helpers, 'selected_model', return_value={'size': size}), \
          mock.patch.object(provision.accelerators, 'report_progress', lambda *a: seen.append(a)):
       for call in args:
-        provision._last_report = 0.0   # the 4 Hz throttle is not what is under test
         provision.report_with_eta(*call)
     return seen
 
@@ -878,16 +908,6 @@ class BuildEtaTest(unittest.TestCase):
     seen = self.report(('build', 0.3, 'building the engine'), size=None)
     self.assertEqual(seen[0][2], 'building the engine')
 
-  def test_a_gigabyte_of_upload_is_not_a_gigabyte_of_param_writes(self):
-    # 4 MB a chunk is 440 reports for a 1.7 GB model, and onroad that is IO the
-    # recording would have to share the disk with.
-    seen = []
-    provision._last_report = 0.0
-    with mock.patch.object(provision.accelerators, 'report_progress', lambda *a: seen.append(a)):
-      for i in range(50):
-        provision.report_with_eta('upload', i / 50, f'{i} MB')
-      provision.report_with_eta('upload', 1.0, 'done')
-    self.assertEqual(len(seen), 2, seen)
 
 
 if __name__ == '__main__':

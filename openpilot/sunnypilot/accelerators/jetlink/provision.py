@@ -17,7 +17,6 @@ what the server ended up with.
 from __future__ import annotations
 
 import functools
-import time
 from pathlib import Path
 
 from openpilot.common.swaglog import cloudlog
@@ -29,12 +28,6 @@ from openpilot.sunnypilot.accelerators.jetlink import helpers, spec_cache
 # hardware; the ceiling is only there so a server that has stopped answering
 # does not hold the caller for the rest of the day.
 BUILD_TIMEOUT = 1800.0
-# Progress is a param write, and the upload reports one per 4 MB chunk: a
-# 1.7 GB model is 440 of them. The server throttles its own to 4 Hz; this
-# holds the whole stream to the same rate, which onroad is IO the recording
-# does not have to share the disk with.
-REPORT_MIN_INTERVAL = 0.25
-_last_report = 0.0
 
 
 def identity(entry: dict) -> tuple[str, int]:
@@ -52,6 +45,12 @@ def identity(entry: dict) -> tuple[str, int]:
   return helpers.resolve_pointer(entry['ref'])
 
 
+# What has already been hashed this run, keyed on the file as it was then. A
+# join that fails and tries again would otherwise read a gigabyte off the disk
+# every time, on a thread that is now doing it next to a running frame loop.
+_hashed: dict[tuple[str, int, int], str] = {}
+
+
 def verified_upload(model_path: Path | None, sha256: str, nbytes: int) -> Path | None:
   """The file to upload, once its hash is proven to match the registry.
 
@@ -62,12 +61,17 @@ def verified_upload(model_path: Path | None, sha256: str, nbytes: int) -> Path |
   if model_path is None:
     return None
   try:
-    if model_path.stat().st_size != nbytes:
+    st = model_path.stat()
+    if st.st_size != nbytes:
       cloudlog.error("jetlink: %s is %d bytes, the registry says %d; not uploading it",
-                     model_path.name, model_path.stat().st_size, nbytes)
+                     model_path.name, st.st_size, nbytes)
       return None
-    from jetlink.spec import sha256_file
-    have, _ = sha256_file(str(model_path))
+    key = (str(model_path), st.st_size, st.st_mtime_ns)
+    have = _hashed.get(key)
+    if have is None:
+      from jetlink.spec import sha256_file
+      have, _ = sha256_file(str(model_path))
+      _hashed[key] = have
     if have != sha256:
       cloudlog.error("jetlink: %s hashes to %s, the registry says %s; not uploading it",
                      model_path.name, have[:16], sha256[:16])
@@ -121,11 +125,6 @@ def report_with_eta(stage: str, frac: float, msg: str = '') -> None:
   the build is estimated: the upload reports MB of MB and a connect has
   nothing to predict.
   """
-  global _last_report
-  now = time.monotonic()
-  if frac < 1.0 and now - _last_report < REPORT_MIN_INTERVAL:
-    return
-  _last_report = now
   if stage == 'build':
     size = (helpers.selected_model() or {}).get('size')
     if size:

@@ -180,10 +180,10 @@ class Jetlinkd:
     self.started = time.monotonic()
     self.dormant = False     # released the gadget on purpose; see go_dormant
     self.vm_tuned = False    # our sysctls are in; restored only on disable
-    # does the far end suspend when the gadget goes? From the server's hello.
-    # None until one has answered, and for a server old enough not to report
-    # it at all, where the release it has always had is the safer guess
-    self.server_sleeps: bool | None = None
+    # does the far end suspend when the gadget goes? From the server's hello,
+    # and true until one says otherwise: a server too old to report it keeps
+    # the release it has always had
+    self.server_sleeps = True
     # modeld's lease on the endpoint files. This daemon holds ep0 and the bind
     # throughout, onroad included, so the link never leaves the bus
     self.lender = lending.Lender(self.lendable, self.bounce_gadget)
@@ -237,26 +237,22 @@ class Jetlinkd:
   def settle(self) -> None:
     """Put the gadget back to bound with nothing open on it.
 
-    An exchange leaves a read queued on the endpoint, and FunctionFS keeps it
-    queued until something completes it: nobody else may read that endpoint
-    until it does, and the only thing that dequeues it is the unbind. So this
-    design still costs one re-enumeration, and it is spent here, parked, right
-    after provisioning, instead of at every ignition edge.
+    ep0 and the descriptors stay here throughout; only the endpoint files go.
+    See FfsTransport.release_endpoints for why that still costs the far end one
+    re-enumeration, and why it is spent here, parked, right after provisioning,
+    instead of at every ignition edge.
 
     The wait is what keeps the loop from reading its own bounce as a host
     coming and going, which would have it re-verify, provision and settle
     again for as long as the car is parked.
     """
-    if self.lendable():
+    if self.client is None or self.lendable():
       return
     cloudlog.warning("jetlink: putting the endpoints down, keeping the gadget bound")
-    self.close_link()
-    if not self.open_link():
-      return
-    deadline = time.monotonic() + SETTLE_TIMEOUT
-    while not helpers.host_attached() and not self.stop and time.monotonic() < deadline:
-      time.sleep(0.1)
-    self.was_attached = helpers.host_attached()
+    if not self.client.release_endpoints():
+      return   # nothing to put down: a tcp link, or one on its way out
+    self.was_attached = helpers.wait_for_host(SETTLE_TIMEOUT, bounce=self.bounce_gadget,
+                                              should_stop=lambda: self.stop)
 
   def hold_for_borrower(self) -> None:
     """Everything this daemon does once the car is moving.
@@ -267,8 +263,10 @@ class Jetlinkd:
     """
     if self.dormant:
       self.wake()
-    if self.ensure_gadget() and self.open_link():
-      self.settle()
+    if self.client is not None:
+      return self.settle()      # the usual case: nothing to read, nothing to do
+    if self.ensure_gadget():
+      self.open_link()
 
   def ensure_gadget(self) -> bool:
     """Is there a gadget to present? Create it if boot did not.
@@ -411,29 +409,21 @@ class Jetlinkd:
   # -- the parked car -------------------------------------------------------
 
   def note_sleep_after(self, hello: dict) -> None:
-    """Record whether the server suspends itself when the gadget goes."""
+    """Record whether the server suspends itself when the gadget goes.
+
+    Letting go is only worth what it costs if the Jetson sleeps when it is
+    orphaned. On ignition power it does not, and releasing anyway meant a
+    powered, awake box spent the whole parked period unenumerated: the icon
+    read DISCONNECTED five seconds later, and every handover after that was an
+    unplug the server had to recover from.
+    """
     try:
       after = hello.get('sleep_after')
-      sleeps = None if after is None else float(after) > 0
+      self.server_sleeps = True if after is None else float(after) > 0
     except (TypeError, ValueError):
-      sleeps = None
-    if sleeps != self.server_sleeps:
-      cloudlog.warning("jetlink: the jetson %s when the gadget goes",
-                       "sleeps" if sleeps else "stays up" if sleeps is False else
-                       "does not say whether it sleeps")
-    self.server_sleeps = sleeps
-
-  def should_go_dormant(self) -> bool:
-    """Is letting go of the gadget worth what it costs?
-
-    Only if the Jetson sleeps when it is orphaned. On ignition power it does
-    not, and releasing anyway meant a powered, awake box spent the whole
-    parked period unenumerated: the icon read DISCONNECTED five seconds later,
-    and every handover after that was an unplug the server had to recover
-    from. A server that reports nothing predates the field, and keeping the
-    release it has always had is the safer guess there.
-    """
-    return self.server_sleeps is not False
+      self.server_sleeps = True
+    cloudlog.warning("jetlink: the jetson %s when the gadget goes",
+                     "sleeps" if self.server_sleeps else "stays up")
 
   def go_dormant(self) -> None:
     """Release the gadget so the Jetson can sleep. The marker goes first so
@@ -470,11 +460,9 @@ class Jetlinkd:
         self.wake()
       if not self.open_link():
         raise RuntimeError("could not present the gadget")
-      deadline = time.monotonic() + WAKE_TIMEOUT
-      while not helpers.host_attached():
-        if self.stop or time.monotonic() > deadline:
-          raise TimeoutError(f"no jetson attached within {WAKE_TIMEOUT:.0f} s")
-        time.sleep(0.25)
+      if not helpers.wait_for_host(WAKE_TIMEOUT, bounce=self.bounce_gadget,
+                                   should_stop=lambda: self.stop):
+        raise TimeoutError(f"no jetson attached within {WAKE_TIMEOUT:.0f} s")
       resp = self.client.shutdown(reason, timeout=5.0)
       cloudlog.warning("jetlink: jetson answered the shutdown request: %s", resp)
     except Exception:
@@ -522,6 +510,15 @@ class Jetlinkd:
       # hardwared only shuts a parked car down, and a borrower has the
       # endpoints: this cannot talk over it
       self.shutdown_jetson(reason)
+      return
+
+    if not self.lender.listening and not helpers.offroad():
+      # nobody can ask us for the endpoints, so ep0 in this process's hands
+      # would only keep modeld out of the link for the whole drive. Give the
+      # gadget up and let it own the link the way it did before there was a
+      # lease: one handover, which is what this arrangement improves on, not
+      # something it depends on
+      self.close_link()
       return
 
     if self.lender.lent or not helpers.offroad():
@@ -573,7 +570,7 @@ class Jetlinkd:
       self.next_provision = 0.0
       if not self.ready:
         return
-      if self.should_go_dormant() and time.monotonic() - self.started >= DORMANT_HOLD:
+      if self.server_sleeps and time.monotonic() - self.started >= DORMANT_HOLD:
         self.go_dormant()
       else:
         # nothing more to say to the server. Put the endpoints down while the
@@ -592,7 +589,8 @@ class Jetlinkd:
       self.next_provision = time.monotonic() + self.backoff()
 
   def run(self) -> None:
-    self.lender.start()
+    if not self.lender.start():
+      cloudlog.error("jetlink: nothing can borrow the gadget from us; modeld will open it itself")
     if helpers.enabled():
       self.tune_vm()
       try:

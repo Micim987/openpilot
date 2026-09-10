@@ -24,6 +24,7 @@ manager runs.
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable
 from typing import NamedTuple
 
@@ -35,6 +36,11 @@ from openpilot.sunnypilot.accelerators.jetlink import backend
 # written by jetlinkd and the joining state, read by the UI; a param because
 # the writer is another process
 P_PROGRESS = "AcceleratorProgress"
+# Each report is a file write, and the UI reads it at 5 Hz. An upload reports
+# once per 4 MB chunk, 440 of them for a 1.7 GB model, and onroad that is IO a
+# recording would have to share the disk with.
+PROGRESS_MIN_INTERVAL = 0.25
+_last_progress = ('', 0.0)
 
 
 class Daemon(NamedTuple):
@@ -119,7 +125,17 @@ def progress() -> dict | None:
 
 
 def report_progress(stage: str, frac: float, msg: str = '') -> None:
-  """Never raises: called from except handlers."""
+  """Never raises: called from except handlers.
+
+  Held to 4 Hz within a stage. The end of one always goes through, so the last
+  thing the panel is told is never dropped.
+  """
+  global _last_progress
+  last_stage, last_at = _last_progress
+  now = time.monotonic()
+  if frac < 1.0 and stage == last_stage and now - last_at < PROGRESS_MIN_INTERVAL:
+    return
+  _last_progress = (stage, now)
   try:
     Params().put(P_PROGRESS, {'stage': stage, 'frac': round(frac, 4), 'msg': msg})
   except Exception:

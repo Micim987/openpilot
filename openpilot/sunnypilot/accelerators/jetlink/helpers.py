@@ -86,14 +86,6 @@ def gadget_error() -> str | None:
   return reason.removeprefix('error:').strip() or None
 
 
-def gadget_bound() -> bool:
-  """Has our gadget been attached to a device controller?"""
-  try:
-    return bool((GADGET_PATH / "UDC").read_text().strip())
-  except OSError:
-    return False
-
-
 def bound_udc() -> str | None:
   """The device controller our gadget is attached to, if it is attached."""
   try:
@@ -135,6 +127,55 @@ def port_has_host() -> bool:
   except (OSError, ValueError):
     return False
 
+
+# how long the UDC may sit half enumerated with a host on the cable before the
+# gadget is bounced. A real enumeration is milliseconds; this only fires for a
+# host that answered the bind with a bus reset and then stopped, which is what
+# an unarmed hub does to a box asleep. See FfsTransport.rebind
+STALLED_ENUMERATION = 20.0
+STALLED_STATES = ('default', 'addressed')
+HOST_POLL = 0.5
+
+
+def wait_for_host(timeout: float, bounce=None, should_stop=None, report=None) -> bool:
+  """Wait for the Jetson to enumerate us, bouncing a bus that stalled.
+
+  The gadget stays bound throughout. An unbind is an unplug as the far end sees
+  it, and while one boots it takes ~50 s a cycle: doing that on a timer landed
+  an unplug on a box that was seconds from enumerating.
+
+  The one case that needs an edge is a host that took the bind as a wake, reset
+  the bus and stopped. The UDC then sits in default or addressed with the CC
+  pin still showing a host, and only another connect moves it: that is what
+  `bounce` is for, and it is spent once.
+  """
+  deadline = time.monotonic() + timeout
+  stalled_since = None
+  bounced = False
+  reported = False
+  while True:
+    state = udc_state()
+    if state == "configured":
+      return True
+    now = time.monotonic()
+    if now >= deadline or (should_stop is not None and should_stop()):
+      return False
+    if report is not None and not reported:
+      reported = True
+      report()
+    if state in STALLED_STATES and port_has_host():
+      stalled_since = now if stalled_since is None else stalled_since
+      if not bounced and bounce is not None and now - stalled_since > STALLED_ENUMERATION:
+        bounced = True
+        cloudlog.warning("jetlink: the bus has been half enumerated for %.0f s, bouncing the gadget",
+                         STALLED_ENUMERATION)
+        try:
+          bounce()
+        except Exception:
+          cloudlog.exception("jetlink: could not bounce the gadget")
+    else:
+      stalled_since = None
+    time.sleep(HOST_POLL)
 
 def package_installed() -> bool:
   """Is the jetlink submodule checked out? A stat, not an import: the UI asks at 5 Hz."""

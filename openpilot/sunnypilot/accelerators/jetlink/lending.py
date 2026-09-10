@@ -17,7 +17,8 @@ FunctionFS keeps a queued read queued until something completes it, so a second
 reader would sit behind the first and take its reply. This is the handshake for
 that: modeld borrows for the length of a drive, jetlinkd stays off the
 endpoints while it does, and the connection is the lease, so a modeld that is
-killed returns it by dying.
+killed returns it by dying. There is no "give it back" message: the socket
+closing is the only signal, because it is the only one a killed process sends.
 """
 from __future__ import annotations
 
@@ -48,86 +49,16 @@ def _send(conn: socket.socket, msg: dict) -> None:
   conn.sendall(json.dumps(msg).encode() + b'\n')
 
 
-class Loan:
-  """The right to do endpoint IO on a gadget jetlinkd owns.
+def _recv_line(conn: socket.socket, buf: bytearray, deadline: float) -> dict | None:
+  """One json message off the socket, or None if the deadline passes first.
 
-  Held for the life of the process: modeld is stopped at every ignition-off, so
-  the socket closing is what hands the link back, and a modeld that was
-  SIGKILLed hands it back the same way.
-  """
+  Both ends speak newline-delimited json over a stream, so a message can arrive
+  in pieces or with the next one behind it, and the recv timeout is a poll
+  rather than a refusal: the lender answers one borrower at a time and can be a
+  moment late while it lets go of the one before.
 
-  def __init__(self, conn: socket.socket, mount: str, udc: str):
-    self.conn = conn
-    self.mount = mount
-    self.udc = udc
-    self._lock = threading.Lock()
-    self._closed = False
-
-  def bounce(self) -> bool:
-    """Ask the owner to take the gadget down and put it back up.
-
-    The only thing that dequeues a FunctionFS write nobody is reading is the
-    unbind, and the unbind belongs to whoever holds ep0. Called from the write
-    watchdog, on a link that is already 15 s stuck, so the re-enumeration it
-    costs is not the expensive part.
-    """
-    with self._lock:
-      if self._closed:
-        return False
-      try:
-        self.conn.settimeout(BOUNCE_TIMEOUT)
-        _send(self.conn, {'op': 'bounce'})
-        return bool(json.loads(self.conn.recv(4096) or b'{}').get('ok'))
-      except (OSError, ValueError):
-        cloudlog.exception("jetlink: could not ask for a gadget bounce")
-        return False
-
-  def close(self) -> None:
-    with self._lock:
-      self._closed = True
-      try:
-        self.conn.close()
-      except OSError:
-        pass
-
-
-_held: Loan | None = None
-_held_lock = threading.Lock()
-
-
-def borrow(name: str = 'modeld', timeout: float = BORROW_TIMEOUT, path: Path = SOCKET) -> Loan | None:
-  """Ask jetlinkd for the endpoints, or None if there is nobody to ask.
-
-  None is the ordinary answer on a device where the link was only just turned
-  on, or whose daemon died: the caller opens the gadget itself, as it always
-  did, so a drive never loses the large model to a daemon fault.
-
-  One loan per process, kept: a join that fails and tries again wants the link
-  it already has, not another lease.
-  """
-  global _held
-  with _held_lock:
-    if _held is not None and not _held._closed:
-      return _held
-    _held = _open(name, timeout, path)
-    return _held
-
-
-def release() -> None:
-  """Hand the link back without exiting. Only the tests need this; a drive
-  ends by modeld being stopped."""
-  global _held
-  with _held_lock:
-    if _held is not None:
-      _held.close()
-      _held = None
-
-
-def _reply(conn: socket.socket, buf: bytearray, deadline: float) -> dict | None:
-  """One json line back, waiting out the recv timeout until the deadline.
-
-  The lender answers one borrower at a time, so a reply can be a moment late
-  while it lets go of the one before; a recv timeout is not a refusal.
+  The peer going away raises, because that is the one thing neither end may
+  read as "nothing yet": for the lender it is the whole lease ending.
   """
   while time.monotonic() < deadline:
     if b'\n' in buf:
@@ -139,12 +70,66 @@ def _reply(conn: socket.socket, buf: bytearray, deadline: float) -> dict | None:
     except TimeoutError:
       continue
     if not chunk:
-      return None
+      raise ConnectionResetError('the peer closed the link socket')
     buf.extend(chunk)
   return None
 
 
-def _open(name: str, timeout: float, path: Path) -> Loan | None:
+class Loan:
+  """The right to do endpoint IO on a gadget jetlinkd owns.
+
+  Held for the length of a drive: modeld is stopped at every ignition-off and
+  SIGKILLed if it lingers, so the socket closing is how the link is handed
+  back, and a modeld that crashed hands it back the same way.
+  """
+
+  def __init__(self, conn: socket.socket, buf: bytearray, mount: str, udc: str):
+    self.conn = conn
+    self.mount = mount
+    self.udc = udc
+    self._buf = buf
+    self._lock = threading.Lock()
+    self._closed = False
+
+  @property
+  def closed(self) -> bool:
+    return self._closed
+
+  def bounce(self) -> bool:
+    """Ask the owner to take the gadget down and put it back up.
+
+    The only thing that dequeues a FunctionFS write nobody is reading is the
+    unbind, and the unbind belongs to whoever holds ep0. Called from the write
+    watchdog on a link that is already 15 s stuck, so the re-enumeration it
+    costs is not the expensive part.
+    """
+    with self._lock:
+      if self._closed:
+        return False
+      try:
+        _send(self.conn, {'op': 'bounce'})
+        reply = _recv_line(self.conn, self._buf, time.monotonic() + BOUNCE_TIMEOUT)
+      except OSError:
+        cloudlog.exception("jetlink: could not ask for a gadget bounce")
+        return False
+      return bool(reply and reply.get('ok'))
+
+  def close(self) -> None:
+    with self._lock:
+      self._closed = True
+      try:
+        self.conn.close()
+      except OSError:
+        pass
+
+
+def borrow(name: str = 'modeld', timeout: float = BORROW_TIMEOUT, path: Path = SOCKET) -> Loan | None:
+  """Ask jetlinkd for the endpoints, or None if there is nobody to ask.
+
+  None is the ordinary answer on a device where the link was only just turned
+  on, or whose daemon died: the caller opens the gadget itself, as it always
+  did, so a drive never loses the large model to a daemon fault.
+  """
   deadline = time.monotonic() + timeout
   try:
     conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -156,12 +141,12 @@ def _open(name: str, timeout: float, path: Path) -> Loan | None:
   try:
     while time.monotonic() < deadline:
       _send(conn, {'op': 'borrow', 'name': name})
-      reply = _reply(conn, buf, deadline)
+      reply = _recv_line(conn, buf, deadline)
       if reply is None:
-        break
+        break   # out of time
       if reply.get('ok'):
         cloudlog.warning("jetlink: borrowed the gadget from jetlinkd (udc %s)", reply.get('udc'))
-        return Loan(conn, str(reply['mount']), str(reply['udc']))
+        return Loan(conn, buf, str(reply['mount']), str(reply['udc']))
       if not reply.get('retry'):
         cloudlog.warning("jetlink: jetlinkd would not lend the gadget (%s)", reply.get('detail'))
         break
@@ -189,6 +174,12 @@ class Lender:
     self._thread: threading.Thread | None = None
     self._stop = threading.Event()
     self._lent = threading.Event()
+
+  @property
+  def listening(self) -> bool:
+    """Can anybody ask us for the endpoints? If not, holding ep0 only keeps
+    the borrower out; see Jetlinkd.step."""
+    return self._sock is not None
 
   @property
   def lent(self) -> bool:
@@ -261,28 +252,18 @@ class Lender:
 
   def _handle(self, conn: socket.socket) -> None:
     conn.settimeout(POLL)
-    buf = b''
+    buf = bytearray()
     while not self._stop.is_set():
       try:
-        chunk = conn.recv(4096)
-      except TimeoutError:
-        continue
-      except OSError:
-        return
-      if not chunk:
-        return   # the borrower exited, or was killed mid-drive
-      buf += chunk
-      while b'\n' in buf:
-        line, _, buf = buf.partition(b'\n')
-        if not self._answer(conn, line):
-          return
+        msg = _recv_line(conn, buf, time.monotonic() + POLL)
+      except (OSError, ValueError):
+        return   # the borrower exited, was killed mid-drive, or is not one
+      # None is only the poll coming round again; the lease ends on EOF, which
+      # is what a modeld that manager stopped or SIGKILLed sends
+      if msg is not None:
+        self._answer(conn, msg)
 
-  def _answer(self, conn: socket.socket, line: bytes) -> bool:
-    """False ends the loan."""
-    try:
-      msg = json.loads(line)
-    except ValueError:
-      return True
+  def _answer(self, conn: socket.socket, msg: dict) -> None:
     op = msg.get('op')
     if op == 'borrow':
       first = not self._lent.is_set()
@@ -291,18 +272,14 @@ class Lender:
       udc = helpers.bound_udc()
       if not (udc and self._lendable()):
         # the daemon is mid-exchange, or has not bound yet. It sees `lent` on
-        # its next cycle and puts the gadget down for us
+        # its next cycle and puts the endpoints down for us
         _send(conn, {'ok': False, 'retry': True, 'detail': 'the gadget is still in use here'})
-        return True
+        return
       if first:
         cloudlog.warning("jetlink: lending the gadget to %s, udc %s", self.borrower, udc)
       _send(conn, {'ok': True, 'udc': udc, 'mount': str(helpers.FFS_MOUNT)})
-      return True
-    if op == 'bounce':
+    elif op == 'bounce':
       cloudlog.warning("jetlink: %s asked for a gadget bounce", self.borrower)
       _send(conn, {'ok': bool(self._bounce())})
-      return True
-    if op == 'return':
-      return False
-    _send(conn, {'ok': False, 'detail': f'unknown op {op!r}'})
-    return True
+    else:
+      _send(conn, {'ok': False, 'detail': f'unknown op {op!r}'})

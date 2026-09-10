@@ -28,7 +28,6 @@ class LendingTest(unittest.TestCase):
     # spends most of that before the filename
     self.dir = Path(tempfile.mkdtemp(dir='/tmp'))
     self.addCleanup(shutil.rmtree, self.dir, True)
-    self.addCleanup(lending.release)
     self.path = self.dir / 's'
     self.free = True          # the daemon has nothing open on the endpoints
     self.bounced = 0
@@ -45,6 +44,12 @@ class LendingTest(unittest.TestCase):
     assert lender.start()
     self.addCleanup(lender.stop)
     return lender
+
+  def take(self, **kw):
+    loan = lending.borrow(path=self.path, **kw)
+    if loan is not None:
+      self.addCleanup(loan.close)
+    return loan
 
   def bounce(self) -> bool:
     self.bounced += 1
@@ -63,7 +68,7 @@ class LendingTest(unittest.TestCase):
 class Borrowing(LendingTest):
   def test_a_borrower_is_told_where_the_gadget_is(self):
     lender = self.lender()
-    loan = lending.borrow(path=self.path)
+    loan = self.take()
     assert loan is not None
     assert loan.udc == 'udc0'
     assert loan.mount == str(lending.helpers.FFS_MOUNT)
@@ -72,7 +77,7 @@ class Borrowing(LendingTest):
   def test_nobody_listening_is_not_an_error(self):
     # the link was only just turned on, or the daemon died. The caller opens
     # the gadget itself, as it always did
-    assert lending.borrow(path=self.path, timeout=0.1) is None
+    assert self.take(timeout=0.1) is None
 
   def test_the_daemon_is_told_to_get_off_the_endpoints_before_it_says_yes(self):
     # a borrow that lands while the daemon is mid-exchange: it hears about it
@@ -81,7 +86,7 @@ class Borrowing(LendingTest):
     lender = self.lender()
     got = []
     import threading
-    t = threading.Thread(target=lambda: got.append(lending.borrow(path=self.path, timeout=3.0)), daemon=True)
+    t = threading.Thread(target=lambda: got.append(self.take(timeout=3.0)), daemon=True)
     t.start()
     assert self.until(lambda: lender.lent), 'the daemon was never told to let go'
     assert not got, 'lent the endpoints while they were still in use'
@@ -92,38 +97,25 @@ class Borrowing(LendingTest):
   def test_a_borrow_nobody_can_answer_gives_up_and_says_so(self):
     self.free = False
     lender = self.lender()
-    assert lending.borrow(path=self.path, timeout=0.2) is None
+    assert self.take(timeout=0.2) is None
     assert lender.lent, 'the daemon must still know somebody wants it'
 
   def test_the_connection_is_the_lease(self):
     # modeld is stopped at every ignition-off and SIGKILLed if it lingers;
     # dying is how it hands the link back
     lender = self.lender()
-    loan = lending.borrow(path=self.path)
+    loan = self.take()
     assert lender.lent
     loan.close()
     assert self.until(lambda: not lender.lent), 'the link never came back'
 
-  def test_one_loan_per_process(self):
-    # a join that fails and tries again wants the link it already has
-    self.lender()
-    first = lending.borrow(path=self.path)
-    assert lending.borrow(path=self.path) is first
-
-  def test_a_closed_loan_is_replaced_not_reused(self):
-    self.lender()
-    first = lending.borrow(path=self.path)
-    first.close()
-    second = lending.borrow(path=self.path)
-    assert second is not None and second is not first
-
   def test_a_gadget_that_is_not_bound_yet_is_waited_for(self):
     self.udc = None
     lender = self.lender()
-    assert lending.borrow(path=self.path, timeout=0.2) is None
+    assert self.take(timeout=0.2) is None
     assert lender.lent
     self.udc = 'udc0'
-    assert lending.borrow(path=self.path, timeout=1.0) is not None
+    assert self.take(timeout=1.0) is not None
 
 
 class Bouncing(LendingTest):
@@ -131,15 +123,15 @@ class Bouncing(LendingTest):
     # unbinding is the only thing that dequeues a FunctionFS write nobody is
     # reading, and the unbind belongs to whoever holds ep0
     self.lender()
-    loan = lending.borrow(path=self.path)
+    loan = self.take()
     assert loan.bounce() is True
     assert self.bounced == 1
 
   def test_a_bounce_after_the_loan_is_over_is_not_an_error(self):
     self.lender()
-    loan = lending.borrow(path=self.path)
+    loan = self.take()
     loan.close()
-    assert loan.bounce() is False
+    assert loan.closed and loan.bounce() is False
     assert self.bounced == 0
 
 
@@ -147,7 +139,8 @@ class StaleSockets(LendingTest):
   def test_a_socket_a_dead_daemon_left_is_cleared(self):
     self.path.write_text('')          # anything at the address stops bind()
     lender = self.lender()
-    assert lending.borrow(path=self.path) is not None
+    assert lender.listening
+    assert self.take() is not None
     assert lender.lent
 
   def test_a_live_daemon_keeps_its_socket(self):
@@ -156,8 +149,8 @@ class StaleSockets(LendingTest):
     first = self.lender()
     second = lending.Lender(lambda: self.free, self.bounce, path=self.path)
     self.addCleanup(second.stop)
-    assert second.start() is False
-    assert lending.borrow(path=self.path) is not None
+    assert second.start() is False and not second.listening
+    assert self.take() is not None
     assert first.lent and not second.lent
 
 
