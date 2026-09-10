@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run only cameras and modeld, with private Params and messaging.
-# Stop the offroad jetlinkd owner first; never run this in a moving vehicle.
+# Leave jetlinkd up: modeld borrows the endpoints from it, as it does on a
+# drive. Never run this in a moving vehicle.
 # OUTPUT may specify a new directory for logs, frame CSV and summary JSON.
 set -eu
 cd "$(dirname "$0")/.."

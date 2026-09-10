@@ -34,15 +34,16 @@ def main():
   live = Params()
   if not live.get_bool('IsOffroad'):
     raise SystemExit('bench requires the real device to remain offroad')
-  # USB and cameras are physical resources, even with isolated messaging.
+  # Cameras are a physical resource, even with isolated messaging. jetlinkd is
+  # not: it owns the gadget and lends the endpoints, which is what a drive does
+  # too, so leaving it up is the arrangement under test rather than a conflict.
   for proc in Path('/proc').glob('[0-9]*/cmdline'):
     try:
       argv = proc.read_bytes().split(b'\0')
     except (OSError, ProcessLookupError):
       continue
     if argv and (Path(os.fsdecode(argv[0])).name == 'camerad' or
-                 b'openpilot.selfdrive.modeld.modeld' in argv or
-                 b'openpilot.sunnypilot.accelerators.jetlink.jetlinkd' in argv):
+                 b'openpilot.selfdrive.modeld.modeld' in argv):
       raise SystemExit(f'physical resource already owned by {proc.parent.name}: {argv[:3]}')
   keys = ('CarParamsPersistent', 'CalibrationParams', 'ModelManager_ActiveBundleChestnut', 'JetlinkModelPointers',
           'JetlinkSpec', 'JetlinkEngineReady', 'JetlinkEndpoint')
