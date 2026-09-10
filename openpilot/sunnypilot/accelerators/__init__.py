@@ -28,10 +28,24 @@ import time
 from collections.abc import Callable
 from typing import NamedTuple
 
-from openpilot.common.params import Params
-from openpilot.common.swaglog import cloudlog
+# Nothing heavy at module level. manager, the UI and hardwared all import this
+# package, and so does the gadget owner by way of accelerators.jetlink.gadget,
+# which is only 10 MB while nothing here drags numpy, capnp and zmq in behind
+# it. jetlink/tests/test_gadget.py holds the line. The first call pays a dict
+# lookup; the UI polls these at 5 Hz and never notices.
+def _backend():
+  from openpilot.sunnypilot.accelerators.jetlink import backend
+  return backend
 
-from openpilot.sunnypilot.accelerators.jetlink import backend
+
+def _params():
+  from openpilot.common.params import Params
+  return Params()
+
+
+def _log():
+  from openpilot.common.swaglog import cloudlog
+  return cloudlog
 
 # written by jetlinkd and the joining state, read by the UI; a param because
 # the writer is another process
@@ -56,52 +70,52 @@ class Daemon(NamedTuple):
 
 def installed() -> bool:
   """Is the backend's package checked out? What makes the link worth offering in the UI."""
-  return backend.installed()
+  return _backend().installed()
 
 
 def present() -> bool:
   """Is a Jetson attached, or asleep and known to be there? USB-independent."""
-  return backend.present()
+  return _backend().present()
 
 
 def ready() -> bool:
   """Can the large model run right now? Params only, what the UI calls 'compiled'."""
-  return backend.ready()
+  return _backend().ready()
 
 
 def unavailable_reason() -> str | None:
   """Why the link the user asked for cannot run, for the offroad alert. None unless enabled."""
-  return backend.unavailable_reason()
+  return _backend().unavailable_reason()
 
 
 def prepare() -> bool:
   """Process-wide setup modeld must do before going realtime, and a last veto. modeld only."""
-  return backend.prepare()
+  return _backend().prepare()
 
 
 def make_model_state(cam_w: int, cam_h: int, small=None):
   """The joining ModelState: the small model driving now, the Jetson swapped in later."""
-  return backend.make_model_state(cam_w, cam_h, small)
+  return _backend().make_model_state(cam_w, cam_h, small)
 
 
 def make_status_publisher(pm, model):
   """modeld's after_enqueue callback. Publishes nothing; logs telemetry at 1 Hz."""
-  return backend.make_status_publisher(pm, model)
+  return _backend().make_status_publisher(pm, model)
 
 
 def enabled() -> bool:
   """Has the user turned the link on? Configuration only, never link state or ready()."""
-  return backend.enabled()
+  return _backend().enabled()
 
 
 def selected_model_name() -> str | None:
   """The big model the accelerator will run: the model manager's big-model pick, or the default."""
-  return backend.selected_model_name()
+  return _backend().selected_model_name()
 
 
 def active_model_name() -> str | None:
   """selected_model_name() once the accelerator can run it, else None."""
-  return backend.active_model_name()
+  return _backend().active_model_name()
 
 
 def daemons() -> list[Daemon]:
@@ -109,7 +123,7 @@ def daemons() -> list[Daemon]:
   the USB gadget for as long as the link is enabled, and a gadget whose owner
   exits is an unplug the far end has to recover from."""
   return [Daemon("jetlinkd", "openpilot.sunnypilot.accelerators.jetlink.jetlinkd",
-                 lambda started, params, CP: backend.enabled())]
+                 lambda started, params, CP: _backend().enabled())]
 
 
 def progress() -> dict | None:
@@ -118,7 +132,7 @@ def progress() -> dict | None:
   Read from the UI's param thread, so nothing may escape, UnknownKeyName included.
   """
   try:
-    value = Params().get(P_PROGRESS)
+    value = _params().get(P_PROGRESS)
   except Exception:
     return None
   return value if isinstance(value, dict) else None
@@ -137,16 +151,16 @@ def report_progress(stage: str, frac: float, msg: str = '') -> None:
     return
   _last_progress = (stage, now)
   try:
-    Params().put(P_PROGRESS, {'stage': stage, 'frac': round(frac, 4), 'msg': msg})
+    _params().put(P_PROGRESS, {'stage': stage, 'frac': round(frac, 4), 'msg': msg})
   except Exception:
-    cloudlog.exception("accelerators: could not report progress")
+    _log().exception("accelerators: could not report progress")
 
 
 def clear_progress() -> None:
   try:
-    Params().remove(P_PROGRESS)
+    _params().remove(P_PROGRESS)
   except Exception:
-    cloudlog.exception("accelerators: could not clear progress")
+    _log().exception("accelerators: could not clear progress")
 
 
 def shutdown(reason: str = '', timeout: float = 25.0) -> None:
@@ -155,17 +169,17 @@ def shutdown(reason: str = '', timeout: float = 25.0) -> None:
   hardwared calls this before DoShutdown and publishes no deviceState until it
   returns, so the request runs on a thread and is abandoned at the deadline.
   """
-  if not backend.enabled():
+  if not _backend().enabled():
     return
 
   def request():
     try:
-      backend.shutdown(reason, timeout)
+      _backend().shutdown(reason, timeout)
     except Exception:
-      cloudlog.exception("accelerators: shutdown request failed")
+      _log().exception("accelerators: shutdown request failed")
 
   t = threading.Thread(target=request, name='accelerator-shutdown', daemon=True)
   t.start()
   t.join(timeout)
   if t.is_alive():
-    cloudlog.warning("accelerators: shutdown request still pending after %.0f s, going on without it", timeout)
+    _log().warning("accelerators: shutdown request still pending after %.0f s, going on without it", timeout)

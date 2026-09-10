@@ -20,7 +20,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from openpilot.sunnypilot.accelerators.jetlink import jetlinkd, provision
+from openpilot.sunnypilot.accelerators.jetlink import gadget, jetlinkd, provision
+
+
+def _owner_of(name: str):
+  """Where a stub has to go. The gadget primitives moved to gadget.py and its
+  own functions read them out of that namespace; helpers forwards, so patching
+  gadget covers both. Everything else is still helpers'."""
+  return jetlinkd.helpers if name in vars(jetlinkd.helpers) else gadget
 
 
 class FakeSpec:
@@ -104,7 +111,7 @@ class TestProvisionCost(unittest.TestCase):
         p.start()
     for name, value in (('shipped_model_path', self.model), ('engine_ready_for', False),
                         ('selected_model', dict(self.ENTRY))):
-      p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
+      p = mock.patch.object(_owner_of(name), name, return_value=value)
       self.addCleanup(p.stop)
       p.start()
     p = mock.patch.dict(sys.modules, fake_jetlink_spec_module(self.hashed))
@@ -283,7 +290,7 @@ class TestStepOnFailure(unittest.TestCase):
   def _step(self, d, provision):
     for p in (mock.patch.object(jetlinkd, 'accelerators', mock.Mock()),
               mock.patch.object(jetlinkd.helpers, 'enabled', return_value=True),
-              mock.patch.object(jetlinkd.helpers, 'host_attached', return_value=True),
+              mock.patch.object(gadget, 'host_attached', return_value=True),
               mock.patch.object(d, 'open_link', return_value=True),
               mock.patch.object(d, 'provision', provision),
               mock.patch.object(d, 'close_link', mock.Mock())):
@@ -333,10 +340,10 @@ class TestGadgetOnEnable(unittest.TestCase):
       p.start()
     for name, value in (('enabled', True), ('pending_shutdown', None), ('link_endpoint', None),
                         ('can_setup_gadget', True)):
-      p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
+      p = mock.patch.object(_owner_of(name), name, return_value=value)
       self.addCleanup(p.stop)
       p.start()
-    self.setup = mock.patch.object(jetlinkd.helpers, 'setup_gadget', return_value=True)
+    self.setup = mock.patch.object(gadget, 'setup_gadget', return_value=True)
     self.addCleanup(self.setup.stop)
     self.setup.start()
 
@@ -351,14 +358,14 @@ class TestGadgetOnEnable(unittest.TestCase):
 
   def test_a_missing_gadget_is_created_before_the_link_is_opened(self):
     d = self.daemon()
-    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False):
+    with mock.patch.object(gadget, 'link_configured', return_value=False):
       d.step()
     assert jetlinkd.helpers.setup_gadget.call_count == 1
     assert d.open_link.call_count == 1
 
   def test_an_existing_gadget_is_left_alone(self):
     d = self.daemon()
-    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=True):
+    with mock.patch.object(gadget, 'link_configured', return_value=True):
       d.step()
     assert jetlinkd.helpers.setup_gadget.call_count == 0
     assert d.open_link.call_count == 1
@@ -368,7 +375,7 @@ class TestGadgetOnEnable(unittest.TestCase):
     # tick would say it 120 times a minute
     d = self.daemon()
     jetlinkd.helpers.setup_gadget.return_value = False
-    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False):
+    with mock.patch.object(gadget, 'link_configured', return_value=False):
       for _ in range(3):
         d.step()
     assert jetlinkd.helpers.setup_gadget.call_count == 1
@@ -378,16 +385,16 @@ class TestGadgetOnEnable(unittest.TestCase):
   def test_a_device_that_cannot_make_one_still_tries_the_link(self):
     # a PC, or a build without the script: open_link fails and says why
     d = self.daemon()
-    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False), \
-         mock.patch.object(jetlinkd.helpers, 'can_setup_gadget', return_value=False):
+    with mock.patch.object(gadget, 'link_configured', return_value=False), \
+         mock.patch.object(gadget, 'can_setup_gadget', return_value=False):
       d.step()
     assert jetlinkd.helpers.setup_gadget.call_count == 0
     assert d.open_link.call_count == 1
 
   def test_tcp_needs_no_gadget(self):
     d = self.daemon()
-    with mock.patch.object(jetlinkd.helpers, 'link_configured', return_value=False), \
-         mock.patch.object(jetlinkd.helpers, 'link_endpoint', return_value=('10.0.0.2', 5599)):
+    with mock.patch.object(gadget, 'link_configured', return_value=False), \
+         mock.patch.object(gadget, 'link_endpoint', return_value=('10.0.0.2', 5599)):
       d.step()
     assert jetlinkd.helpers.setup_gadget.call_count == 0
     assert d.open_link.call_count == 1
@@ -409,7 +416,7 @@ class TestParked(unittest.TestCase):
       self.addCleanup(p.stop)
       p.start()
     for name, value in (('DORMANT', self.tmp / 'dormant'), ('SHUTDOWN_REQUEST', self.tmp / 'shutdown')):
-      p = mock.patch.object(jetlinkd.helpers, name, value)
+      p = mock.patch.object(_owner_of(name), name, value)
       self.addCleanup(p.stop)
       p.start()
     # udc_state as well as host_attached: the waits read the controller once and
@@ -418,7 +425,7 @@ class TestParked(unittest.TestCase):
                         ('engine_ready_for', True),
                         ('selected_model', {'oid': self.cache.spec.sha256}),
                         ('shipped_model_path', self.model)):
-      p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
+      p = mock.patch.object(_owner_of(name), name, return_value=value)
       self.addCleanup(p.stop)
       p.start()
 
@@ -570,7 +577,7 @@ class TestParked(unittest.TestCase):
   def test_a_shutdown_request_waits_for_the_jetson_to_wake(self):
     d = self.daemon()
     attached = iter([False, False, True])
-    with mock.patch.object(jetlinkd.helpers, 'host_attached', side_effect=lambda: next(attached)):
+    with mock.patch.object(gadget, 'host_attached', side_effect=lambda: next(attached)):
       jetlinkd.helpers.request_shutdown('car battery')
       d.step()
     d.client.shutdown.assert_called_once()
@@ -796,7 +803,7 @@ class TestVmTuning(unittest.TestCase):
               mock.patch.object(jetlinkd, 'SYSCTL_PREV', self.record),
               mock.patch.object(jetlinkd.subprocess, 'run', self.run_mock),
               mock.patch.object(jetlinkd.os, 'geteuid', return_value=1000),
-              mock.patch.object(jetlinkd.helpers, 'DORMANT', self.tmp / 'dormant'),
+              mock.patch.object(gadget, 'DORMANT', self.tmp / 'dormant'),
               mock.patch.object(jetlinkd, 'accelerators', mock.Mock())):
       self.addCleanup(p.stop)
       p.start()

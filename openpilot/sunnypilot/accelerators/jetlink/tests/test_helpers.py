@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from openpilot.sunnypilot.accelerators.jetlink import helpers
+from openpilot.sunnypilot.accelerators.jetlink import gadget, helpers
 
 
 class TestGadgetStatus(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestGadgetStatus(unittest.TestCase):
   def setUp(self):
     self.tmp = tempfile.mkdtemp()
     self.status = Path(self.tmp) / 'jetlink-gadget'
-    patcher = mock.patch.object(helpers, 'GADGET_STATUS', self.status)
+    patcher = mock.patch.object(gadget, 'GADGET_STATUS', self.status)
     self.addCleanup(patcher.stop)
     patcher.start()
 
@@ -61,7 +61,7 @@ class TestGadgetSetup(unittest.TestCase):
     script.write_text('#!/bin/sh\n')
     self.script = script
     for name, value in (('repo_root', mock.Mock(return_value=self.tmp)), ('AGNOS', True)):
-      p = mock.patch.object(helpers, name, value)
+      p = mock.patch.object(gadget, name, value)
       self.addCleanup(p.stop)
       p.start()
 
@@ -74,14 +74,14 @@ class TestGadgetSetup(unittest.TestCase):
 
   def test_only_agnos_with_the_script_can_set_one_up(self):
     assert helpers.can_setup_gadget()
-    with mock.patch.object(helpers, 'AGNOS', False):
+    with mock.patch.object(gadget, 'AGNOS', False):
       assert not helpers.can_setup_gadget()
     self.script.unlink()
     assert not helpers.can_setup_gadget()
 
   def test_setup_runs_the_boot_script_as_root_and_reports_the_result(self):
-    with mock.patch.object(helpers.subprocess, 'run') as run, \
-         mock.patch.object(helpers, 'link_configured', return_value=True):
+    with mock.patch.object(gadget.subprocess, 'run') as run, \
+         mock.patch.object(gadget, 'link_configured', return_value=True):
       assert helpers.setup_gadget()
     (argv,), kwargs = run.call_args
     assert argv[:3] == ['sudo', '-n', 'bash'] and argv[3] == str(self.script)
@@ -89,7 +89,7 @@ class TestGadgetSetup(unittest.TestCase):
 
   def test_a_failed_script_is_a_false_not_a_raise(self):
     # the script has already written the reason to the status file
-    with mock.patch.object(helpers.subprocess, 'run', side_effect=helpers.subprocess.CalledProcessError(1, 'bash')), \
+    with mock.patch.object(gadget.subprocess, 'run', side_effect=gadget.subprocess.CalledProcessError(1, 'bash')), \
          mock.patch.object(helpers.cloudlog, 'exception') as log:
       assert not helpers.setup_gadget()
     assert log.call_count == 1
@@ -100,8 +100,8 @@ class TestGadgetAlert(unittest.TestCase):
   that cannot present the gadget should simply not offer the feature."""
 
   def alert_with(self, enabled: bool, reason: str | None):
-    with mock.patch.object(helpers, 'enabled', return_value=enabled), \
-         mock.patch.object(helpers, 'gadget_error', return_value=reason):
+    with mock.patch.object(gadget, 'enabled', return_value=enabled), \
+         mock.patch.object(gadget, 'gadget_error', return_value=reason):
       return helpers.gadget_alert()
 
   def test_silent_when_off(self):
@@ -118,7 +118,8 @@ class TestDormant(unittest.TestCase):
   def setUp(self):
     self.tmp = Path(tempfile.mkdtemp())
     for name in ('DORMANT', 'SHUTDOWN_REQUEST'):
-      patcher = mock.patch.object(helpers, name, self.tmp / name.lower())
+      # gadget owns the paths and reads them from its own namespace
+      patcher = mock.patch.object(gadget, name, self.tmp / name.lower())
       self.addCleanup(patcher.stop)
       patcher.start()
 
@@ -137,9 +138,9 @@ class TestDormant(unittest.TestCase):
     assert not helpers.dormant()
 
   def test_dormant_counts_as_present_without_a_host(self):
-    with mock.patch.object(helpers, 'link_endpoint', return_value=None), \
-         mock.patch.object(helpers, 'host_attached', return_value=False), \
-         mock.patch.object(helpers, 'CC_ORIENTATION', self.tmp / 'cc'):
+    with mock.patch.object(gadget, 'link_endpoint', return_value=None), \
+         mock.patch.object(gadget, 'host_attached', return_value=False), \
+         mock.patch.object(gadget, 'CC_ORIENTATION', self.tmp / 'cc'):
       (self.tmp / 'cc').write_text('1')
       helpers._last_configured = 0.0
       assert not helpers.gadget_present()

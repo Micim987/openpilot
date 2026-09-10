@@ -15,7 +15,7 @@ needs an edge, and about modeld borrowing the endpoints rather than the gadget.
 import unittest
 from unittest import mock
 
-from openpilot.sunnypilot.accelerators.jetlink import backend, helpers
+from openpilot.sunnypilot.accelerators.jetlink import backend, gadget, helpers
 
 
 class FakeClock:
@@ -37,16 +37,19 @@ class FakeClock:
 class ClockedTest(unittest.TestCase):
   def setUp(self):
     self.clock = FakeClock()
-    for module in (backend, helpers):
+    for module in (backend, helpers, gadget):
       p = mock.patch.object(module, 'time', self.clock)
       self.addCleanup(p.stop)
       p.start()
 
   def bus(self, udc: str, cc: bool = True):
+    # both modules: the primitives live in gadget and wait_for_host reads them
+    # there, while callers that went through helpers still resolve them there
     for name, value in (('udc_state', udc), ('port_has_host', cc)):
-      p = mock.patch.object(helpers, name, return_value=value)
-      self.addCleanup(p.stop)
-      p.start()
+      for module in (helpers, gadget):
+        p = mock.patch.object(module, name, return_value=value)
+        self.addCleanup(p.stop)
+        p.start()
 
 
 class WaitForHost(ClockedTest):
@@ -89,14 +92,14 @@ class WaitForHost(ClockedTest):
 
   def test_a_bounce_that_fails_does_not_end_the_wait(self):
     self.bus('default')
-    with mock.patch.object(helpers, 'udc_state', return_value='default'):
+    with mock.patch.object(gadget, 'udc_state', return_value='default'):
       assert helpers.wait_for_host(backend.CONNECT_TIMEOUT,
                                    bounce=mock.Mock(side_effect=OSError('no such device'))) is False
 
   def test_a_host_that_turns_up_late_is_still_joined(self):
     states = ['powered'] * 3 + ['configured']
-    with mock.patch.object(helpers, 'udc_state', side_effect=lambda: states.pop(0) if states else 'configured'), \
-         mock.patch.object(helpers, 'port_has_host', return_value=True):
+    with mock.patch.object(gadget, 'udc_state', side_effect=lambda: states.pop(0) if states else 'configured'), \
+         mock.patch.object(gadget, 'port_has_host', return_value=True):
       assert self.wait() is True
 
   def test_a_caller_that_is_going_away_is_not_kept_waiting(self):

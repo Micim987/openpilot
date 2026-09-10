@@ -20,7 +20,7 @@ from unittest import mock
 
 from openpilot.sunnypilot import accelerators
 from openpilot.sunnypilot.accelerators import Daemon
-from openpilot.sunnypilot.accelerators.jetlink import backend, helpers
+from openpilot.sunnypilot.accelerators.jetlink import backend, gadget, helpers
 
 
 class SelectionTest(unittest.TestCase):
@@ -28,10 +28,15 @@ class SelectionTest(unittest.TestCase):
 
   def configure(self, enabled=None, model=None, ready_sha=None, spec_sha=None, gadget_error=None):
     params = {helpers.P_ENABLED: enabled, helpers.P_READY: ready_sha}
+    # the toggle is read off the param file now, so stub the read rather than
+    # Params; everything else still goes through helpers._get
     for p in (mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: params.get(k, d)),
-              mock.patch.object(helpers, 'gadget_error', return_value=gadget_error),
-              mock.patch.object(helpers, 'host_attached', return_value=False),
-              mock.patch.object(helpers, 'dormant', return_value=False),
+              mock.patch.object(gadget, 'raw_param',
+                                side_effect=lambda k: None if params.get(k) is None else
+                                (b'1' if params[k] else b'0')),
+              mock.patch.object(gadget, 'gadget_error', return_value=gadget_error),
+              mock.patch.object(gadget, 'host_attached', return_value=False),
+              mock.patch.object(gadget, 'dormant', return_value=False),
               mock.patch.object(helpers, 'selected_model',
                                 return_value={'name': model, 'oid': 'a' * 64} if model else None),
               mock.patch.object(backend.spec_cache, 'load',
@@ -82,16 +87,16 @@ class SelectionTest(unittest.TestCase):
     self.configure(enabled=True, model=None)
     self.assertTrue(accelerators.enabled())
     self.configure(enabled=True, model='m')
-    with mock.patch.object(helpers, 'link_configured', return_value=False):
+    with mock.patch.object(gadget, 'link_configured', return_value=False):
       self.assertTrue(accelerators.enabled())
     self.configure(enabled=None, model='m')
-    with mock.patch.object(helpers, 'link_configured', return_value=True):
+    with mock.patch.object(gadget, 'link_configured', return_value=True):
       self.assertFalse(accelerators.enabled())
 
   def test_present_is_usb_independent_while_dormant(self):
     self.configure(enabled=True, model='m')
-    with mock.patch.object(helpers, 'dormant', return_value=True), \
-         mock.patch.object(helpers, 'CC_ORIENTATION', mock.Mock(read_text=lambda: '1')):
+    with mock.patch.object(gadget, 'dormant', return_value=True), \
+         mock.patch.object(gadget, 'CC_ORIENTATION', mock.Mock(read_text=lambda: '1')):
       self.assertTrue(accelerators.present())
 
 
@@ -139,30 +144,30 @@ class DaemonTest(unittest.TestCase):
 
 class TestProgress(unittest.TestCase):
   def test_a_missing_param_is_no_progress(self):
-    with mock.patch.object(accelerators, 'Params') as params:
+    with mock.patch.object(accelerators, '_params') as params:
       params.return_value.get.return_value = None
       self.assertIsNone(accelerators.progress())
 
   def test_a_dict_comes_through(self):
     payload = {'stage': 'build', 'frac': 0.5, 'msg': ''}
-    with mock.patch.object(accelerators, 'Params') as params:
+    with mock.patch.object(accelerators, '_params') as params:
       params.return_value.get.return_value = payload
       self.assertEqual(accelerators.progress(), payload)
 
   def test_a_non_dict_is_ignored(self):
-    with mock.patch.object(accelerators, 'Params') as params:
+    with mock.patch.object(accelerators, '_params') as params:
       params.return_value.get.return_value = "build 50%"
       self.assertIsNone(accelerators.progress())
 
   def test_an_unknown_key_does_not_take_down_the_ui(self):
     # A params library older than this key raises rather than returning None.
-    with mock.patch.object(accelerators, 'Params') as params:
+    with mock.patch.object(accelerators, '_params') as params:
       params.return_value.get.side_effect = RuntimeError("UnknownKeyName")
       self.assertIsNone(accelerators.progress())
 
   def test_reporting_never_raises(self):
     # Called from except handlers in the daemons.
-    with mock.patch.object(accelerators, 'Params') as params:
+    with mock.patch.object(accelerators, '_params') as params:
       params.return_value.put.side_effect = RuntimeError("params gone")
       accelerators.report_progress('build', 0.5)
       params.return_value.remove.side_effect = RuntimeError("params gone")
@@ -187,7 +192,7 @@ class TestShutdown(unittest.TestCase):
     self.addCleanup(release.set)
     with mock.patch.object(helpers, 'enabled', return_value=True), \
          mock.patch.object(backend, 'shutdown', side_effect=lambda *a: release.wait(30)), \
-         mock.patch.object(accelerators.cloudlog, 'warning') as warn:
+         mock.patch.object(accelerators._log(), 'warning') as warn:
       t0 = time.monotonic()
       accelerators.shutdown('car battery', timeout=0.2)
       self.assertLess(time.monotonic() - t0, 2.0)
@@ -196,7 +201,7 @@ class TestShutdown(unittest.TestCase):
   def test_a_backend_that_raises_is_logged_not_propagated(self):
     with mock.patch.object(helpers, 'enabled', return_value=True), \
          mock.patch.object(backend, 'shutdown', side_effect=RuntimeError('no')), \
-         mock.patch.object(accelerators.cloudlog, 'exception') as log:
+         mock.patch.object(accelerators._log(), 'exception') as log:
       accelerators.shutdown('car battery', timeout=1.0)
     log.assert_called_once()
 
