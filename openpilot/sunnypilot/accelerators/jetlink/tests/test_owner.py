@@ -124,7 +124,7 @@ class TestParked(OwnerTest):
 
   def test_it_releases_once_there_is_nothing_to_do_and_the_far_end_sleeps(self):
     o = self.owner()
-    o.started = time.monotonic() - owner.DORMANT_HOLD
+    o.idle_since = time.monotonic() - owner.DORMANT_HOLD
     o.step()
     self.assertTrue(o.dormant)
     o.close_link.assert_called_once()
@@ -135,7 +135,7 @@ class TestParked(OwnerTest):
     # powered awake box unenumerated for the whole parked period
     o = self.owner()
     self.note_state(sleep_after=0.0, unfinished=False)
-    o.started = time.monotonic() - owner.DORMANT_HOLD
+    o.idle_since = time.monotonic() - owner.DORMANT_HOLD
     o.step()
     self.assertFalse(o.dormant)
     o.close_link.assert_not_called()
@@ -143,9 +143,33 @@ class TestParked(OwnerTest):
   def test_a_far_end_too_old_to_say_keeps_the_release_it_always_had(self):
     gadget.STATE.unlink(missing_ok=True)
     o = self.owner()
-    o.started = time.monotonic() - owner.DORMANT_HOLD
+    o.idle_since = time.monotonic() - owner.DORMANT_HOLD
     o.step()
     self.assertTrue(o.dormant)
+
+
+  def test_a_run_that_wakes_the_jetson_gets_the_hold_before_letting_go(self):
+    # bench 2026-09-10: a run finished 2.5 s after the wake, the owner released
+    # the gadget 1 ms later, and the jetson was still enumerating. The hold used
+    # to run from process start, which expires once and never applies again now
+    # that this is not restarted at ignition
+    o = self.owner()
+    o.idle_since = time.monotonic() - owner.DORMANT_HOLD
+    o.worker = mock.Mock(**{'poll.return_value': 0, 'returncode': 0})
+    o.step()
+    self.assertFalse(o.dormant, 'let the gadget go while the jetson was waking')
+    o.idle_since = time.monotonic() - owner.DORMANT_HOLD
+    o.step()
+    self.assertTrue(o.dormant)
+
+  def test_a_borrower_holds_the_gadget_past_the_drive(self):
+    o = self.owner()
+    o.idle_since = time.monotonic() - owner.DORMANT_HOLD
+    o.lender.lent = True
+    o.step()
+    o.lender.lent = False
+    o.step()
+    self.assertFalse(o.dormant, 'let the gadget go the moment the drive ended')
 
 
 class TestStartingTheHeavyHalf(OwnerTest):

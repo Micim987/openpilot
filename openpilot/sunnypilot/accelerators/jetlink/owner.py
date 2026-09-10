@@ -38,9 +38,10 @@ from pathlib import Path
 from openpilot.sunnypilot.accelerators.jetlink import gadget, lending, vmtune
 
 POLL = 0.5
-# how long after ignition-off the gadget is released once there is nothing to
-# do. The server sleeps 120 s after the gadget goes; a stop inside the hold
-# rejoins at once, one outside it costs the ~8 s wake
+# how long the gadget is held after the last thing that wanted it. The server
+# sleeps 120 s after the gadget goes; a stop inside the hold rejoins at once,
+# one outside it costs the ~8 s wake. It also covers a jetson that is still
+# enumerating when the run that woke it has already finished
 DORMANT_HOLD = 60.0
 # how long settle() waits for its own re-enumeration before carrying on
 SETTLE_TIMEOUT = 10.0
@@ -87,7 +88,12 @@ class Owner:
     self.stop = False
     self.dormant = False
     self.vm_tuned = False
-    self.started = time.monotonic()
+    # when there was last something to do. The hold runs from here, not from
+    # process start: this daemon is not restarted at ignition any more, so a
+    # hold measured from its birth expires once and never applies again, and
+    # every wake released the gadget a second later with the jetson still
+    # coming up
+    self.idle_since = time.monotonic()
     self.next_attempt = 0.0
     self.next_gadget_attempt = 0.0
     self.next_worker = 0.0
@@ -218,6 +224,7 @@ class Owner:
     gadget.log.warning("jetlink: presenting the gadget again")
     gadget.set_dormant(False)
     self.dormant = False
+    self.idle_since = time.monotonic()
 
   # -- the worker -----------------------------------------------------------
 
@@ -241,6 +248,8 @@ class Owner:
       return True
     gadget.log.warning("jetlink: the provisioning run finished (%s)", self.worker.returncode)
     self.worker = None
+    # the far end may still be waking; give it the hold before letting go
+    self.idle_since = time.monotonic()
     # after the run, not before it: a run writes JetlinkSpec and
     # JetlinkEngineReady itself, so a mark taken at spawn always differs by the
     # time it exits and every successful provision started a second one
@@ -342,6 +351,7 @@ class Owner:
         # because a host arriving clears the worker backoff and a borrower
         # letting go looks like one arriving
         self.lease_settled = time.monotonic() + LEASE_SETTLE
+        self.idle_since = time.monotonic()
       return self.hold()
 
     if self.worker_running():
@@ -366,7 +376,7 @@ class Owner:
       if not sleeps and self.ensure_gadget():
         self.open_link()
       return
-    if sleeps and time.monotonic() - self.started >= DORMANT_HOLD:
+    if sleeps and time.monotonic() - self.idle_since >= DORMANT_HOLD:
       self.go_dormant()
     else:
       self.settle()
