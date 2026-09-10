@@ -94,17 +94,40 @@ def gadget_bound() -> bool:
     return False
 
 
-def host_attached() -> bool:
-  """Has a host (the Jetson) enumerated and configured us?"""
+def udc_state() -> str | None:
+  """What the device controller says about the bus, or None if we are unbound.
+
+  "configured" is a host that has us; "default" and "addressed" are one that
+  reset the bus and stopped part way, which is what a Jetson that took the
+  bind as a wake and did not finish waking looks like.
+  """
   try:
     udc = (GADGET_PATH / "UDC").read_text().strip()
   except OSError:
-    return False
+    return None
   if not udc:
-    return False
+    return None
   try:
-    return (UDC_PATH / udc / "state").read_text().strip() == "configured"
+    return (UDC_PATH / udc / "state").read_text().strip() or None
   except OSError:
+    return None
+
+
+def host_attached() -> bool:
+  """Has a host (the Jetson) enumerated and configured us?"""
+  return udc_state() == "configured"
+
+
+def port_has_host() -> bool:
+  """Does the USB-C port controller see a host on the cable?
+
+  The CC pin, so it is electrically true whether or not anything enumerated:
+  0 is a port with nothing on it, 1 or 2 a cable with a live host. A legacy
+  A-to-C cable's pull-up rides on the host's VBUS and reads the same.
+  """
+  try:
+    return int(CC_ORIENTATION.read_text()) != 0
+  except (OSError, ValueError):
     return False
 
 
@@ -243,10 +266,7 @@ def gadget_present() -> bool:
     return True
   if dormant():
     # no enumeration during suspend; the CC line still tells a sleeping host from an unplugged one
-    try:
-      return int(CC_ORIENTATION.read_text()) != 0
-    except (OSError, ValueError):
-      return False
+    return port_has_host()
   now = time.monotonic()
   if host_attached():
     _last_configured = now
@@ -254,11 +274,13 @@ def gadget_present() -> bool:
   return now - _last_configured < PRESENCE_HOLD
 
 
-def connect(deadline: float | None = None):
+def connect(deadline: float | None = None, name: str | None = None):
   """Open the link. USB unless an endpoint override is set.
 
   `deadline` is per frame and defaults to FRAME_TIMEOUT: modeld blocks on a
-  frame the way it blocks on a chestnut.
+  frame the way it blocks on a chestnut. `name` is what the server logs this
+  connection as; two comma processes take turns on one gadget and the Jetson's
+  journal has no clock to tell them apart by.
   """
   from jetlink.client import FRAME_TIMEOUT, JetlinkClient
   deadline = FRAME_TIMEOUT if deadline is None else deadline
@@ -266,9 +288,9 @@ def connect(deadline: float | None = None):
   if endpoint is not None:
     host, port = endpoint
     cloudlog.warning("jetlink: connecting over tcp to %s:%d", host, port)
-    return JetlinkClient.open_tcp(host, port, deadline=deadline)
+    return JetlinkClient.open_tcp(host, port, deadline=deadline, name=name)
   # the comma is the gadget and the Jetson the host; see gadget_present()
-  return JetlinkClient.open_ffs(str(FFS_MOUNT), gadget=str(GADGET_PATH), deadline=deadline)
+  return JetlinkClient.open_ffs(str(FFS_MOUNT), gadget=str(GADGET_PATH), deadline=deadline, name=name)
 
 
 def enabled() -> bool:

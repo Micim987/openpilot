@@ -31,6 +31,12 @@ INFERENCE_TIMEOUT = 0.5
 # how long the load may wait for the early gadget bind; jetlinkd may still be
 # letting go of the endpoints
 PRESENT_TIMEOUT = 5.0
+# how long the UDC may sit half enumerated with a host on the cable before the
+# gadget is bounced. A real enumeration is milliseconds; this only fires for a
+# Jetson that answered the bind with a bus reset and then stopped, which is
+# what an unarmed hub does to a box asleep. See FfsTransport.rebind
+STALLED_ENUMERATION = 20.0
+STALLED_STATES = ('default', 'addressed')
 
 # how long hardwared waits for jetlinkd to shut the Jetson down. Wake from
 # suspend is ~8 s to a server
@@ -52,14 +58,39 @@ def _package_missing(what: str) -> bool:
   return False
 
 
-def _wait_for_host(deadline: float) -> bool:
+def _wait_for_host(deadline: float, client=None) -> bool:
+  """Wait for the Jetson to enumerate us, bouncing a bus that stalled.
+
+  The gadget stays bound throughout. An unbind is an unplug as the Jetson sees
+  it, and while one boots it takes ~50 s a cycle: doing that on a timer landed
+  an unplug on a box that was seconds from enumerating.
+
+  The one case that needs an edge is a Jetson that took the bind as a wake,
+  reset the bus and stopped. The UDC then sits in default or addressed with
+  the CC pin still showing a host, and only another connect moves it.
+  """
   reported = False
+  stalled_since = None
+  bounced = False
   while time.monotonic() < deadline:
     if helpers.host_attached():
       return True
     if not reported:
       cloudlog.warning("jetlink: gadget up, waiting for the jetson to enumerate")
       reported = True
+    now = time.monotonic()
+    if helpers.udc_state() in STALLED_STATES and helpers.port_has_host():
+      stalled_since = now if stalled_since is None else stalled_since
+      if not bounced and client is not None and now - stalled_since > STALLED_ENUMERATION:
+        stalled_since, bounced = None, True
+        cloudlog.warning("jetlink: the bus has been half enumerated for %.0f s, bouncing the gadget",
+                         STALLED_ENUMERATION)
+        try:
+          client.rebind()
+        except Exception:
+          cloudlog.exception("jetlink: could not bounce the gadget")
+    else:
+      stalled_since = None
     time.sleep(CONNECT_DELAY)
   return False
 
@@ -84,7 +115,7 @@ def _present_early(ready: dict) -> None:
     client = None
     while client is None:
       try:
-        client = helpers.connect()
+        client = helpers.connect(name='modeld')
       except Exception as e:
         if time.monotonic() >= deadline:
           cloudlog.warning("jetlink: could not present the gadget early (%s), the join will", e)
@@ -105,28 +136,37 @@ def _present_early(ready: dict) -> None:
       cloudlog.warning("jetlink: presenting the gadget took over %.0f s, the join will", PRESENT_TIMEOUT)
 
 
-def _connect_patiently(client=None):
+def _connect_patiently(client=None, hold=None):
   """Open the link, tolerating a busy gadget or a Jetson that is still booting.
 
-  A `client` already holding the gadget (presented early) skips the open."""
+  A `client` already holding the gadget (presented early) skips the open. When
+  no host turns up in time the link is handed to `hold` rather than closed, so
+  the next attempt carries on with the same bound gadget: the join loop asks
+  again every few seconds, and closing in between was an unplug per cycle for
+  the whole of a Jetson's boot. Without a `hold` it is closed, as it must be:
+  a FunctionFS owner that walks away wedges the driver.
+  """
   deadline = time.monotonic() + CONNECT_TIMEOUT
   last = None
   while True:
     if client is None:
       try:
-        client = helpers.connect()
+        client = helpers.connect(name='modeld')
       except Exception as e:
         client, last = None, e
     if client is not None:
       if helpers.host_attached():
         return client
-      # the gadget is held now, so the Jetson sees it the moment it is up;
-      # keep it open rather than churning the endpoints
-      if _wait_for_host(deadline):
+      if _wait_for_host(deadline, client):
         return client
-      client.close()
+      if hold is not None:
+        hold(client)
+      else:
+        client.close()
       raise TimeoutError(f"no jetson attached within {CONNECT_TIMEOUT:.0f}s")
     if time.monotonic() > deadline:
+      # nothing is held here: this is a gadget we could not open at all,
+      # usually jetlinkd still letting go of ep0
       raise last if last is not None else TimeoutError("could not open the link")
     cloudlog.warning("jetlink: link not ready (%s), retrying", last)
     time.sleep(CONNECT_DELAY)
@@ -218,34 +258,46 @@ def make_model_state(cam_w: int, cam_h: int, small=None):
     return JetlinkModelState(cam_w, cam_h, client, spec, warp=warp)
 
   def connect():
-    # the early client is good for one attempt; after that the join thread
-    # opens its own
-    return _open_link(ready.pop('client', None))
+    # the gadget stays bound between attempts: an unbind is an unplug as the
+    # Jetson sees it, and the join loop asks again every few seconds. Whatever
+    # this attempt could not use is handed back for the next one
+    return _open_link(ready.pop('client', None), hold=lambda c: ready.update(client=c))
 
   return JoiningModelState(cam_w, cam_h, small, connect, build, prepare,
                            reset_small=lambda: ready['reset_small']())
 
 
-def _open_link(client=None):
+def _open_link(client=None, hold=None):
   """Get a client and a spec. Link IO only, so it is safe off modeld's thread;
-  everything that touches tinygrad stays in `build`."""
+  everything that touches tinygrad stays in `build`.
+
+  `hold` takes an open link this attempt cannot use, so the next one keeps the
+  same bound gadget; without it the link is closed, which a FunctionFS owner
+  must do rather than walk away from.
+  """
   from jetlink.client import EngineMissing
+
+  def park(c) -> None:
+    if c is None:
+      return
+    if hold is not None:
+      hold(c)
+    else:
+      c.close()
 
   cached = spec_cache.load()
   if cached is None:
-    if client is not None:
-      client.close()
+    park(client)
     raise RuntimeError("no cached jetlink model spec; jetlinkd has not provisioned")
 
   selected = helpers.selected_model()
   if selected is None or selected['oid'] != cached.sha256:
-    if client is not None:
-      client.close()
+    park(client)
     raise RuntimeError('selected jetlink model has not been provisioned')
 
   # the endpoints may still be held by jetlinkd, and the Jetson may still be
   # booting; both resolve on their own
-  client = _connect_patiently(client)
+  client = _connect_patiently(client, hold)
   try:
     hello = client.hello(timeout=10.0)
     cloudlog.warning("jetlink: %s trt %s, engine %s, loaded %s",

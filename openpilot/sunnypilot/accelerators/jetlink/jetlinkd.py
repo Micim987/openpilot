@@ -172,6 +172,10 @@ class Jetlinkd:
     self.started = time.monotonic()
     self.dormant = False     # released the gadget on purpose; see go_dormant
     self.vm_tuned = False    # our sysctls are in; restored only on disable
+    # does the far end suspend when the gadget goes? From the server's hello.
+    # None until one has answered, and for a server old enough not to report
+    # it at all, where the release it has always had is the safer guess
+    self.server_sleeps: bool | None = None
 
   # -- lifecycle ------------------------------------------------------------
 
@@ -211,7 +215,7 @@ class Jetlinkd:
     if self.client is not None:
       return True
     try:
-      self.client = helpers.connect(deadline=5.0)
+      self.client = helpers.connect(deadline=5.0, name='jetlinkd')
       cloudlog.warning("jetlink: gadget presented, waiting for a jetson")
       return True
     except Exception:
@@ -336,6 +340,7 @@ class Jetlinkd:
 
     hello = self.client.hello(timeout=10.0)
     Params().put('JetlinkCachedModels', hello.get('cached_models', []))
+    self.note_sleep_after(hello)
     cloudlog.warning("jetlink: server %s trt %s", hello.get('device'), hello.get('trt_version'))
     # ask without the file first: the server answers from the sha alone when it
     # has the model, which is every poll of a parked car
@@ -388,6 +393,31 @@ class Jetlinkd:
     return model_path
 
   # -- the parked car -------------------------------------------------------
+
+  def note_sleep_after(self, hello: dict) -> None:
+    """Record whether the server suspends itself when the gadget goes."""
+    try:
+      after = hello.get('sleep_after')
+      sleeps = None if after is None else float(after) > 0
+    except (TypeError, ValueError):
+      sleeps = None
+    if sleeps != self.server_sleeps:
+      cloudlog.warning("jetlink: the jetson %s when the gadget goes",
+                       "sleeps" if sleeps else "stays up" if sleeps is False else
+                       "does not say whether it sleeps")
+    self.server_sleeps = sleeps
+
+  def should_go_dormant(self) -> bool:
+    """Is letting go of the gadget worth what it costs?
+
+    Only if the Jetson sleeps when it is orphaned. On ignition power it does
+    not, and releasing anyway meant a powered, awake box spent the whole
+    parked period unenumerated: the icon read DISCONNECTED five seconds later,
+    and every handover after that was an unplug the server had to recover
+    from. A server that reports nothing predates the field, and keeping the
+    release it has always had is the safer guess there.
+    """
+    return self.server_sleeps is not False
 
   def go_dormant(self) -> None:
     """Release the gadget so the Jetson can sleep. The marker goes first so
@@ -518,7 +548,8 @@ class Jetlinkd:
       self.ready = self.provision()
       self.failures = 0
       self.next_provision = 0.0
-      if self.ready and time.monotonic() - self.started >= DORMANT_HOLD:
+      if (self.ready and self.should_go_dormant()
+          and time.monotonic() - self.started >= DORMANT_HOLD):
         self.go_dormant()
     except Exception as e:
       cloudlog.exception("jetlink: provisioning failed")

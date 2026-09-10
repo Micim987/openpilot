@@ -492,6 +492,40 @@ class TestParked(unittest.TestCase):
     assert not d.dormant
     assert not jetlinkd.helpers.dormant()
 
+  def test_a_server_that_never_sleeps_keeps_the_gadget(self):
+    # The whole point of letting go is a Jetson that suspends. One on ignition
+    # power does not, and releasing left a powered, awake box unenumerated for
+    # the entire parked period.
+    d = self.daemon()
+    d.server_sleeps = False
+    d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
+    d.step()
+    assert not d.dormant
+    assert d.close_link.call_count == 0
+    assert not jetlinkd.helpers.dormant()
+
+  def test_a_server_that_sleeps_still_gets_the_gadget_back(self):
+    d = self.daemon()
+    d.server_sleeps = True
+    d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
+    d.step()
+    assert d.dormant
+
+  def test_a_server_too_old_to_say_keeps_the_release_it_has_always_had(self):
+    d = self.daemon()
+    d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
+    assert d.server_sleeps is None
+    d.step()
+    assert d.dormant
+
+  def test_the_hello_is_what_decides(self):
+    d = jetlinkd.Jetlinkd()
+    for hello, expected in (({'sleep_after': 120.0}, True), ({'sleep_after': 0}, False),
+                            ({}, None), ({'sleep_after': 'soon'}, None)):
+      d.note_sleep_after(hello)
+      assert d.server_sleeps is expected, hello
+      assert d.should_go_dormant() is (expected is not False)
+
   def test_a_shutdown_request_is_carried_to_the_jetson(self):
     d = self.daemon()
     d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
