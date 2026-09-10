@@ -168,6 +168,25 @@ class TestUIStateAcceleratorView:
     finally:
       self._restore(saved)
 
+  def test_onroad_ready_is_not_the_loading_pulse(self, params):
+    # Loaded and waiting for a window, which on a MADS car is the rest of the
+    # drive unless the driver stops. A pulsing "loading" icon through all of it
+    # is what "waited for the green icon, never turned off the car" was.
+    from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP
+    from openpilot.selfdrive.ui.ui_state import ui_state, ChestnutState
+    saved = self._with(FakeSM(board=False, alive=True, recv=1, state='ready'), started=True)
+    try:
+      # the status name is cached where sm is read, and update_params only copies
+      # it into the view; without this the view carries the previous 'none' and
+      # the state falls through to FAILED
+      UIStateSP.update(ui_state)
+      with accelerator(present=True, ready=True, enabled=True):
+        ui_state.update_params()
+      ui_state._update_chestnut_state()
+      assert ui_state.chestnut_state == ChestnutState.WAITING
+    finally:
+      self._restore(saved)
+
   def test_the_status_name_is_read_where_sm_updates(self, params):
     from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP
     from openpilot.selfdrive.ui.ui_state import ui_state
@@ -259,6 +278,20 @@ class TestTiciModelsPanel:
         ui_state.accelerator_view = AcceleratorView(True, True, None, 'none')
         note = layout._status_note()
         assert note.startswith("Cinque Terre will drive.") and "chestnut" not in note
+    finally:
+      ui_state.accelerator_view, ui_state.chestnut_present = saved
+
+  def test_the_note_says_what_the_switch_is_waiting_for(self, params):
+    from openpilot.selfdrive.ui.sunnypilot.ui_state import AcceleratorView
+    ui_state = ui_state_module().ui_state
+    saved = ui_state.accelerator_view, ui_state.chestnut_present
+    try:
+      ui_state.chestnut_present = False
+      with accelerator(present=True, ready=True, selected='Cinque Terre'), \
+           mock.patch("openpilot.selfdrive.ui.sunnypilot.layouts.settings.models.big_model_state", return_value='ready'):
+        layout = self._layout()
+        ui_state.accelerator_view = AcceleratorView(True, True, None, 'ready')
+        assert layout._status_note() == "Cinque Terre is ready. Stop with cruise off, or turn lateral off, to switch."
     finally:
       ui_state.accelerator_view, ui_state.chestnut_present = saved
 
