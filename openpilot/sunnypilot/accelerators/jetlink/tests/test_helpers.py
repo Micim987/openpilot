@@ -177,7 +177,7 @@ POINTERS = {REF_A: {'oid': '1' * 64, 'size': 766_000_000},
 
 
 def catalog_param(*bundles):
-  params = mock.patch.object(helpers, 'Params')
+  params = mock.patch.object(helpers, 'params')
   params.start().return_value.get.return_value = {'bundles': list(bundles)}
   return params
 
@@ -205,7 +205,7 @@ class TestCatalog(unittest.TestCase):
 
   def test_an_unreadable_catalog_is_empty_not_an_error(self):
     # read from the UI's param thread, where an exception takes the panel down
-    params = mock.patch.object(helpers, 'Params').start()
+    params = mock.patch.object(helpers, 'params').start()
     params.return_value.get.side_effect = RuntimeError('no params')
     self.assertEqual(helpers.catalog(), [])
 
@@ -246,7 +246,7 @@ class TestResolvePointer(unittest.TestCase):
   POINTER = f"version https://git-lfs.github.com/spec/v1\noid sha256:{'3' * 64}\nsize 766040736\n"
 
   def setUp(self):
-    self.params = mock.patch.object(helpers, 'Params').start()
+    self.params = mock.patch.object(helpers, 'params').start()
     self.addCleanup(mock.patch.stopall)
     helpers._index_cache = (float('inf'), [])   # a stale index must be dropped on a hit
     self.addCleanup(setattr, helpers, '_index_cache', None)
@@ -348,7 +348,7 @@ class TestMigrateSelection(unittest.TestCase):
 
   def migrate(self, legacy, ready=None, slot_ref=None, resolve=None, listed=True):
     values = {helpers.P_MODEL_LEGACY: legacy, helpers.P_READY: ready}
-    params = mock.patch.object(helpers, 'Params').start()
+    params = mock.patch.object(helpers, 'params').start()
     self.addCleanup(mock.patch.stopall)
     self.stored = mock.patch.object(helpers, '_store_slot', **({'side_effect': listed} if isinstance(listed, Exception) else {'return_value': listed})).start()
     with mock.patch.object(helpers, '_get', side_effect=lambda k, d=None: values.get(k, d)), \

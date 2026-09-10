@@ -37,6 +37,22 @@ P_ENDPOINT = "JetlinkEndpoint"      # optional "host:port" to use TCP instead of
 
 
 
+# One handle per params store. Constructing a Params costs 144 us on the comma
+# against 110 us for the read itself, so a fresh one per read more than doubles
+# every param this module touches, and jetlinkd touches several twice a second
+# for the whole time the car is parked. Keyed on the prefix because a test or a
+# bench runs under its own store and must not be handed the device's.
+_params: dict[str, Params] = {}
+
+
+def params() -> Params:
+  prefix = os.environ.get('OPENPILOT_PREFIX', '')
+  store = _params.get(prefix)
+  if store is None:
+    store = _params[prefix] = Params()
+  return store
+
+
 def _get(key: str, default=None):
   """Read a param, tolerating a params library that predates the key.
 
@@ -44,7 +60,7 @@ def _get(key: str, default=None):
   would take down a process that has nothing to do with jetlink.
   """
   try:
-    return Params().get(key)
+    return params().get(key)
   except Exception:
     return default
 
@@ -406,7 +422,7 @@ def catalog() -> list[dict]:
   """
   try:
     from openpilot.sunnypilot.models.helpers import REQUIRED_JSON_VERSION
-    bundles = (Params().get(CATALOG_PARAM) or {}).get('bundles', [])
+    bundles = (params().get(CATALOG_PARAM) or {}).get('bundles', [])
     found = [b for b in bundles if _REF.fullmatch(str(b.get('ref')))
              and int(b.get('minimum_selector_version', 0)) == REQUIRED_JSON_VERSION]
   except Exception:
@@ -441,7 +457,7 @@ def resolve_pointer(ref: str) -> tuple[str, int]:
   oid, size = fetch_pointer(ref)
   known[ref] = {'oid': oid, 'size': size}
   # blocking: the next lookup reads this back, and a put still in flight would be lost under it
-  Params().put(P_POINTERS, known, block=True)
+  params().put(P_POINTERS, known, block=True)
   _index_cache = None
   cloudlog.warning("jetlink: %s is %s, %d MB", ref[:10], oid[:16], size >> 20)
   return oid, size
@@ -509,7 +525,7 @@ def migrate_selection() -> None:
   wanted = _get(P_MODEL_LEGACY)
   if not wanted:
     return
-  params = Params()
+  store = params()
   if selected_ref() is None:
     ref = wanted if _REF.fullmatch(wanted) else None
     if ref is None and (ready := _get(P_READY)):
@@ -524,7 +540,7 @@ def migrate_selection() -> None:
           break
     if ref is not None:
       try:
-        stored = _store_slot(params, ref)
+        stored = _store_slot(store, ref)
       except LookupError as e:
         cloudlog.warning("jetlink: cannot migrate the selection %r yet: %s", wanted, e)
         return
@@ -532,7 +548,7 @@ def migrate_selection() -> None:
         cloudlog.warning("jetlink: selection %r is now the big-model slot, %s", wanted, ref[:10])
       else:
         cloudlog.warning("jetlink: selection %r is not a catalog model, using the default", wanted)
-  params.remove(P_MODEL_LEGACY)
+  store.remove(P_MODEL_LEGACY)
 
 
 def _store_slot(params, ref: str) -> bool:
@@ -599,8 +615,8 @@ def engine_ready_for(sha256: str | None) -> bool:
 
 
 def set_engine_ready(sha256: str | None) -> None:
-  params = Params()
+  store = params()
   if sha256:
-    params.put(P_READY, sha256)
+    store.put(P_READY, sha256)
   else:
-    params.remove(P_READY)
+    store.remove(P_READY)
