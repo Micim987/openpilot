@@ -55,11 +55,24 @@ P_READY = "JetlinkEngineReady"      # sha256 of the model the Jetson has built
 P_ENDPOINT = "JetlinkEndpoint"      # optional "host:port" to use TCP instead of USB
 
 
+_dirs: dict[tuple[str, str], Path] = {}
+
+
 def params_dir() -> Path:
-  root = os.environ.get('PARAMS_ROOT')
-  if not root:
-    root = '/data/params' if AGNOS else os.path.expanduser('~/.comma/params')
-  return Path(root) / os.environ.get('OPENPILOT_PREFIX', 'd')
+  """Where the params live, by params.cc's rule. Memoised on the two variables
+  it depends on: this is on the path of every param read in the process."""
+  prefix = os.environ.get('OPENPILOT_PREFIX', 'd')
+  root = os.environ.get('PARAMS_ROOT', '')
+  key = (root, prefix)
+  found = _dirs.get(key)
+  if found is None:
+    # hw.h: PARAMS_ROOT, else /data/params on device. comma_home carries the
+    # prefix off-device, so a bench under its own store lands where Params does
+    home = root or ('/data/params' if AGNOS
+                    else os.path.join(os.path.expanduser('~'),
+                                      '.comma' + ('' if prefix == 'd' else prefix), 'params'))
+    found = _dirs[key] = Path(home) / prefix
+  return found
 
 
 def raw_param(key: str) -> bytes | None:
@@ -135,10 +148,15 @@ CC_ORIENTATION = Path('/sys/class/power_supply/usb/typec_cc_orientation')
 DORMANT = Path("/dev/shm/jetlink-dormant")
 # hardwared's request to power the Jetson off; see backend.shutdown
 SHUTDOWN_REQUEST = Path("/dev/shm/jetlink-shutdown")
+# what a provisioning run leaves for the owner: whether the far end suspends
+# when the gadget goes, and whether the run left anything undone. The owner
+# never speaks the protocol, so it cannot learn either for itself
+STATE = Path("/dev/shm/jetlink-owner-state")
 
 
 def repo_root() -> Path:
-  return Path(__file__).resolve().parents[4]
+  from openpilot.common.basedir import BASEDIR
+  return Path(BASEDIR)
 
 
 def gadget_error() -> str | None:
@@ -333,7 +351,13 @@ def request_shutdown(reason: str) -> bool:
 
 
 def pending_shutdown() -> str | None:
-  """The reason in a shutdown request that has not been dealt with, if any."""
+  """The reason in a shutdown request that has not been dealt with, if any.
+
+  Read twice a second for the life of the process and almost never there, so
+  the miss is a stat rather than an open that raises.
+  """
+  if not SHUTDOWN_REQUEST.exists():
+    return None
   try:
     return str(json.loads(SHUTDOWN_REQUEST.read_text()).get('reason', ''))
   except (OSError, ValueError):

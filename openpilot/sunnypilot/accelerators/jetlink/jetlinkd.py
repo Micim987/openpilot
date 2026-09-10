@@ -36,27 +36,13 @@ from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot import accelerators
 from openpilot.common.params import Params
-from openpilot.sunnypilot.accelerators.jetlink import helpers, lending, owner, provision, spec_cache, warp_cache
+from openpilot.sunnypilot.accelerators.jetlink import gadget, helpers, lending, provision, spec_cache, warp_cache
 
 # how long to wait for the Jetson to enumerate before giving up on this run.
 # The owner presented the gadget; a box that is asleep answers the bind in
 # about 8 s, one that is off never does and the next run will find it
 WAKE_TIMEOUT = 20.0
 
-# how long after ignition-off the gadget is released once there is nothing to
-# do. The server sleeps 120 s after the gadget goes; a stop inside the hold
-# rejoins at once, one outside it costs the ~8 s wake
-DORMANT_HOLD = 60.0
-# a sleeping Jetson wakes on the bind: ~6 s to a kernel, ~1 s to enumerate
-WAKE_TIMEOUT = 20.0
-# how long settle() waits for its own re-enumeration before carrying on. The
-# Jetson is back in about a second; the server reopens the device a poll later
-SETTLE_TIMEOUT = 10.0
-# after a borrower lets go. The server has just lost its client and is closing
-# the gadget and reopening it, two seconds at a time; a hello inside that window
-# fails, and a failed hello is read as a suspect link and costs the
-# re-enumeration this whole arrangement exists to avoid
-LEASE_SETTLE = 4.0
 
 def _timed_out(e: BaseException) -> bool:
   """Did the exchange time out with the stream still usable?
@@ -74,12 +60,9 @@ class Jetlinkd:
   def __init__(self):
     self.client = None
     self.stop = False
-    self.ready = False
     self.fetch_failed = False
-    self.verified = False   # the server has confirmed the ready param this run
     self.warp_built = False  # tried the comma-side warp this run
     self.warp_thread: threading.Thread | None = None
-    self.loan = None        # the owner's lease on the endpoint files
     # does the far end suspend when the gadget goes? From the server's hello.
     # The owner needs it to decide whether letting go is worth what it costs,
     # and cannot ask: it never speaks the protocol
@@ -100,21 +83,6 @@ class Jetlinkd:
       except Exception:
         cloudlog.exception("jetlink: error closing the link")
 
-  def interrupted(self) -> bool:
-    """Should a long wait give up? Only a stop, now: the owner sends one at the
-    onroad transition so modeld can take the endpoints.
-
-    A build takes minutes, so one started while parked can still be running
-    when the driver pulls away. The server's build thread carries on either way
-    and modeld picks the engine up over its own link, so letting go costs
-    nothing.
-    """
-    return self.stop
-
-
-
-
-
 
   def open_link(self) -> bool:
     """Borrow the endpoints from the owner, or open the gadget ourselves.
@@ -126,9 +94,9 @@ class Jetlinkd:
     if self.client is not None:
       return True
     try:
-      self.loan = lending.borrow('jetlinkd')
-      self.client = helpers.connect(deadline=5.0, name='jetlinkd', loan=self.loan)
-      if self.loan is None:
+      loan = lending.borrow('jetlinkd')
+      self.client = helpers.connect(deadline=5.0, name='jetlinkd', loan=loan)
+      if loan is None:
         cloudlog.warning("jetlink: no owner to borrow from, presenting the gadget ourselves")
       return True
     except Exception:
@@ -148,7 +116,7 @@ class Jetlinkd:
     try:
       path = helpers.fetch_shipped_model(
         progress=lambda frac: accelerators.report_progress('download', frac, 'downloading the large model'),
-        should_stop=self.interrupted,
+        should_stop=lambda: self.stop,
       )
     except Exception:
       cloudlog.exception("jetlink: could not fetch the large model")
@@ -207,11 +175,6 @@ class Jetlinkd:
       return False
     sha256, nbytes = provision.identity(entry)
 
-    # the param says ready, but the Jetson's cache may have been pruned or
-    # re-flashed since. Ask once per attach
-    if self.verified and helpers.engine_ready_for(sha256):
-      return True
-
     # only needed if the server turns out not to have this model; None is a
     # legitimate state here, see EngineMissing below
     model_path = helpers.shipped_model_path()
@@ -227,7 +190,7 @@ class Jetlinkd:
     try:
       spec = provision.ensure(self.client, sha256, nbytes, model_path,
                               progress=provision.report_with_eta,
-                              should_stop=self.interrupted)
+                              should_stop=lambda: self.stop)
     except EngineMissing:
       # nothing to give. Fetch it and let the next poll try again rather than
       # holding the link through a download that takes minutes
@@ -237,7 +200,6 @@ class Jetlinkd:
 
     cached = helpers._get('JetlinkCachedModels') or []
     Params().put('JetlinkCachedModels', sorted(set(cached) | {spec.sha256}))
-    self.verified = True
     accelerators.report_progress('ready', 1.0, 'engine ready')
     cloudlog.warning("jetlink: engine ready for %s", spec.sha256[:16])
     return True
@@ -260,7 +222,6 @@ class Jetlinkd:
       self.server_sleeps = True
     cloudlog.warning("jetlink: the jetson %s when the gadget goes",
                      "sleeps" if self.server_sleeps else "stays up")
-
 
 
   def has_work(self) -> bool:
@@ -304,7 +265,7 @@ class Jetlinkd:
     """What the owner cannot work out for itself: whether the far end sleeps
     when the gadget goes, and whether this run left anything undone."""
     try:
-      owner.STATE.write_text(json.dumps({
+      gadget.STATE.write_text(json.dumps({
         'sleep_after': 1.0 if self.server_sleeps else 0.0,
         'unfinished': unfinished,
       }))
@@ -338,7 +299,7 @@ class Jetlinkd:
       if not self.open_link():
         return False
       if not helpers.wait_for_host(WAKE_TIMEOUT, bounce=self.bounce,
-                                   should_stop=self.interrupted):
+                                   should_stop=lambda: self.stop):
         cloudlog.warning("jetlink: no jetson within %.0f s, leaving it for the next run", WAKE_TIMEOUT)
         return False
       finished = self.provision()

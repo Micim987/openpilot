@@ -27,7 +27,7 @@ from openpilot.sunnypilot.accelerators.jetlink.gadget import set_logger as _set_
 # What moved to gadget.py, still reachable as helpers.<name>. Forwarded rather
 # than imported so there is one seam: gadget's own functions read these out of
 # gadget's namespace, and a test that patches them there is seen here too.
-_FORWARDED = (
+_FORWARDED = frozenset((
   'AGNOS', 'CC_ORIENTATION', 'DORMANT', 'FFS_MOUNT', 'GADGET_PATH', 'GADGET_SETUP_TIMEOUT',
   'GADGET_STATUS', 'HOST_POLL', 'P_ENABLED', 'P_ENDPOINT', 'P_READY', 'SHUTDOWN_REQUEST',
   'STALLED_ENUMERATION', 'STALLED_STATES', 'UDC_PATH', 'bound_udc', 'can_setup_gadget',
@@ -35,10 +35,14 @@ _FORWARDED = (
   'link_configured', 'offroad',
   'link_endpoint', 'package_installed', 'params_dir', 'pending_shutdown', 'port_has_host',
   'repo_root', 'request_shutdown', 'set_dormant', 'setup_gadget', 'udc_state', 'wait_for_host',
-)
+))
 
 
 def __getattr__(name: str):
+  # deliberately not cached into this module's namespace: binding the value
+  # would freeze whatever gadget held at first use, and a test that patches
+  # gadget would stop being visible through here, which is the whole point of
+  # the forward. A frozenset lookup and a getattr is a microsecond
   if name in _FORWARDED:
     return getattr(gadget, name)
   raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

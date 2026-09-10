@@ -43,13 +43,12 @@ class ClockedTest(unittest.TestCase):
       p.start()
 
   def bus(self, udc: str, cc: bool = True):
-    # both modules: the primitives live in gadget and wait_for_host reads them
-    # there, while callers that went through helpers still resolve them there
+    # gadget, not helpers: the primitives live there and everything that reads
+    # them resolves them there, helpers included through its forward
     for name, value in (('udc_state', udc), ('port_has_host', cc)):
-      for module in (helpers, gadget):
-        p = mock.patch.object(module, name, return_value=value)
-        self.addCleanup(p.stop)
-        p.start()
+      p = mock.patch.object(gadget, name, return_value=value)
+      self.addCleanup(p.stop)
+      p.start()
 
 
 class WaitForHost(ClockedTest):

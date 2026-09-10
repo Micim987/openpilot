@@ -56,7 +56,8 @@ def _read_sysctls(keys) -> dict[str, str]:
 
 
 def _write_sysctls(values: dict[str, str]) -> None:
-  # sudo -n sysctl is the same privilege setup_gadget.sh uses; root writes /proc
+  # sudo -n sysctl is the same privilege setup_gadget.sh uses; root writes /proc.
+  # One key per call, so a value the kernel rejects does not take the rest with it
   for key, value in values.items():
     try:
       if os.geteuid() == 0:

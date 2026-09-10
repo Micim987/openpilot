@@ -54,27 +54,30 @@ GADGET_SETUP_BACKOFF = 60.0
 WORKER_BACKOFF = 300.0
 WORKER_GRACE = 10.0
 
-LOG = Path('/dev/shm/jetlink-owner.log')
-# what the worker leaves behind for us: whether the far end suspends when the
-# gadget goes, and whether it had anything left to do
-STATE = Path('/dev/shm/jetlink-owner-state')
+# under /data/log rather than /dev/shm: this is the one jetlink process alive
+# for a whole drive, and a bench session wants its lines afterwards. Rotated,
+# because the loop below logs a traceback per cycle if something stays broken
+LOG = Path('/data/log/jetlink-owner.log')
+LOG_BYTES = 1 << 20
 # params whose change is a reason to look again: the pick, and what is built
 WATCHED = ('ModelManager_ActiveBundleChestnut', 'JetlinkEngineReady', 'JetlinkSpec')
 WORKER = 'openpilot.sunnypilot.accelerators.jetlink.jetlinkd'
 
 
-def _log_to_file() -> logging.Logger:
+def _own_logger() -> logging.Logger:
   """swaglog costs 28 MB, so the owner keeps its own. The worker's lines go to
   the drive as they always did; these are for a bench session."""
   log = logging.getLogger('jetlink.owner')
   log.setLevel(logging.INFO)
+  handlers: list[logging.Handler] = [logging.StreamHandler()]
   try:
-    handler: logging.Handler = logging.FileHandler(LOG)
+    from logging.handlers import RotatingFileHandler
+    handlers.append(RotatingFileHandler(LOG, maxBytes=LOG_BYTES, backupCount=1))
   except OSError:
-    handler = logging.StreamHandler()
-  handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)-7s %(message)s'))
-  log.addHandler(handler)
-  log.addHandler(logging.StreamHandler())
+    pass   # a read-only or missing /data/log; stderr is enough
+  for handler in handlers:
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)-7s %(message)s'))
+    log.addHandler(handler)
   return log
 
 
@@ -89,9 +92,10 @@ class Owner:
     self.next_gadget_attempt = 0.0
     self.next_worker = 0.0
     self.lease_settled = 0.0
-    self.was_lent = False
+    self.attached = False
     self.worker: subprocess.Popen | None = None
     self.seen: dict[str, int] = {}      # watched param -> mtime when last looked
+    self._watched: dict[str, str] | None = None
     self.had_host = False
     self.lender = lending.Lender(self.lendable, self.bounce_gadget)
 
@@ -183,8 +187,7 @@ class Owner:
     Keep the gadget on the bus and stay off it. One sysfs read a cycle: a
     process that wakes up to do work on modeld's core is a dropped frame.
     """
-    if self.dormant:
-      self.wake()
+    self.wake()
     if self.transport is not None:
       return self.settle()
     if self.ensure_gadget():
@@ -192,15 +195,9 @@ class Owner:
 
   # -- the parked car -------------------------------------------------------
 
-  def server_sleeps(self) -> bool:
-    """Does the far end suspend when the gadget goes? The worker learns it from
-    the server's hello and leaves it here. True until one says otherwise: a
-    server too old to report it keeps the release it has always had."""
-    return self.state().get('sleep_after', 1.0) > 0
-
   def state(self) -> dict:
     try:
-      value = json.loads(STATE.read_text())
+      value = json.loads(gadget.STATE.read_text())
     except (OSError, ValueError):
       return {}
     return value if isinstance(value, dict) else {}
@@ -216,6 +213,8 @@ class Owner:
 
   def wake(self) -> None:
     """Present the gadget again. If the Jetson is asleep, the bind wakes it."""
+    if not self.dormant:
+      return
     gadget.log.warning("jetlink: presenting the gadget again")
     gadget.set_dormant(False)
     self.dormant = False
@@ -225,10 +224,12 @@ class Owner:
   def marks(self) -> dict[str, int]:
     """When each watched param last changed. A stat, not a read: the owner does
     not parse the catalog or the spec, it only notices they moved."""
+    if self._watched is None:
+      self._watched = {k: str(gadget.params_dir() / k) for k in WATCHED}
     out = {}
-    for key in WATCHED:
+    for key, path in self._watched.items():
       try:
-        out[key] = (gadget.params_dir() / key).stat().st_mtime_ns
+        out[key] = os.stat(path).st_mtime_ns
       except OSError:
         out[key] = 0
     return out
@@ -240,30 +241,34 @@ class Owner:
       return True
     gadget.log.warning("jetlink: the provisioning run finished (%s)", self.worker.returncode)
     self.worker = None
+    # after the run, not before it: a run writes JetlinkSpec and
+    # JetlinkEngineReady itself, so a mark taken at spawn always differs by the
+    # time it exits and every successful provision started a second one
+    self.note_marks()
     return False
 
-  def wanted(self) -> str | None:
+  def note_marks(self) -> None:
+    self.seen = self.marks()
+    self.had_host = gadget.host_attached()
+
+  def wanted(self, state: dict) -> str | None:
     """Why the worker should run, or None. Everything that decides whether
     there is work needs the catalog, the spec and the Jetson, so the worker
     decides; this only notices the things that could have changed the answer."""
-    if gadget.pending_shutdown() is not None:
-      return 'the jetson has to be shut down'
-    marks = self.marks()
     if not self.seen:
       return 'nothing has been checked since boot'
-    changed = [k for k, v in marks.items() if self.seen.get(k) != v]
+    changed = [k for k, v in self.marks().items() if self.seen.get(k) != v]
     if changed:
       return f"{', '.join(changed)} changed"
-    if gadget.host_attached() and not self.had_host:
+    if self.attached and not self.had_host:
       return 'a jetson turned up'
-    if time.monotonic() >= self.next_worker and self.state().get('unfinished'):
+    if time.monotonic() >= self.next_worker and state.get('unfinished'):
       return 'the last run left something to do'
     return None
 
   def spawn_worker(self, why: str) -> None:
     gadget.log.warning("jetlink: starting a provisioning run: %s", why)
-    self.seen = self.marks()
-    self.had_host = gadget.host_attached()
+    self.note_marks()
     self.next_worker = time.monotonic() + WORKER_BACKOFF
     try:
       self.worker = subprocess.Popen([sys.executable, '-m', WORKER],
@@ -294,8 +299,7 @@ class Owner:
         gadget.log.warning("jetlink: disabled, releasing the link")
         self.close_link()
       self.stop_worker()
-      if self.dormant:
-        self.wake()
+      self.wake()
       if self.vm_tuned:
         vmtune.restore_vm_tuning()
         self.vm_tuned = False
@@ -305,47 +309,64 @@ class Owner:
       vmtune.apply_vm_tuning()
       self.vm_tuned = True
 
-    if not gadget.offroad():
+    # each read is a file; take them once and pass them down
+    offroad = gadget.offroad()
+    self.attached = gadget.host_attached()
+    state = self.state()
+
+    # before the worker gate: hardwared waits 25 s for this and a build in
+    # flight takes minutes, so a shutdown request cannot queue behind one
+    reason = gadget.pending_shutdown()
+    if reason is not None and not self.lender.lent:
+      self.stop_worker()
+      self.wake()
+      if self.open_link():
+        return self.spawn_worker(f'the jetson has to be shut down: {reason}')
+      return
+
+    if not offroad:
       # the drive has started and the endpoints belong to modeld. A run of ours
       # holding the lease would keep it out for the whole drive; the server's
       # build carries on and modeld picks the engine up over its own link
       self.stop_worker()
+      if not self.lender.listening:
+        # nobody can ask us for the endpoints, so ep0 in our hands would only
+        # keep modeld out for the whole drive. Give the gadget up and let it
+        # own the link the way it did before there was a lease
+        self.close_link()
+        return
 
-    if self.lender.lent or not gadget.offroad():
-      self.was_lent = self.lender.lent
+    if self.lender.lent or not offroad:
+      if self.lender.lent:
+        # the window starts when the last borrower lets go. Its own deadline,
+        # because a host arriving clears the worker backoff and a borrower
+        # letting go looks like one arriving
+        self.lease_settled = time.monotonic() + LEASE_SETTLE
       return self.hold()
-
-    if self.was_lent:
-      # the borrower has just let go and the server is still reopening the
-      # gadget it lost; a hello inside that window fails and costs a
-      # re-enumeration. Its own deadline, because a host arriving clears the
-      # worker's backoff and a borrower letting go looks like one arriving
-      self.was_lent = False
-      self.lease_settled = time.monotonic() + LEASE_SETTLE
 
     if self.worker_running():
       return self.hold()
 
-    if not self.ensure_gadget():
-      return
-    if time.monotonic() < self.next_attempt:
+    if time.monotonic() < max(self.next_attempt, self.lease_settled):
       return
 
-    why = self.wanted() if time.monotonic() >= self.lease_settled else None
+    why = self.wanted(state)
     if why is not None:
-      if self.dormant:
-        self.wake()
+      if not self.ensure_gadget():
+        return
+      self.wake()
       if not self.open_link():
         return
       return self.spawn_worker(why)
 
+    sleeps = state.get('sleep_after', 1.0) > 0
     if self.transport is None:
       # nothing to do and nothing presented: only worth a bind if the far end
       # stays awake for it
-      if not self.server_sleeps():
-        self.hold()
+      if not sleeps and self.ensure_gadget():
+        self.open_link()
       return
-    if self.server_sleeps() and time.monotonic() - self.started >= DORMANT_HOLD:
+    if sleeps and time.monotonic() - self.started >= DORMANT_HOLD:
       self.go_dormant()
     else:
       self.settle()
@@ -374,7 +395,7 @@ class Owner:
 
 
 def main() -> None:
-  gadget.set_logger(_log_to_file())
+  gadget.set_logger(_own_logger())
   owner = Owner()
   signal.signal(signal.SIGTERM, owner.request_stop)
   signal.signal(signal.SIGINT, owner.request_stop)

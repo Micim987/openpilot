@@ -11,6 +11,7 @@ daemon has a host to talk to and keeps trying, so anything it repeats per
 attempt it repeats for as long as the car is parked.
 """
 
+import json
 import sys
 import tempfile
 import types
@@ -19,13 +20,6 @@ from pathlib import Path
 from unittest import mock
 
 from openpilot.sunnypilot.accelerators.jetlink import gadget, jetlinkd, provision
-
-
-def _owner_of(name: str):
-  """Where a stub has to go. The gadget primitives moved to gadget.py and its
-  own functions read them out of that namespace; helpers forwards, so patching
-  gadget covers both. Everything else is still helpers'."""
-  return jetlinkd.helpers if name in vars(jetlinkd.helpers) else gadget
 
 
 class FakeSpec:
@@ -109,7 +103,7 @@ class TestProvisionCost(unittest.TestCase):
         p.start()
     for name, value in (('shipped_model_path', self.model), ('engine_ready_for', False),
                         ('selected_model', dict(self.ENTRY))):
-      p = mock.patch.object(_owner_of(name), name, return_value=value)
+      p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
       self.addCleanup(p.stop)
       p.start()
     p = mock.patch.dict(sys.modules, fake_jetlink_spec_module(self.hashed))
@@ -217,26 +211,18 @@ class TestProvisionCost(unittest.TestCase):
     assert calls[1].kwargs['onnx_path'] == self.model
     assert self.hashed == [str(self.model)], "hashed once, on the path the bytes leave by"
 
-  def test_a_ready_engine_short_circuits_without_touching_the_file(self):
-    self.cache.store(FakeSpec(), self.model)
-    d = jetlinkd.Jetlinkd()
-    d.verified = True
-    with mock.patch.object(jetlinkd.helpers, 'engine_ready_for', return_value=True):
-      assert d.provision() is True
-    assert self.hashed == []
-
-  def test_a_ready_param_is_checked_with_the_server_once_per_attach(self):
-    # the Jetson's cache can be pruned or re-flashed under a param that says ready
+  def test_a_ready_param_is_still_checked_with_the_server(self):
+    # the Jetson's cache can be pruned or re-flashed under a param that says
+    # ready. A run provisions once and then exits, so the check is once a run
+    # and there is no second call to skip
     self.cache.store(FakeSpec(), self.model)
     d = jetlinkd.Jetlinkd()
     d.client = serving_client()
     with mock.patch.object(jetlinkd.helpers, 'engine_ready_for', return_value=True), \
          mock.patch.object(jetlinkd.helpers, 'set_engine_ready') as ready:
       assert d.provision() is True
-      assert d.client.ensure_engine.call_count == 1
-      assert d.verified
-      assert d.provision() is True
-      assert d.client.ensure_engine.call_count == 1, "verified once, then the param is trusted"
+    assert d.client.ensure_engine.call_count == 1
+    assert self.hashed == [], 'read the model to answer a question the server answers'
     ready.assert_called_with('deadbeef')
 
   def test_the_shapes_come_from_the_server_not_the_file(self):
@@ -330,6 +316,86 @@ class TestWarpFallback(unittest.TestCase):
       d.build_warp()
       d.build_warp()
     cached.assert_called_once()
+
+
+class TestTheRun(unittest.TestCase):
+  """One round, then the process exits. What it leaves behind is what the owner
+  cannot work out for itself."""
+
+  def setUp(self):
+    self.tmp = Path(tempfile.mkdtemp())
+    for target, new in (('accelerators', mock.Mock()), ('warp_cache', mock.Mock())):
+      p = mock.patch.object(jetlinkd, target, new)
+      self.addCleanup(p.stop)
+      p.start()
+    p = mock.patch.object(gadget, 'STATE', self.tmp / 'state')
+    self.addCleanup(p.stop)
+    p.start()
+
+  def worker(self, work=True):
+    d = jetlinkd.Jetlinkd()
+    d.warp_built = True
+    for name, value in (('has_work', work), ('open_link', True), ('provision', True)):
+      p = mock.patch.object(d, name, mock.Mock(return_value=value))
+      self.addCleanup(p.stop)
+      p.start()
+    for name in ('enabled', 'migrate_selection', 'pending_shutdown', 'wait_for_host'):
+      p = mock.patch.object(jetlinkd.helpers, name,
+                            mock.Mock(return_value={'enabled': True, 'wait_for_host': True}.get(name)))
+      self.addCleanup(p.stop)
+      p.start()
+    return d
+
+  def state(self) -> dict:
+    return json.loads(gadget.STATE.read_text())
+
+  def test_nothing_to_do_never_opens_the_link(self):
+    d = self.worker(work=False)
+    assert d.run() is True
+    d.open_link.assert_not_called()
+    assert self.state()['unfinished'] is False
+
+  def test_a_finished_round_says_so_and_lets_the_link_go(self):
+    d = self.worker()
+    d.client = mock.Mock()
+    assert d.run() is True
+    d.provision.assert_called_once()
+    assert self.state()['unfinished'] is False
+    assert d.client is None, 'left the gadget open after the run'
+
+  def test_a_round_that_fails_leaves_the_work_for_the_next_one(self):
+    d = self.worker()
+    d.provision.side_effect = RuntimeError('the jetson went away')
+    assert d.run() is False
+    assert self.state()['unfinished'] is True
+
+  def test_no_jetson_is_left_for_the_next_run(self):
+    d = self.worker()
+    jetlinkd.helpers.wait_for_host.return_value = False
+    assert d.run() is False
+    d.provision.assert_not_called()
+    assert self.state()['unfinished'] is True
+
+  def test_what_the_far_end_does_when_the_gadget_goes_is_recorded(self):
+    # the owner never speaks the protocol, so this is the only way it learns
+    d = self.worker()
+    d.note_sleep_after({'sleep_after': 0.0})
+    d.run()
+    assert self.state()['sleep_after'] == 0.0
+
+  def test_a_shutdown_request_is_the_whole_round(self):
+    d = self.worker()
+    jetlinkd.helpers.pending_shutdown.return_value = 'car battery'
+    with mock.patch.object(d, 'shutdown_jetson') as shutdown:
+      assert d.run() is True
+    shutdown.assert_called_once_with('car battery')
+    d.provision.assert_not_called()
+
+  def test_the_link_off_is_not_a_round(self):
+    d = self.worker()
+    jetlinkd.helpers.enabled.return_value = False
+    assert d.run() is True
+    d.open_link.assert_not_called()
 
 
 class BuildEtaTest(unittest.TestCase):
