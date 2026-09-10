@@ -203,6 +203,17 @@ class Jetlinkd:
       except Exception:
         cloudlog.exception("jetlink: error closing the link")
 
+  def interrupted(self) -> bool:
+    """Should a long wait give up? The daemon is going away, or modeld wants
+    the link.
+
+    A build takes minutes and this daemon is no longer stopped at ignition, so
+    one started while parked can still be running when the driver pulls away.
+    The server's build thread carries on either way and modeld picks the engine
+    up over the borrowed link, so letting go here costs nothing.
+    """
+    return self.stop or self.lender.lent
+
   def lendable(self) -> bool:
     """Is the gadget in a state modeld can take the endpoints over from?"""
     return self.client is not None and self.client.lendable
@@ -248,7 +259,7 @@ class Jetlinkd:
     self.was_attached = helpers.host_attached()
 
   def hold_for_borrower(self) -> None:
-    """Everything this daemon does while modeld has the endpoints.
+    """Everything this daemon does once the car is moving.
 
     Keep the gadget on the bus, and stay off it. One sysfs read a cycle: this
     runs onroad now, and a process that wakes up to do work on modeld's core
@@ -303,7 +314,7 @@ class Jetlinkd:
     try:
       path = helpers.fetch_shipped_model(
         progress=lambda frac: accelerators.report_progress('download', frac, 'downloading the large model'),
-        should_stop=lambda: self.stop,
+        should_stop=self.interrupted,
       )
     except Exception:
       cloudlog.exception("jetlink: could not fetch the large model")
@@ -382,7 +393,7 @@ class Jetlinkd:
     try:
       spec = provision.ensure(self.client, sha256, nbytes, model_path,
                               progress=provision.report_with_eta,
-                              should_stop=lambda: self.stop)
+                              should_stop=self.interrupted)
     except EngineMissing:
       # nothing to give. Fetch it and let the next poll try again rather than
       # holding the link through a download that takes minutes
@@ -513,7 +524,9 @@ class Jetlinkd:
       self.shutdown_jetson(reason)
       return
 
-    if self.lender.lent:
+    if self.lender.lent or not helpers.offroad():
+      # onroad: hold the gadget and do nothing else. Whether or not modeld took
+      # the link, a download, a build or a warp compile belongs to a parked car
       return self.hold_for_borrower()
 
     if self.dormant:

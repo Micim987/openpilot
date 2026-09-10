@@ -244,6 +244,19 @@ class TestProvisionCost(unittest.TestCase):
     assert callable(kwargs['should_stop'])
     assert self.cache.stores == 1 and self.cache.spec.sha256 == 'deadbeef'
 
+  def test_a_borrower_ends_the_long_wait(self):
+    # a build started while parked can still be running when the driver pulls
+    # away, now that this daemon is not stopped at ignition. The server's build
+    # thread carries on and modeld picks the engine up over the borrowed link
+    d = jetlinkd.Jetlinkd()
+    d.client = serving_client()
+    with mock.patch.object(jetlinkd.helpers, 'set_engine_ready'):
+      d.provision()
+    should_stop = d.client.ensure_engine.call_args.kwargs['should_stop']
+    assert should_stop() is False
+    d.lender = mock.Mock(lent=True)
+    assert should_stop() is True
+
   def test_stop_is_polled_through_the_long_wait(self):
     d = jetlinkd.Jetlinkd()
     d.client = serving_client()
@@ -625,6 +638,17 @@ class TestGadgetOwnership(TestParked):
     d.client = None
     assert d.bounce_gadget() is False
     assert d.lendable() is False
+
+  def test_onroad_the_daemon_only_holds_the_gadget(self):
+    # a download, a build or a warp compile belongs to a parked car, whether or
+    # not modeld took the link
+    d = self.daemon()
+    d.client.lendable = True
+    with mock.patch.object(jetlinkd.helpers, 'offroad', return_value=False):
+      d.step()
+    assert d.provision.call_count == 0
+    assert d.open_link.call_count == 1, 'the gadget must stay on the bus'
+    assert d.close_link.call_count == 0
 
   def test_a_shutdown_request_waits_for_the_borrower(self):
     d = self.daemon()

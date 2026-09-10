@@ -304,6 +304,18 @@ def connect(deadline: float | None = None, name: str | None = None, loan=None):
   return JetlinkClient.open_ffs(str(FFS_MOUNT), gadget=str(GADGET_PATH), deadline=deadline, name=name)
 
 
+def offroad() -> bool:
+  """Is the car parked?
+
+  jetlinkd runs onroad now, to keep hold of the gadget, and everything it does
+  besides that belongs to a parked car: a download, a build, a warp compile.
+  A missing param is manager not having written one yet, and this daemon only
+  ever ran offroad before, so that reads as parked.
+  """
+  value = _get("IsOffroad")
+  return True if value is None else bool(value)
+
+
 def enabled() -> bool:
   """Has the user switched the link on? JetlinkEnabled == True and nothing else.
 

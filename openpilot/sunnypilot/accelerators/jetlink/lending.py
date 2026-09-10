@@ -123,6 +123,27 @@ def release() -> None:
       _held = None
 
 
+def _reply(conn: socket.socket, buf: bytearray, deadline: float) -> dict | None:
+  """One json line back, waiting out the recv timeout until the deadline.
+
+  The lender answers one borrower at a time, so a reply can be a moment late
+  while it lets go of the one before; a recv timeout is not a refusal.
+  """
+  while time.monotonic() < deadline:
+    if b'\n' in buf:
+      line, _, rest = bytes(buf).partition(b'\n')
+      buf[:] = rest
+      return json.loads(line)
+    try:
+      chunk = conn.recv(4096)
+    except TimeoutError:
+      continue
+    if not chunk:
+      return None
+    buf.extend(chunk)
+  return None
+
+
 def _open(name: str, timeout: float, path: Path) -> Loan | None:
   deadline = time.monotonic() + timeout
   try:
@@ -131,23 +152,24 @@ def _open(name: str, timeout: float, path: Path) -> Loan | None:
     conn.connect(str(path))
   except OSError:
     return None   # no jetlinkd listening; the caller owns the gadget itself
+  buf = bytearray()
   try:
-    while True:
+    while time.monotonic() < deadline:
       _send(conn, {'op': 'borrow', 'name': name})
-      reply = json.loads(conn.recv(4096) or b'{}')
+      reply = _reply(conn, buf, deadline)
+      if reply is None:
+        break
       if reply.get('ok'):
         cloudlog.warning("jetlink: borrowed the gadget from jetlinkd (udc %s)", reply.get('udc'))
         return Loan(conn, str(reply['mount']), str(reply['udc']))
-      if not reply.get('retry') or time.monotonic() > deadline:
+      if not reply.get('retry'):
         cloudlog.warning("jetlink: jetlinkd would not lend the gadget (%s)", reply.get('detail'))
-        conn.close()
-        return None
+        break
       time.sleep(RETRY)
   except (OSError, ValueError, KeyError):
     cloudlog.exception("jetlink: could not borrow the gadget")
-    conn.close()
-    return None
-
+  conn.close()
+  return None
 
 class Lender:
   """jetlinkd's side: one borrower at a time, for as long as it stays connected.
