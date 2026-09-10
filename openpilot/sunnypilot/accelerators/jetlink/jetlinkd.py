@@ -5,22 +5,28 @@ Copyright (c) 2026-, Zeph Leggett.
 This file is part of zoompilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Presents the USB gadget and provisions whatever large model is selected.
+Owns the USB gadget, and provisions whatever large model is selected.
 
-Something has to hold the FunctionFS endpoints or the comma never enumerates,
-and the Jetson usually powers up after the comma, so this runs even with
-nothing to do. Provisioning (upload plus a TensorRT build) takes minutes, far
-past modeld's 60 s big-model timeout, so it happens offroad; the result is
-cached on the Jetson, recorded in a param and left loaded on the server.
+The comma is the USB device: the link exists only while some process holds ep0
+with the UDC bound. This is that process, for as long as the link is enabled,
+onroad and offroad alike. Two processes used to take turns and every change of
+owner was an unplug and a replug as the Jetson saw it, a fresh libusb open and
+a fresh session. modeld borrows the endpoint files instead (lending.py) and the
+gadget never leaves the bus.
 
-manager stops this with SIGINT at ignition and SIGKILLs it 5 s later, so every
+Provisioning (a download, an upload and a TensorRT build) takes minutes, so it
+happens offroad; the result is cached on the Jetson, recorded in a param and
+left loaded on the server. modeld does its own provisioning over the borrowed
+link when the picked model turns out not to be built.
+
+manager stops this on shutdown with SIGINT and SIGKILLs it 5 s later, so every
 long wait polls `stop`: a FunctionFS owner killed mid-transfer leaves the
-gadget in a state only a reboot clears. jetlinkd owns the link offroad, modeld
-onroad; on the handover the gadget briefly unbinds and the Jetson re-enumerates.
+gadget in a state only a reboot clears.
 
 Once the engine is ready and DORMANT_HOLD has passed the gadget is released so
-a Jetson on an always-on supply can sleep. It is presented again when there is
-work; modeld's bind at ignition is the wake.
+a Jetson on an always-on supply can sleep, and only then: a server that does
+not suspend keeps the link for the whole parked period. It is presented again
+when there is work or when modeld borrows; the bind is the wake.
 """
 from __future__ import annotations
 
@@ -37,7 +43,7 @@ from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot import accelerators
 from openpilot.common.params import Params
-from openpilot.sunnypilot.accelerators.jetlink import helpers, provision, spec_cache, warp_cache
+from openpilot.sunnypilot.accelerators.jetlink import helpers, lending, provision, spec_cache, warp_cache
 
 POLL_HZ = 2.0
 RETRY_BACKOFF = 30.0       # after a failed provision
@@ -51,6 +57,9 @@ GADGET_SETUP_BACKOFF = 60.0  # between attempts to create a gadget boot did not
 DORMANT_HOLD = 60.0
 # a sleeping Jetson wakes on the bind: ~6 s to a kernel, ~1 s to enumerate
 WAKE_TIMEOUT = 20.0
+# how long settle() waits for its own re-enumeration before carrying on. The
+# Jetson is back in about a second; the server reopens the device a poll later
+SETTLE_TIMEOUT = 10.0
 
 # loggerd's dirty pages pile up until the kernel reclaims them synchronously,
 # right while a FunctionFS transfer allocates its buffer: gadget reads stalled
@@ -175,6 +184,9 @@ class Jetlinkd:
     # None until one has answered, and for a server old enough not to report
     # it at all, where the release it has always had is the safer guess
     self.server_sleeps: bool | None = None
+    # modeld's lease on the endpoint files. This daemon holds ep0 and the bind
+    # throughout, onroad included, so the link never leaves the bus
+    self.lender = lending.Lender(self.lendable, self.bounce_gadget)
 
   # -- lifecycle ------------------------------------------------------------
 
@@ -190,6 +202,62 @@ class Jetlinkd:
         client.close()
       except Exception:
         cloudlog.exception("jetlink: error closing the link")
+
+  def lendable(self) -> bool:
+    """Is the gadget in a state modeld can take the endpoints over from?"""
+    return self.client is not None and self.client.lendable
+
+  def bounce_gadget(self) -> bool:
+    """One unplug and replug, for a borrower whose write has no reader.
+
+    Unbinding is the only thing that makes FunctionFS dequeue a write the host
+    is not draining, and the unbind belongs to whoever holds ep0. It costs the
+    far end a re-enumeration, so it happens on a genuine 15 s hang and nowhere
+    else. See FfsTransport._abort_write.
+    """
+    if self.client is None:
+      return False
+    try:
+      return bool(self.client.rebind())
+    except Exception:
+      cloudlog.exception("jetlink: could not bounce the gadget for the borrower")
+      return False
+
+  def settle(self) -> None:
+    """Put the gadget back to bound with nothing open on it.
+
+    An exchange leaves a read queued on the endpoint, and FunctionFS keeps it
+    queued until something completes it: nobody else may read that endpoint
+    until it does, and the only thing that dequeues it is the unbind. So this
+    design still costs one re-enumeration, and it is spent here, parked, right
+    after provisioning, instead of at every ignition edge.
+
+    The wait is what keeps the loop from reading its own bounce as a host
+    coming and going, which would have it re-verify, provision and settle
+    again for as long as the car is parked.
+    """
+    if self.lendable():
+      return
+    cloudlog.warning("jetlink: putting the endpoints down, keeping the gadget bound")
+    self.close_link()
+    if not self.open_link():
+      return
+    deadline = time.monotonic() + SETTLE_TIMEOUT
+    while not helpers.host_attached() and not self.stop and time.monotonic() < deadline:
+      time.sleep(0.1)
+    self.was_attached = helpers.host_attached()
+
+  def hold_for_borrower(self) -> None:
+    """Everything this daemon does while modeld has the endpoints.
+
+    Keep the gadget on the bus, and stay off it. One sysfs read a cycle: this
+    runs onroad now, and a process that wakes up to do work on modeld's core
+    is a dropped frame.
+    """
+    if self.dormant:
+      self.wake()
+    if self.ensure_gadget() and self.open_link():
+      self.settle()
 
   def ensure_gadget(self) -> bool:
     """Is there a gadget to present? Create it if boot did not.
@@ -439,9 +507,14 @@ class Jetlinkd:
 
     self.tune_vm()
     reason = helpers.pending_shutdown()
-    if reason is not None:
+    if reason is not None and not self.lender.lent:
+      # hardwared only shuts a parked car down, and a borrower has the
+      # endpoints: this cannot talk over it
       self.shutdown_jetson(reason)
       return
+
+    if self.lender.lent:
+      return self.hold_for_borrower()
 
     if self.dormant:
       if self.has_work():
@@ -485,9 +558,14 @@ class Jetlinkd:
       self.ready = self.provision()
       self.failures = 0
       self.next_provision = 0.0
-      if (self.ready and self.should_go_dormant()
-          and time.monotonic() - self.started >= DORMANT_HOLD):
+      if not self.ready:
+        return
+      if self.should_go_dormant() and time.monotonic() - self.started >= DORMANT_HOLD:
         self.go_dormant()
+      else:
+        # nothing more to say to the server. Put the endpoints down while the
+        # car is parked, so the next drive's first borrow costs nothing
+        self.settle()
     except Exception as e:
       cloudlog.exception("jetlink: provisioning failed")
       accelerators.report_progress('failed', 1.0, 'see the log')
@@ -501,6 +579,7 @@ class Jetlinkd:
       self.next_provision = time.monotonic() + self.backoff()
 
   def run(self) -> None:
+    self.lender.start()
     if helpers.enabled():
       self.tune_vm()
       try:
@@ -519,7 +598,8 @@ class Jetlinkd:
           self.close_link()
           self.next_attempt = time.monotonic() + RECONNECT_BACKOFF
     finally:
-      # the sysctls stay: a stop here is the ignition handoff to modeld
+      # the sysctls stay: a stop here is where a drive begins
+      self.lender.stop()
       self.close_link()
     helpers.set_dormant(False)
     if self.warp_thread is not None and self.warp_thread.is_alive():

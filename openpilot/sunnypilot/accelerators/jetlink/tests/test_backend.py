@@ -204,5 +204,36 @@ class BuildingOnroad(unittest.TestCase):
     self.client.close.assert_called_once()
 
 
+
+class BorrowingTheGadget(unittest.TestCase):
+  """modeld does not bring the gadget up any more.
+
+  jetlinkd holds ep0 and the bind for as long as the link is enabled, so the
+  comma stays enumerated across the ignition edge; modeld asks for the endpoint
+  files and gives them back by exiting.
+  """
+
+  def test_the_loan_is_what_the_link_is_opened_over(self):
+    loan = object()
+    with mock.patch.object(backend, '_gadget_loan', return_value=loan), \
+         mock.patch.object(backend.helpers, 'connect') as connect, \
+         mock.patch.object(backend.helpers, 'host_attached', return_value=True):
+      backend._connect_patiently()
+    assert connect.call_args.kwargs['loan'] is loan
+    assert connect.call_args.kwargs['name'] == 'modeld'
+
+  def test_no_daemon_to_ask_still_opens_the_gadget(self):
+    # the link was only just turned on, or jetlinkd died: a drive must not lose
+    # the large model to a daemon fault
+    from openpilot.sunnypilot.accelerators.jetlink import lending
+    with mock.patch.object(lending, 'borrow', return_value=None):
+      assert backend._gadget_loan() is None
+
+  def test_a_daemon_that_throws_is_not_a_lost_drive(self):
+    from openpilot.sunnypilot.accelerators.jetlink import lending
+    with mock.patch.object(lending, 'borrow', side_effect=OSError('no socket')):
+      assert backend._gadget_loan() is None
+
+
 if __name__ == '__main__':
   unittest.main()

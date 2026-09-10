@@ -557,6 +557,86 @@ class TestParked(unittest.TestCase):
     d.client.shutdown.assert_called_once()
 
 
+class TestGadgetOwnership(TestParked):
+  """The daemon holds ep0 and the UDC bind for its whole life.
+
+  What changes hands is the right to read the endpoint files: FunctionFS keeps
+  a queued read queued until something completes it, so two readers on one
+  endpoint take each other's replies.
+  """
+
+  @staticmethod
+  def lend(d) -> None:
+    d.lender = mock.Mock(lent=True)
+
+  def test_a_borrower_keeps_the_gadget_on_the_bus_and_the_daemon_off_it(self):
+    d = self.daemon()
+    d.client.lendable = True
+    self.lend(d)
+    d.step()
+    assert d.provision.call_count == 0, 'talked to the server over the borrower'
+    assert d.open_link.call_count == 1, 'the gadget must stay bound for the drive'
+    assert d.close_link.call_count == 0
+    assert not d.dormant
+
+  def test_a_borrower_wakes_a_dormant_daemon(self):
+    d = self.daemon()
+    d.server_sleeps = True
+    d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
+    d.step()
+    assert d.dormant
+    d.client.lendable = True
+    self.lend(d)
+    d.step()
+    assert not d.dormant and not jetlinkd.helpers.dormant()
+
+  def test_a_finished_provision_puts_the_endpoints_down(self):
+    # the one re-enumeration this design still costs, spent parked rather than
+    # at every ignition edge
+    d = self.daemon()
+    d.client.lendable = False
+    d.step()
+    assert d.close_link.call_count == 1
+    assert d.open_link.call_count == 2, 'the gadget was left off the bus'
+
+  def test_a_gadget_with_nothing_open_on_it_is_left_alone(self):
+    d = self.daemon()
+    d.client.lendable = True
+    d.step()
+    assert d.close_link.call_count == 0
+
+  def test_going_dormant_does_not_bounce_first(self):
+    d = self.daemon()
+    d.client.lendable = False
+    d.server_sleeps = True
+    d.started = time.monotonic() - jetlinkd.DORMANT_HOLD
+    d.step()
+    assert d.dormant
+    assert d.open_link.call_count == 1, 'presented the gadget on its way to letting go'
+
+  def test_a_stuck_write_is_freed_by_the_owner(self):
+    d = self.daemon()
+    d.client.rebind.return_value = True
+    assert d.bounce_gadget() is True
+    d.client.rebind.assert_called_once()
+
+  def test_nothing_to_bounce_is_not_an_error(self):
+    d = self.daemon()
+    d.client = None
+    assert d.bounce_gadget() is False
+    assert d.lendable() is False
+
+  def test_a_shutdown_request_waits_for_the_borrower(self):
+    d = self.daemon()
+    d.client.lendable = True
+    self.lend(d)
+    jetlinkd.helpers.request_shutdown('car battery')
+    with mock.patch.object(d, 'shutdown_jetson') as shutdown:
+      d.step()
+    shutdown.assert_not_called()
+    assert jetlinkd.helpers.pending_shutdown() == 'car battery', 'the request was eaten'
+
+
 class TestTimedOut(unittest.TestCase):
   def test_without_the_package_it_assumes_the_worst(self):
     # No jetlink installed means no way to tell a timeout from a desync, and

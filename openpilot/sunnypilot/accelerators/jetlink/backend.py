@@ -58,6 +58,21 @@ def _package_missing(what: str) -> bool:
   return False
 
 
+def _gadget_loan():
+  """The lease on the gadget jetlinkd owns, or None if there is nobody to ask.
+
+  None is the ordinary answer on a device where the link was only just turned
+  on, or whose daemon died: the join then opens the gadget itself, as it always
+  did, so a drive never loses the large model to a daemon fault.
+  """
+  from openpilot.sunnypilot.accelerators.jetlink import lending
+  try:
+    return lending.borrow()
+  except Exception:
+    cloudlog.exception("jetlink: could not ask jetlinkd for the gadget")
+    return None
+
+
 def _wait_for_host(deadline: float, client=None) -> bool:
   """Wait for the Jetson to enumerate us, bouncing a bus that stalled.
 
@@ -96,7 +111,7 @@ def _wait_for_host(deadline: float, client=None) -> bool:
 
 
 def _present_early(ready: dict) -> None:
-  """Open and bind the gadget now, from a thread that is not modeld's.
+  """Take the link now, from a thread that is not modeld's.
 
   modeld's main thread is already SCHED_FIFO 54 on core 7, and the FunctionFS
   reader the open creates would inherit that and preempt the frame loop (see
@@ -110,12 +125,12 @@ def _present_early(ready: dict) -> None:
 
   def present():
     _background_priority()
-    # retried: manager has just stopped jetlinkd, which may not have let go of
-    # ep0 yet, and a single try fails in milliseconds
+    # retried: jetlinkd may still have the endpoints open from a provision it
+    # was in the middle of, and a single try fails in milliseconds
     client = None
     while client is None:
       try:
-        client = helpers.connect(name='modeld')
+        client = helpers.connect(name='modeld', loan=_gadget_loan())
       except Exception as e:
         if time.monotonic() >= deadline:
           cloudlog.warning("jetlink: could not present the gadget early (%s), the join will", e)
@@ -151,7 +166,7 @@ def _connect_patiently(client=None, hold=None):
   while True:
     if client is None:
       try:
-        client = helpers.connect(name='modeld')
+        client = helpers.connect(name='modeld', loan=_gadget_loan())
       except Exception as e:
         client, last = None, e
     if client is not None:
@@ -166,7 +181,7 @@ def _connect_patiently(client=None, hold=None):
       raise TimeoutError(f"no jetson attached within {CONNECT_TIMEOUT:.0f}s")
     if time.monotonic() > deadline:
       # nothing is held here: this is a gadget we could not open at all,
-      # usually jetlinkd still letting go of ep0
+      # usually jetlinkd still finishing an exchange on the endpoints
       raise last if last is not None else TimeoutError("could not open the link")
     cloudlog.warning("jetlink: link not ready (%s), retrying", last)
     time.sleep(CONNECT_DELAY)

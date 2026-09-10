@@ -171,7 +171,10 @@ procs += [
   # Models
   PythonProcess("models_manager", "openpilot.sunnypilot.models.manager", only_offroad),
   # backends declare their offroad daemons; manager owns the onroad gating
-  *[PythonProcess(d.name, d.module, and_(only_offroad, d.should_run)) for d in accelerators.daemons()],
+  # always_run: jetlinkd holds the USB gadget open for as long as the link is
+  # enabled, onroad included. A gadget whose owner exits leaves the bus, and
+  # that is the unplug at every ignition edge this arrangement removes
+  *[PythonProcess(d.name, d.module, and_(always_run, d.should_run)) for d in accelerators.daemons()],
   NativeProcess("modeld_tinygrad", "openpilot/sunnypilot/modeld_v2", ["./modeld"], and_(only_onroad, is_tinygrad_model)),
 
   # Backup

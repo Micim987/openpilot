@@ -94,6 +94,14 @@ def gadget_bound() -> bool:
     return False
 
 
+def bound_udc() -> str | None:
+  """The device controller our gadget is attached to, if it is attached."""
+  try:
+    return (GADGET_PATH / "UDC").read_text().strip() or None
+  except OSError:
+    return None
+
+
 def udc_state() -> str | None:
   """What the device controller says about the bus, or None if we are unbound.
 
@@ -101,11 +109,8 @@ def udc_state() -> str | None:
   reset the bus and stopped part way, which is what a Jetson that took the
   bind as a wake and did not finish waking looks like.
   """
-  try:
-    udc = (GADGET_PATH / "UDC").read_text().strip()
-  except OSError:
-    return None
-  if not udc:
+  udc = bound_udc()
+  if udc is None:
     return None
   try:
     return (UDC_PATH / udc / "state").read_text().strip() or None
@@ -249,8 +254,10 @@ def await_shutdown(timeout: float) -> bool:
   return False
 
 
-# a USB3 link recovery passes through "addressed" for a moment, and presence
-# read at 2 Hz should not blink for it
+# jetlinkd holds the gadget for as long as the link is enabled, so presence no
+# longer blinks at every handover. What is left to bridge is a USB3 link
+# recovery passing through "addressed", and the one deliberate re-enumeration
+# this design still costs: see Jetlinkd.settle
 PRESENCE_HOLD = 5.0
 _last_configured = 0.0
 
@@ -274,13 +281,14 @@ def gadget_present() -> bool:
   return now - _last_configured < PRESENCE_HOLD
 
 
-def connect(deadline: float | None = None, name: str | None = None):
+def connect(deadline: float | None = None, name: str | None = None, loan=None):
   """Open the link. USB unless an endpoint override is set.
 
   `deadline` is per frame and defaults to FRAME_TIMEOUT: modeld blocks on a
   frame the way it blocks on a chestnut. `name` is what the server logs this
-  connection as; two comma processes take turns on one gadget and the Jetson's
-  journal has no clock to tell them apart by.
+  connection as; two comma processes share one gadget and the Jetson's journal
+  has no clock to tell them apart by. With a `loan`, jetlinkd owns the gadget
+  and this end only opens the endpoint files: see lending.py.
   """
   from jetlink.client import FRAME_TIMEOUT, JetlinkClient
   deadline = FRAME_TIMEOUT if deadline is None else deadline
@@ -289,6 +297,9 @@ def connect(deadline: float | None = None, name: str | None = None):
     host, port = endpoint
     cloudlog.warning("jetlink: connecting over tcp to %s:%d", host, port)
     return JetlinkClient.open_tcp(host, port, deadline=deadline, name=name)
+  if loan is not None:
+    return JetlinkClient.open_borrowed_ffs(loan.mount, loan.udc, bounce=loan.bounce,
+                                           deadline=deadline, name=name)
   # the comma is the gadget and the Jetson the host; see gadget_present()
   return JetlinkClient.open_ffs(str(FFS_MOUNT), gadget=str(GADGET_PATH), deadline=deadline, name=name)
 

@@ -38,7 +38,7 @@ P_PROGRESS = "AcceleratorProgress"
 
 
 class Daemon(NamedTuple):
-  """An offroad process the accelerator needs.
+  """A process the accelerator needs, for as long as the link is enabled.
 
   A description, not a PythonProcess: manager imports this package, so this
   package cannot import manager. process_config owns the onroad gating.
@@ -99,7 +99,9 @@ def active_model_name() -> str | None:
 
 
 def daemons() -> list[Daemon]:
-  """Offroad processes for process_config to build."""
+  """Processes for process_config to build. They run onroad too: jetlinkd owns
+  the USB gadget for as long as the link is enabled, and a gadget whose owner
+  exits is an unplug the far end has to recover from."""
   return [Daemon("jetlinkd", "openpilot.sunnypilot.accelerators.jetlink.jetlinkd",
                  lambda started, params, CP: backend.enabled())]
 
