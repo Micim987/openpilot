@@ -60,6 +60,11 @@ WAKE_TIMEOUT = 20.0
 # how long settle() waits for its own re-enumeration before carrying on. The
 # Jetson is back in about a second; the server reopens the device a poll later
 SETTLE_TIMEOUT = 10.0
+# after a borrower lets go. The server has just lost its client and is closing
+# the gadget and reopening it, two seconds at a time; a hello inside that window
+# fails, and a failed hello is read as a suspect link and costs the
+# re-enumeration this whole arrangement exists to avoid
+LEASE_SETTLE = 4.0
 
 # loggerd's dirty pages pile up until the kernel reclaims them synchronously,
 # right while a FunctionFS transfer allocates its buffer: gadget reads stalled
@@ -173,6 +178,8 @@ class Jetlinkd:
     self.next_provision = 0.0
     self.failures = 0
     self.was_attached = False
+    self.was_lent = False
+    self.lease_settled = 0.0
     self.fetch_failed = False
     self.verified = False   # the server has confirmed the ready param this attach
     self.warp_built = False  # tried the comma-side warp this run
@@ -524,7 +531,14 @@ class Jetlinkd:
     if self.lender.lent or not helpers.offroad():
       # onroad: hold the gadget and do nothing else. Whether or not modeld took
       # the link, a download, a build or a warp compile belongs to a parked car
+      self.was_lent = self.lender.lent
       return self.hold_for_borrower()
+
+    if self.was_lent:
+      # the drive is over and the borrower has let go. Let the server finish
+      # reopening before saying anything to it; see LEASE_SETTLE
+      self.was_lent = False
+      self.lease_settled = time.monotonic() + LEASE_SETTLE
 
     if self.dormant:
       if self.has_work():
@@ -560,8 +574,10 @@ class Jetlinkd:
     if not attached:
       return
     # provisioning backs off on its own timer, so a long wait for an
-    # unresponsive server still watches for one that reappears
-    if time.monotonic() < self.next_provision:
+    # unresponsive server still watches for one that reappears. The lease
+    # window is its own deadline because the attach edge below clears the
+    # backoff, and the borrower letting go is exactly an attach edge
+    if time.monotonic() < max(self.next_provision, self.lease_settled):
       return
 
     try:

@@ -641,6 +641,22 @@ class TestGadgetOwnership(TestParked):
     assert d.dormant
     assert d.open_link.call_count == 1, 'presented the gadget on its way to letting go'
 
+  def test_the_drive_ending_does_not_hello_over_the_servers_teardown(self):
+    # bench 2026-09-10: the borrower let go, the daemon said hello 0.1 s later,
+    # and the server was still closing the gadget the dead client had. The
+    # failed hello read as a suspect link and cost a re-enumeration
+    d = self.daemon()
+    d.client.lendable = True
+    self.lend(d)
+    d.step()
+    d.lender.lent = False
+    d.step()
+    assert d.provision.call_count == 0, 'said hello into the server teardown'
+    assert d.lease_settled >= time.monotonic()
+    d.lease_settled = 0.0
+    d.step()
+    assert d.provision.call_count == 1, 'never went back to the server'
+
   def test_a_stuck_write_is_freed_by_the_owner(self):
     d = self.daemon()
     d.client.rebind.return_value = True
