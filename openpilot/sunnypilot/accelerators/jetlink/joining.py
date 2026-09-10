@@ -411,7 +411,9 @@ class JoiningModelState:
         return
       self._report('connect', 'waiting for the jetson')
       try:
-        client, spec = self._connect()
+        # the connect can take minutes when the picked model still has to be
+        # built, so it is handed the flag close() sets rather than polled
+        client, spec = self._connect(self._stop.is_set)
       except Exception as e:
         # expected while the Jetson boots. Not exception(): a stack trace every
         # 5 s for the first minute of every drive is noise

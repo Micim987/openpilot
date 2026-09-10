@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from openpilot.sunnypilot.accelerators.jetlink import jetlinkd
+from openpilot.sunnypilot.accelerators.jetlink import jetlinkd, provision
 
 
 class FakeSpec:
@@ -95,10 +95,13 @@ class TestProvisionCost(unittest.TestCase):
     self.addCleanup(p.stop)
     p.start()
 
-    for target, new in (('spec_cache', self.cache), ('accelerators', mock.Mock())):
-      p = mock.patch.object(jetlinkd, target, new)
-      self.addCleanup(p.stop)
-      p.start()
+    # the provisioning itself lives in provision.py, which jetlinkd and
+    # modeld's join thread both call; both modules' references are stood in for
+    for module in (jetlinkd, jetlinkd.provision):
+      for target, new in (('spec_cache', self.cache), ('accelerators', mock.Mock())):
+        p = mock.patch.object(module, target, new)
+        self.addCleanup(p.stop)
+        p.start()
     for name, value in (('shipped_model_path', self.model), ('engine_ready_for', False),
                         ('selected_model', dict(self.ENTRY))):
       p = mock.patch.object(jetlinkd.helpers, name, return_value=value)
@@ -745,37 +748,42 @@ class BuildEtaTest(unittest.TestCase):
   """The estimate is what tells a driver watching "build 12%" whether that is
   five minutes or thirty."""
 
-  def test_the_build_stage_gets_a_time_remaining(self):
-    from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
+  def report(self, *args, size=1_850_000_000):
     seen = []
-    with mock.patch.object(J.helpers, 'selected_model', return_value={'size': 1_850_000_000}), \
-         mock.patch.object(J.accelerators, 'report_progress', lambda *a: seen.append(a)):
-      J.Jetlinkd._report_with_eta(J.Jetlinkd, 'build', 0.0, 'building the engine')
-      J.Jetlinkd._report_with_eta(J.Jetlinkd, 'build', 0.8, 'building the engine')
+    with mock.patch.object(provision.helpers, 'selected_model', return_value={'size': size}), \
+         mock.patch.object(provision.accelerators, 'report_progress', lambda *a: seen.append(a)):
+      for call in args:
+        provision._last_report = 0.0   # the 4 Hz throttle is not what is under test
+        provision.report_with_eta(*call)
+    return seen
+
+  def test_the_build_stage_gets_a_time_remaining(self):
+    seen = self.report(('build', 0.0, 'building the engine'), ('build', 0.8, 'building the engine'))
     self.assertEqual(seen[0][2], "about 5 min left")
     self.assertEqual(seen[1][2], "about 60s left")
 
   def test_other_stages_keep_their_own_message(self):
-    from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
-    seen = []
     # The upload already counts MB of MB, and a connect has nothing to predict.
-    with mock.patch.object(J.helpers, 'selected_model', return_value={'size': 1_850_000_000}), \
-         mock.patch.object(J.accelerators, 'report_progress', lambda *a: seen.append(a)):
-      J.Jetlinkd._report_with_eta(J.Jetlinkd, 'upload', 0.5, '380/766 MB')
-    self.assertEqual(seen[0][2], '380/766 MB')
+    self.assertEqual(self.report(('upload', 0.5, '380/766 MB'))[0][2], '380/766 MB')
 
   def test_the_estimate_follows_the_measurements(self):
-    from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
-    self.assertTrue(100 <= J.Jetlinkd.estimated_build_seconds(766_000_000) <= 200)     # built in 102 to 166 s
-    self.assertTrue(230 <= J.Jetlinkd.estimated_build_seconds(1_757_000_000) <= 320)   # 230 to 294 s
+    self.assertTrue(100 <= provision.estimated_build_seconds(766_000_000) <= 200)     # built in 102 to 166 s
+    self.assertTrue(230 <= provision.estimated_build_seconds(1_757_000_000) <= 320)   # 230 to 294 s
 
   def test_a_model_not_resolved_yet_is_survived(self):
-    from openpilot.sunnypilot.accelerators.jetlink import jetlinkd as J
-    seen = []
-    with mock.patch.object(J.helpers, 'selected_model', return_value={'size': None}), \
-         mock.patch.object(J.accelerators, 'report_progress', lambda *a: seen.append(a)):
-      J.Jetlinkd._report_with_eta(J.Jetlinkd, 'build', 0.3, 'building the engine')
+    seen = self.report(('build', 0.3, 'building the engine'), size=None)
     self.assertEqual(seen[0][2], 'building the engine')
+
+  def test_a_gigabyte_of_upload_is_not_a_gigabyte_of_param_writes(self):
+    # 4 MB a chunk is 440 reports for a 1.7 GB model, and onroad that is IO the
+    # recording would have to share the disk with.
+    seen = []
+    provision._last_report = 0.0
+    with mock.patch.object(provision.accelerators, 'report_progress', lambda *a: seen.append(a)):
+      for i in range(50):
+        provision.report_with_eta('upload', i / 50, f'{i} MB')
+      provision.report_with_eta('upload', 1.0, 'done')
+    self.assertEqual(len(seen), 2, seen)
 
 
 if __name__ == '__main__':

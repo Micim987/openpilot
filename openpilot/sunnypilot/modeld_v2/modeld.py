@@ -327,7 +327,7 @@ def main(demo=False):
   if CHESTNUT:
     os.environ['HCQDEV_WAIT_TIMEOUT_MS'] = '3000'
   # before going realtime: prepare() starts tinygrad's device thread, which would inherit FIFO 54 on core 7
-  JETLINK = not CHESTNUT and accelerators.ready() and accelerators.prepare()
+  JETLINK = not CHESTNUT and accelerators.enabled() and accelerators.prepare()
 
   config_realtime_process(7, 54)
 

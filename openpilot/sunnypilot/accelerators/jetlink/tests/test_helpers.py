@@ -398,6 +398,8 @@ class TestMigrateSelection(unittest.TestCase):
 
 class TestSelectedModelReadiness(unittest.TestCase):
   def test_old_cached_engine_is_not_the_new_selection(self):
+    # What the UI calls compiled. The join does not stop here: an engine the
+    # Jetson has not got is built onroad, see backend._open_link.
     from types import SimpleNamespace
     from openpilot.sunnypilot.accelerators.jetlink import backend
 
@@ -406,10 +408,6 @@ class TestSelectedModelReadiness(unittest.TestCase):
          mock.patch.object(backend.spec_cache, 'load', return_value=SimpleNamespace(sha256='a' * 64)), \
          mock.patch.object(helpers, 'selected_model', return_value={'oid': 'b' * 64}) as selected:
       self.assertFalse(backend.ready())
-      client = mock.Mock()
-      with self.assertRaisesRegex(RuntimeError, 'not been provisioned'):
-        backend._open_link(client)
-      client.close.assert_called_once()
       selected.return_value = {'oid': 'a' * 64}
       self.assertTrue(backend.ready())
 

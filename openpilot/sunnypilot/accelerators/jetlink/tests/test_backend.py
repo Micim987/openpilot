@@ -135,15 +135,73 @@ class HoldingTheGadget(unittest.TestCase):
       with self.assertRaises(OSError):
         backend._connect_patiently(None, lambda c: self.fail('held a link that never opened'))
 
-  def test_a_model_the_jetson_has_not_built_keeps_the_gadget_presented(self):
+  def test_no_model_picked_yet_keeps_the_gadget_presented(self):
     # The panel says what is going on; a closed gadget would take the whole
     # link off the bus for the drive instead.
     held = []
-    with mock.patch.object(backend.spec_cache, 'load', return_value=None):
+    with mock.patch.object(backend.helpers, 'selected_model', return_value=None):
       with self.assertRaises(RuntimeError):
         backend._open_link(self.client, hold=held.append)
     assert held == [self.client]
     assert self.client.close.call_count == 0
+
+
+class BuildingOnroad(unittest.TestCase):
+  """The picked model is built with the small model driving.
+
+  jetlinkd provisions offroad only, so a model picked in the driveway and
+  driven off on used to cost the whole drive: modeld would not even present
+  the gadget, and the panel said a device was on the USB port.
+  """
+
+  ENTRY = {'name': 'CTM v2', 'ref': 'f' * 40, 'oid': 'a' * 64, 'size': 766 << 20}
+
+  def setUp(self):
+    from openpilot.sunnypilot.accelerators.jetlink import provision
+    self.provision = provision
+    self.client = mock.Mock()
+    self.spec = mock.Mock(sha256=self.ENTRY['oid'])
+    p = mock.patch.object(backend, '_connect_patiently', return_value=self.client)
+    self.addCleanup(p.stop)
+    p.start()
+    for name, value in (('selected_model', dict(self.ENTRY)), ('shipped_model_path', None),
+                        ('engine_ready_for', False)):
+      p = mock.patch.object(backend.helpers, name, return_value=value)
+      self.addCleanup(p.stop)
+      p.start()
+    p = mock.patch.object(provision, 'ensure', return_value=self.spec)
+    self.addCleanup(p.stop)
+    self.ensure = p.start()
+
+  def test_the_model_the_picker_names_is_what_gets_built(self):
+    client, spec = backend._open_link()
+    assert spec is self.spec and client is self.client
+    assert self.ensure.call_args.args[1:3] == (self.ENTRY['oid'], self.ENTRY['size'])
+
+  def test_the_frame_deadline_is_set_before_the_link_is_handed_over(self):
+    # ensure_engine waits minutes; the frame path must not inherit that
+    client, _ = backend._open_link()
+    assert client.deadline == backend.INFERENCE_TIMEOUT
+
+  def test_the_join_thread_can_be_stopped_through_the_build(self):
+    stop = object()
+    backend._open_link(should_stop=stop)
+    assert self.ensure.call_args.kwargs['should_stop'] is stop
+
+  def test_progress_reaches_the_panel(self):
+    backend._open_link()
+    assert self.ensure.call_args.kwargs['progress'] is self.provision.report_with_eta
+
+  def test_bytes_neither_end_has_are_a_parked_job(self):
+    # Downloading a gigabyte is the one part of provisioning that needs the
+    # internet, and it is not something to start mid-drive.
+    from jetlink.client import EngineMissing
+    self.ensure.side_effect = EngineMissing('no engine')
+    with mock.patch.object(backend.helpers, 'set_engine_ready') as cleared:
+      with self.assertRaises(EngineMissing):
+        backend._open_link()
+    cleared.assert_called_once_with(None)
+    self.client.close.assert_called_once()
 
 
 if __name__ == '__main__':

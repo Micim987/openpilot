@@ -204,6 +204,12 @@ def prepare() -> bool:
   # missing for the drive, and saying no keeps modeld on the plain small model
   if _package_missing('the large model'):
     return False
+  # modeld decides on enabled() alone, so this is where a device that cannot
+  # present a gadget at all says so; nothing here would ever reach a Jetson
+  if not helpers.link_configured():
+    cloudlog.warning("jetlink: no usable gadget (%s), staying on the small model",
+                     helpers.gadget_error() or 'not set up')
+    return False
   from openpilot.sunnypilot.accelerators.jetlink import warp_cache
   if not warp_cache.is_cached(*warp_cache.device_geometry()):
     cloudlog.warning("jetlink: no warp compiled yet, staying on the small model")
@@ -257,25 +263,35 @@ def make_model_state(cam_w: int, cam_h: int, small=None):
       raise RuntimeError('no prepared warp for the server model geometry')
     return JetlinkModelState(cam_w, cam_h, client, spec, warp=warp)
 
-  def connect():
+  def connect(should_stop=None):
     # the gadget stays bound between attempts: an unbind is an unplug as the
     # Jetson sees it, and the join loop asks again every few seconds. Whatever
     # this attempt could not use is handed back for the next one
-    return _open_link(ready.pop('client', None), hold=lambda c: ready.update(client=c))
+    return _open_link(ready.pop('client', None), hold=lambda c: ready.update(client=c),
+                      should_stop=should_stop)
 
   return JoiningModelState(cam_w, cam_h, small, connect, build, prepare,
                            reset_small=lambda: ready['reset_small']())
 
 
-def _open_link(client=None, hold=None):
+def _open_link(client=None, hold=None, should_stop=None):
   """Get a client and a spec. Link IO only, so it is safe off modeld's thread;
   everything that touches tinygrad stays in `build`.
+
+  The model the user picked is built here if the Jetson has not got it. That
+  takes minutes and the small model drives through all of them, which beats
+  what it used to do: jetlinkd provisions offroad only, so a model picked in
+  the driveway and driven off on cost the whole drive, with the link never
+  even presented. Only ever reached with the small model driving - the join
+  loop stops asking once it has joined - so a build here never unloads an
+  engine that is steering.
 
   `hold` takes an open link this attempt cannot use, so the next one keeps the
   same bound gadget; without it the link is closed, which a FunctionFS owner
   must do rather than walk away from.
   """
   from jetlink.client import EngineMissing
+  from openpilot.sunnypilot.accelerators.jetlink import provision
 
   def park(c) -> None:
     if c is None:
@@ -285,15 +301,10 @@ def _open_link(client=None, hold=None):
     else:
       c.close()
 
-  cached = spec_cache.load()
-  if cached is None:
-    park(client)
-    raise RuntimeError("no cached jetlink model spec; jetlinkd has not provisioned")
-
   selected = helpers.selected_model()
-  if selected is None or selected['oid'] != cached.sha256:
+  if selected is None:
     park(client)
-    raise RuntimeError('selected jetlink model has not been provisioned')
+    raise RuntimeError('no large model has been picked yet')
 
   # the endpoints may still be held by jetlinkd, and the Jetson may still be
   # booting; both resolve on their own
@@ -303,14 +314,20 @@ def _open_link(client=None, hold=None):
     cloudlog.warning("jetlink: %s trt %s, engine %s, loaded %s",
                      hello.get('device'), hello.get('trt_version'),
                      hello.get('engine_state'), str(hello.get('loaded'))[:16])
-    # normally one round trip, since jetlinkd left the engine loaded. If the
-    # server restarted it is a load from the plan cache, 13 to 25 s
+    sha256, nbytes = provision.identity(selected)
+    if not helpers.engine_ready_for(sha256):
+      cloudlog.warning("jetlink: %s is not built yet, building it with the small model driving",
+                       selected.get('name', sha256[:16]))
     try:
-      spec = client.ensure_engine(cached.sha256, cached.nbytes, frame_skip=cached.frame_skip,
-                                  build_timeout=120.0)
+      # normally one round trip, since jetlinkd left the engine loaded. A
+      # server that restarted reloads from the plan cache, 13 to 25 s; one
+      # that has never seen this model builds it, 102 to 294 s
+      spec = provision.ensure(client, sha256, nbytes, helpers.shipped_model_path(),
+                              progress=provision.report_with_eta, should_stop=should_stop)
     except EngineMissing:
-      # the Jetson's cache was pruned or re-flashed since jetlinkd recorded it
-      # ready. Clear the record so the next parked period provisions again
+      # neither end has the bytes. Fetching them needs the internet and a
+      # gigabyte of it, which is a parked job; clear the record so the next
+      # parked period provisions again
       helpers.set_engine_ready(None)
       raise
     client.deadline = INFERENCE_TIMEOUT

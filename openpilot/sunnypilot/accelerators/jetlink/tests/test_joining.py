@@ -69,7 +69,7 @@ class JoiningTest(unittest.TestCase):
     self.connect_calls = 0
     self.connect_error = None
 
-  def _connect(self):
+  def _connect(self, should_stop=None):
     self.connect_calls += 1
     if self.connect_error is not None:
       raise self.connect_error
@@ -167,7 +167,7 @@ class JoiningTest(unittest.TestCase):
     booted = threading.Event()
     connect = self._connect
 
-    def after_boot():
+    def after_boot(should_stop=None):
       if not booted.wait(5):
         raise RuntimeError('test boot timeout')
       return connect()
@@ -198,7 +198,7 @@ class JoiningTest(unittest.TestCase):
       raise RuntimeError('link lost while waiting to switch')
 
     client.ping.side_effect = ping
-    self._connect = lambda: (client, 'spec')
+    self._connect = lambda should_stop=None: (client, 'spec')
     with mock.patch('openpilot.sunnypilot.accelerators.jetlink.joining.KEEPALIVE_PERIOD', 0.01):
       s = self._state()
       self.addCleanup(release.set)
@@ -452,7 +452,7 @@ class JoiningTest(unittest.TestCase):
     # whole drive; a Jetson that reboots in there must be caught before the swap
     clients = []
 
-    def connect():
+    def connect(should_stop=None):
       c = mock.MagicMock(name='client')
       clients.append(c)
       self.connect_calls += 1

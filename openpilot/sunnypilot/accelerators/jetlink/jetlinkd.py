@@ -24,7 +24,6 @@ work; modeld's bind at ignition is the wake.
 """
 from __future__ import annotations
 
-import functools
 import json
 import os
 import signal
@@ -38,7 +37,7 @@ from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot import accelerators
 from openpilot.common.params import Params
-from openpilot.sunnypilot.accelerators.jetlink import helpers, spec_cache, warp_cache
+from openpilot.sunnypilot.accelerators.jetlink import helpers, provision, spec_cache, warp_cache
 
 POLL_HZ = 2.0
 RETRY_BACKOFF = 30.0       # after a failed provision
@@ -274,32 +273,6 @@ class Jetlinkd:
     self.warp_thread = threading.Thread(target=build, daemon=True, name='jetlink_warp')
     self.warp_thread.start()
 
-  @staticmethod
-  def estimated_build_seconds(size: int) -> int:
-    """Orin Nano Super, TensorRT 10.3: the 766 MB models built in 102 to 166 s,
-    the 1.75 GB ones in 230 to 294 s."""
-    return int(60 + 130 * size / 1e9)
-
-  @staticmethod
-  def _eta(seconds: float) -> str:
-    if seconds >= 90:
-      return f"about {seconds / 60:.0f} min left"
-    return f"about {max(seconds, 1):.0f}s left"
-
-  def _report_with_eta(self, stage: str, frac: float, msg: str) -> None:
-    """Progress, with how long the build still has to run.
-
-    Estimated from the model's size, on measurements of this hardware. It
-    belongs here rather than in the UI, which knows nothing about jetlink. Only
-    the build is estimated: the upload reports MB of MB and a connect has
-    nothing to predict.
-    """
-    if stage == 'build':
-      size = (helpers.selected_model() or {}).get('size')
-      if size:
-        msg = self._eta(self.estimated_build_seconds(size) * max(0.0, 1.0 - frac))
-    accelerators.report_progress(stage, frac, msg)
-
   def provision(self) -> bool:
     """Make the Jetson ready for the selected model. Host must be attached.
 
@@ -319,11 +292,7 @@ class Jetlinkd:
       helpers.set_engine_ready(None)
       accelerators.clear_progress()
       return False
-    sha256, nbytes = entry['oid'], entry['size']
-    if not sha256 or not nbytes:
-      # the first time this model is asked for: its pointer, fetched once and kept
-      accelerators.report_progress('connect', 0.0, 'looking up the model')
-      sha256, nbytes = helpers.resolve_pointer(entry['ref'])
+    sha256, nbytes = provision.identity(entry)
 
     # the param says ready, but the Jetson's cache may have been pruned or
     # re-flashed since. Ask once per attach
@@ -342,55 +311,23 @@ class Jetlinkd:
     Params().put('JetlinkCachedModels', hello.get('cached_models', []))
     self.note_sleep_after(hello)
     cloudlog.warning("jetlink: server %s trt %s", hello.get('device'), hello.get('trt_version'))
-    # ask without the file first: the server answers from the sha alone when it
-    # has the model, which is every poll of a parked car
-    ask = functools.partial(self.client.ensure_engine, sha256, nbytes,
-                            progress=self._report_with_eta,
-                            build_timeout=1800.0, should_stop=lambda: self.stop)
     try:
-      spec = ask(onnx_path=None)
+      spec = provision.ensure(self.client, sha256, nbytes, model_path,
+                              progress=provision.report_with_eta,
+                              should_stop=lambda: self.stop)
     except EngineMissing:
-      upload = self._verified_upload(model_path, sha256, nbytes)
-      if upload is None:
-        # nothing to give. Fetch it and let the next poll try again rather than
-        # holding the link through a download that takes minutes
-        if model_path is None and self.fetch_model() is not None:
-          return False
-        raise
-      spec = ask(onnx_path=upload)
+      # nothing to give. Fetch it and let the next poll try again rather than
+      # holding the link through a download that takes minutes
+      if model_path is None and self.fetch_model() is not None:
+        return False
+      raise
 
-    spec_cache.store(spec, model_path)
-    helpers.set_engine_ready(spec.sha256)
     cached = helpers._get('JetlinkCachedModels') or []
     Params().put('JetlinkCachedModels', sorted(set(cached) | {spec.sha256}))
     self.verified = True
     accelerators.report_progress('ready', 1.0, 'engine ready')
     cloudlog.warning("jetlink: engine ready for %s", spec.sha256[:16])
     return True
-
-  def _verified_upload(self, model_path, sha256: str, nbytes: int):
-    """The file to upload, once its hash is proven to match the registry.
-
-    Uploading under a sha the bytes do not have would leave the Jetson with a
-    plan whose name lies about its contents, so the hash happens here, on the
-    one path where the bytes go somewhere.
-    """
-    if model_path is None:
-      return None
-    try:
-      if model_path.stat().st_size != nbytes:
-        cloudlog.error("jetlink: %s is %d bytes, the registry says %d; not uploading it",
-                       model_path.name, model_path.stat().st_size, nbytes)
-        return None
-      from jetlink.spec import sha256_file
-      have, _ = sha256_file(str(model_path))
-      if have != sha256:
-        cloudlog.error("jetlink: %s hashes to %s, the registry says %s; not uploading it",
-                       model_path.name, have[:16], sha256[:16])
-        return None
-    except OSError:
-      return None
-    return model_path
 
   # -- the parked car -------------------------------------------------------
 
