@@ -1,6 +1,8 @@
 from openpilot.cereal import log, custom
 from openpilot.common.constants import CV
 from openpilot.nrdr.features.driver_policy import driver_nudging
+from openpilot.nrdr.features.lateral.lane_change_tuning import bounded_setting
+from openpilot.nrdr.params import get_live_params
 from openpilot.common.realtime import DT_MDL
 from openpilot.sunnypilot.selfdrive.controls.lib.auto_lane_change import AutoLaneChangeController, AutoLaneChangeMode
 from openpilot.sunnypilot.selfdrive.controls.lib.lane_turn_desire import LaneTurnController
@@ -24,6 +26,8 @@ class DesireHelper:
     self.lane_change_state = LaneChangeState.off
     self.lane_change_direction = LaneChangeDirection.none
     self.lane_change_timer = 0.0
+    self.nrdr_params = get_live_params("modeld")
+    self.lane_change_min_time = LANE_CHANGE_START_TIME
     self.prev_one_blinker = False
     self.desire = log.Desire.none
     self.alc = AutoLaneChangeController(self)
@@ -75,11 +79,15 @@ class DesireHelper:
         elif (torque_applied or self.alc.auto_lane_change_allowed) and not blindspot_detected:
           self.lane_change_state = LaneChangeState.laneChangeStarting
           self.lane_change_timer = 0.0
+          self.lane_change_min_time = bounded_setting(self.nrdr_params.snapshot, "NrdrLaneChangeMinTime", 0.5, 0.5, 2.0)
+          self.nrdr_params.record_applied_settings(
+            "lane_change_timing", self.nrdr_params.generation, minimum_start_time=self.lane_change_min_time,
+          )
 
       elif self.lane_change_state == LaneChangeState.laneChangeStarting:
         self.lane_change_timer += DT_MDL
 
-        if lane_change_prob < 0.02 and self.lane_change_timer >= LANE_CHANGE_START_TIME:
+        if lane_change_prob < 0.02 and self.lane_change_timer >= self.lane_change_min_time:
           self.lane_change_timer = 0.0
           if one_blinker:
             self.lane_change_state = LaneChangeState.preLaneChange

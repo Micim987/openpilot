@@ -1,4 +1,5 @@
 from openpilot.cereal import log
+from openpilot.nrdr.features.lateral.lane_change_tuning import bounded_setting
 
 
 _NUDGE_TORQUE = 1200
@@ -15,10 +16,10 @@ def torque_controller_active(extension) -> bool:
   return extension.model_valid and extension.model_v2.meta.laneChangeState != log.LaneChangeState.off
 
 
-def torque_from_lateral_accel(torque_function, lateral_accel: float, torque_params, lane_changing: bool) -> float:
+def torque_from_lateral_accel(torque_function, lateral_accel: float, torque_params, lane_changing: bool, settings=None) -> float:
   original_factor = torque_params.latAccelFactor
   if lane_changing:
-    torque_params.latAccelFactor = original_factor * 2.0
+    torque_params.latAccelFactor = original_factor * bounded_setting(settings, "NrdrLaneChangeTorqueFactor", 2.0, 1.0, 3.0)
   try:
     return torque_function(lateral_accel, torque_params)
   finally:

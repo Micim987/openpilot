@@ -26,6 +26,7 @@ from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.selfdrive.car.opendbc_config import build_sunnypilot_car_config
 from openpilot.sunnypilot.selfdrive.controls.controlsd_ext import ControlsExt
 from openpilot.nrdr.hooks import allow_longitudinal, apply_hud_lead, finalize_lateral_torque, stopping_inputs, vehicle_model_state
+from openpilot.nrdr.hooks.controlsd import lane_change_request
 from openpilot.nrdr.features.longitudinal.policy import longitudinal_personality, nrdr_longitudinal_enabled
 
 State = log.SelfdriveState.OpenpilotState
@@ -182,6 +183,7 @@ class Controls(ControlsExt):
       bool(CS.steeringPressed), model_frame=self.sm.logMonoTime['modelV2'],
       action_time=lane_centering_action_time(model_v2))
 
+    new_desired_curvature = lane_change_request(self, CS, model_v2, lp, new_desired_curvature, CC.latActive, DT_CTRL)
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, new_desired_curvature, lp.roll)
     lat_delay = self.lat_delay + LAT_SMOOTH_SECONDS
 

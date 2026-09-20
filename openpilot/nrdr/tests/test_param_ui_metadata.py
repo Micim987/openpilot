@@ -15,6 +15,7 @@ from openpilot.nrdr.params import (
   validate_ui_metadata,
 )
 from openpilot.nrdr.params.specs import PARAM_SPECS_BY_KEY, ParamLifecycle, ParamType
+from openpilot.nrdr.params.ui_metadata import LANE_CHANGE_UI_METADATA
 from openpilot.nrdr.ui.native_param_controls import get_native_option_spec
 from openpilot.nrdr.ui.sunnylink_schema import SunnylinkMetadataConflict, apply_sunnylink_metadata, sunnylink_fields_for_key
 from openpilot.selfdrive.ui.translations.potools import extract_strings
@@ -35,7 +36,7 @@ FRICTION_KEYS = (
   NrdrParamKey.NRDR_INTERPOLATED_TORQUE_FRICTION_HIGHWAY,
 )
 INTERPOLATED_KEYS = (NrdrParamKey.NRDR_INTERPOLATED_TORQUE_LAT_ACCEL_FACTOR, *FRICTION_KEYS)
-ALL_EXPECTED_KEYS = INTERPOLATED_KEYS + EXPECTED_KEYS
+ALL_EXPECTED_KEYS = INTERPOLATED_KEYS + EXPECTED_KEYS + tuple(item.key for item in LANE_CHANGE_UI_METADATA)
 
 EXPECTED_NATIVE = {
   "LatPScaleLowSpeed": (
@@ -211,13 +212,16 @@ class TestParamUiMetadata(unittest.TestCase):
     extracted = {entry.msgid for entry in extract_strings([relative_path], str(repository_root))}
     expected = {text for pair in EXPECTED_NATIVE.values() for text in pair}
     expected.update(get_native_option_spec(key).description for key in INTERPOLATED_KEYS)
+    expected.update(text for item in LANE_CHANGE_UI_METADATA for text in (item.native_title, item.description, item.details))
     self.assertLessEqual(expected, extracted)
 
   def test_consumers_do_not_redeclare_managed_metadata(self):
     repository_root = Path(__file__).resolve().parents[3]
     native_path = repository_root / "openpilot/nrdr/ui/settings/pidf_ground.py"
     native_source = native_path.read_text()
-    self.assertEqual(native_source.count("option_item_from_metadata("), len(ALL_EXPECTED_KEYS))
+    self.assertEqual(native_source.count("option_item_from_metadata("), len(INTERPOLATED_KEYS + EXPECTED_KEYS))
+    lane_source = (repository_root / "openpilot/selfdrive/ui/sunnypilot/layouts/settings/steering_sub_layouts/lane_change_settings.py").read_text()
+    self.assertIn("option_item_from_metadata(metadata.key) for metadata in LANE_CHANGE_UI_METADATA", lane_source)
     self.assertIn('title=tr("Interpolated Torque/PIF Blend")', native_source)
     self.assertIn('f"Torque {value}% / P/I/F {100 - value}%"', native_source)
     for key in EXPECTED_KEYS:

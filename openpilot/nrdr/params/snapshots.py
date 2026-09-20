@@ -63,6 +63,11 @@ LANE_CENTERING_PARAM_GROUP = ParamGroup((
   "LaneCentering", "LaneCenteringMinSpeed", "LaneCenteringPauseOnSignal",
   "LaneCenterOffset", "LaneCenteringStrength", "LaneCenteringE2EAuthority",
 ))
+LANE_CHANGE_PARAM_GROUP = ParamGroup((
+  "NrdrLaneChangeEntrySrReduction", "NrdrLaneChangeEntryReturnTime",
+  "NrdrLaneChangeTorqueFactor", "NrdrLaneChangeFrictionPercent",
+))
+MODEL_GROUPS = (ParamGroup(("NrdrLaneChangeMinTime",)),)
 
 
 CONTROL_GROUPS = (
@@ -75,6 +80,7 @@ CONTROL_GROUPS = (
   # Mode and both manual endpoints are published together and captured once
   # per control frame, including while lateral control is active.
   STEER_RATIO_PARAM_GROUP,
+  LANE_CHANGE_PARAM_GROUP,
   # Keep the complete blend tuple together when publishing live changes.
   INTERPOLATED_TORQUE_PIF_PARAM_GROUP,
   ParamGroup(("NrdrTuneLearner", "NrdrTuneLearnerStrength", "NrdrTuneLearnerRate", "NrdrTuneLearnerReset")),
@@ -93,7 +99,7 @@ CONTROL_GROUPS = (
 LIVE_LATERAL_KEYS = tuple(key for group in CONTROL_GROUPS for key in group.keys
                           if not key.startswith(("Long", "HondaLiveLearningGas", "StaticFeedforwardLong",
                                                  "HondaStop", "HondaVEgo", "NrdrRoen"))
-                          and key != "NrdrTuneLearnerReset")
+                          and key not in ("NrdrTuneLearnerReset", "NrdrLaneChangeEntrySrReduction", "NrdrLaneChangeEntryReturnTime"))
 
 PLANNER_GROUPS = (
   ParamGroup(("HondaVEgoStopping", "NrdrCruiseMismatchCorrection", "NrdrCruiseOverspeedAllowance",
@@ -285,7 +291,7 @@ _instances_lock = Lock()
 
 
 def get_live_params(profile: str = "controlsd") -> LiveParams:
-  groups = CONTROL_GROUPS if profile == "controlsd" else PLANNER_GROUPS if profile == "plannerd" else None
+  groups = {"controlsd": CONTROL_GROUPS, "plannerd": PLANNER_GROUPS, "modeld": MODEL_GROUPS}.get(profile)
   if groups is None:
     raise ValueError(f"unknown live parameter profile: {profile}")
   with _instances_lock:

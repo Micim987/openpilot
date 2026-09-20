@@ -571,6 +571,87 @@
                   "value": 0
                 }
               ]
+            },
+            {
+              "key": "NrdrLaneChangeMinTime",
+              "widget": "option",
+              "title": "NRDR Minimum Lane-Change State Time",
+              "description": "Minimum time before the lane-change state can finish; not the time to cross a lane. Default: 0.5 s.",
+              "details": "Separate from the SunnyPilot blinker start delay. Completion also requires the model's lane-change probability to fall below its existing threshold. Read at each lane-change start after background refresh (normally 0.5 s); no reboot or LKAS cycle. Configure while parked. Speed, blind-spot, road-edge and timeout checks are unchanged.",
+              "min": 0.5,
+              "max": 2.0,
+              "step": 0.1,
+              "unit": "s"
+            },
+            {
+              "key": "NrdrLaneChangeEntrySrReduction",
+              "widget": "option",
+              "title": "NRDR Lane Change Entry SR Reduction",
+              "description": "Temporary command-side SR reduction. 0 disables it; 3.0 is an experimental test value, not a validated tune.",
+              "details": "Honda only. Uses the current resolved Manual, Comma, Measured, Firmware or Hybrid ratio. Ramps the reduction in over 0.15 s, then smoothly restores the current source using Entry SR Return Time. Higher values ask for less initial steering and can weaken a lane change. Saved geometry and learning are unchanged. Captured at the next lane-change start after background refresh (normally 0.5 s), without reboot/LKAS cycling. Setting 0 cancels the effect with a 0.2 s return. Configure while parked. Existing steering limits still apply.",
+              "min": 0.0,
+              "max": 5.0,
+              "step": 0.1,
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "nrdr_honda_tuning_available",
+                  "equals": true
+                }
+              ]
+            },
+            {
+              "key": "NrdrLaneChangeEntryReturnTime",
+              "widget": "option",
+              "title": "NRDR Lane Change Entry SR Return Time",
+              "description": "Seconds to blend the entry SR reduction back to zero after the 0.15 s entry ramp. Default: 1.0 s.",
+              "details": "This is time-based request shaping, not measured lane-crossing progress. Longer values retain reduced steering for longer. Ending the lane-change state or driver takeover returns it within 0.2 s; disengagement clears it. Driver steering at the start suppresses entry shaping for that maneuver. Used only with a nonzero Entry SR Reduction. Captured for the next lane change after background refresh, without a reboot or LKAS cycle. Configure while parked.",
+              "min": 0.2,
+              "max": 3.0,
+              "step": 0.1,
+              "unit": "s",
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "nrdr_honda_tuning_available",
+                  "equals": true
+                }
+              ]
+            },
+            {
+              "key": "NrdrLaneChangeTorqueFactor",
+              "widget": "option",
+              "title": "NRDR Legacy Lane Change Torque Factor",
+              "description": "Legacy v1 torque controller only: multiplies its acceleration factor during lane-change states. Default: 2.0x.",
+              "details": "Honda v1 torque path only, including the pre-lane-change waiting state. Higher values generally reduce its torque request. 1.0 removes this multiplier. Does not tune Honda PID, the PIF/Torque blend, NNLC or v0/jerk-aware controllers. Edits apply after background refresh (normally 0.5 s), with the existing one-second tuning transition. Configure while parked.",
+              "min": 1.0,
+              "max": 3.0,
+              "step": 0.1,
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "nrdr_honda_tuning_available",
+                  "equals": true
+                }
+              ]
+            },
+            {
+              "key": "NrdrLaneChangeFrictionPercent",
+              "widget": "option",
+              "title": "NRDR Legacy Lane Change Friction",
+              "description": "Legacy v1 torque controller only: retained friction compensation during lane-change states. Default: 0%.",
+              "details": "Honda v1 torque path only, including the pre-lane-change waiting state. 0% preserves existing suppression; 100% retains its normal friction compensation. Does not change PID or PIF/Torque blend friction. Edits apply after background refresh (normally 0.5 s), with the existing one-second tuning transition. Configure while parked.",
+              "min": 0,
+              "max": 100,
+              "step": 5,
+              "unit": "%",
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "nrdr_honda_tuning_available",
+                  "equals": true
+                }
+              ]
             }
           ]
         },

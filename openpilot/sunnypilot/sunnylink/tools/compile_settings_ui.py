@@ -439,8 +439,8 @@ def _merge_item_extensions(pages: list[dict], extensions: list[tuple[str, dict]]
     existing_items[insertion_index:insertion_index] = copy.deepcopy(document["items"])
 
     enablement_extensions = document["extend_enablement"]
-    if not isinstance(enablement_extensions, list) or not enablement_extensions:
-      raise CompileError(f"{source}: 'extend_enablement' must be a non-empty list")
+    if not isinstance(enablement_extensions, list):
+      raise CompileError(f"{source}: 'extend_enablement' must be a list")
     extended_items: set[str] = set()
     for index, extension in enumerate(enablement_extensions):
       extension_source = f"{source}: enablement extension {index}"

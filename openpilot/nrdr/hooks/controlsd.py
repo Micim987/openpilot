@@ -4,6 +4,7 @@ from openpilot.nrdr.params import get_live_params
 from openpilot.nrdr.params.snapshots import _bool_value
 from openpilot.nrdr.features.lateral.live_tuning import LiveTorqueTransition
 from openpilot.nrdr.features.lateral.torque_output_filter import HondaTorqueOutputFilter
+from openpilot.nrdr.features.lateral.lane_change_tuning import LaneChangeEntry, shape_lane_change_curvature
 from openpilot.nrdr.features.lateral.steer_ratio_tuning import (
   SteerRatioModeLatch,
   resolve_steer_ratio_selection,
@@ -18,6 +19,7 @@ def initialize_live_parameter_settings(controls) -> None:
   controls.nrdr_lateral_settings_active = False
   controls.nrdr_live_torque_transition = LiveTorqueTransition()
   controls.nrdr_torque_output_filter = HondaTorqueOutputFilter()
+  controls.nrdr_lane_change_entry = LaneChangeEntry()
   controls.nrdr_last_valid_comma_ratio = max(float(controls.CP.steerRatio), 0.1)
   refresh_live_parameter_settings(controls, None)
 
@@ -114,6 +116,37 @@ def stopping_inputs(calibrated_pose, longitudinal_plan) -> tuple[float | None, f
   if longitudinal_plan.hasLead and len(longitudinal_plan.leadTrajectoryX0) > 0:
     distance = float(longitudinal_plan.leadTrajectoryX0[0])
   return pitch, distance
+
+
+def lane_change_request(controls, CS, model, live_params, desired_curvature: float, active: bool, dt: float) -> float:
+  """Command-only entry shaping before the existing curvature safety limiter."""
+  enabled = controls.CP.brand == "honda" and controls.steer_ratio_latch.selection.available
+  reduction = controls.nrdr_lane_change_entry.update(
+    active=active and enabled and not controls.sm.valid['lateralManeuverPlan'],
+    valid=bool(controls.sm.all_checks(['modelV2'])),
+    state=model.meta.laneChangeState.raw, direction=model.meta.laneChangeDirection.raw,
+    driver_override=bool(CS.steeringPressed), settings=controls.nrdr_lateral_snapshot, dt=dt,
+  )
+  shaped_curvature = shape_lane_change_curvature(
+    controls.steer_ratio_latch.selection, controls.VM, CS.steeringAngleDeg, CS.vEgo, live_params.roll,
+    desired_curvature, reduction,
+  )
+  # Queue consumed settings and command telemetry, never disk I/O in the control loop.
+  entry = controls.nrdr_lane_change_entry
+  signature = (entry.was_starting, entry.reduction, entry.return_seconds, entry.direction, enabled, reduction > 0.0)
+  report_age = getattr(controls, "nrdr_lane_change_report_age", 0.0) + dt
+  if signature != getattr(controls, "nrdr_lane_change_report_signature", None) or (reduction > 0.0 and report_age >= 0.1):
+    controls.nrdr_lane_change_report_signature = signature
+    report_age = 0.0
+    controls.nrdr_live_params.record_applied_settings(
+      "lane_change_entry", getattr(controls.nrdr_lateral_snapshot, "generation", 0),
+      starting=entry.was_starting, captured_reduction=entry.reduction, return_seconds=entry.return_seconds,
+      direction=entry.direction, supported=enabled, envelope_reduction=reduction,
+      requested_curvature=desired_curvature, shaped_curvature=shaped_curvature,
+      geometry=controls.steer_ratio_latch.selection.effective_label,
+    )
+  controls.nrdr_lane_change_report_age = report_age
+  return shaped_curvature
 
 
 def apply_hud_lead(hud_control, lead) -> None:

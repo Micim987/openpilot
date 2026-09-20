@@ -23,6 +23,7 @@ def test_unchanged_settings_pass_normal_steering_through_exactly():
   {"LaneCenteringStrength": 0.3}, {"NrdrLearnAngleOffset": False},
   {"NrdrSteerRatioHybrid": True}, {"NrdrSteerRatioSourceB": 3}, {"NrdrSteerRatioBlendStart": 25.0},
   {"NrdrInterpolatedTorqueFrictionHighway": 0.3},
+  {"NrdrLaneChangeTorqueFactor": 1.0}, {"NrdrLaneChangeFrictionPercent": 50},
 ))
 def test_active_edit_is_bumpless_then_converges_without_disengagement(changed):
   transition = LiveTorqueTransition()
@@ -62,4 +63,11 @@ def test_longitudinal_and_maintenance_changes_do_not_trigger_steering_transition
   transition = LiveTorqueTransition()
   transition.update(0.3, snapshot(), True, False, 0.01)
   updated = snapshot(2, LongPidTuneScaleStandard=120, NrdrTuneLearnerReset=True)
+  assert transition.update(-0.4, updated, True, False, 0.01) == -0.4
+
+
+def test_next_maneuver_settings_do_not_trigger_unrelated_current_steering_transition():
+  transition = LiveTorqueTransition()
+  transition.update(0.3, snapshot(), True, False, 0.01)
+  updated = snapshot(2, NrdrLaneChangeEntrySrReduction=3, NrdrLaneChangeEntryReturnTime=1.5)
   assert transition.update(-0.4, updated, True, False, 0.01) == -0.4

@@ -8,6 +8,7 @@ from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.common.pid import PIDController
 from openpilot.nrdr.features.driver_policy import torque_controller_active, torque_from_lateral_accel
+from openpilot.nrdr.features.lateral.lane_change_tuning import bounded_setting
 from openpilot.sunnypilot.livedelay.helpers import LAT_DELAY_BUFFER_SECONDS
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
@@ -50,6 +51,7 @@ class LatControlTorque(LatControl):
     self.jerk_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
+    self.nrdr_lane_change_tuning_enabled = CP.brand == "honda"
 
   def update_torque_parameters(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -94,8 +96,10 @@ class LatControlTorque(LatControl):
     # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
     ff -= self.torque_params.latAccelOffset
     lane_changing = torque_controller_active(self.extension)
-    if not lane_changing:
-      ff += get_friction(error + JERK_GAIN * desired_lateral_jerk, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
+    lane_change_settings = self.live_tuning_snapshot if self.nrdr_lane_change_tuning_enabled else None
+    friction_scale = bounded_setting(lane_change_settings, "NrdrLaneChangeFrictionPercent", 0.0, 0.0, 100.0) / 100.0 if lane_changing else 1.0
+    if friction_scale > 0.0:
+      ff += friction_scale * get_friction(error + JERK_GAIN * desired_lateral_jerk, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
 
     if not active:
       output_torque = 0.0
@@ -106,7 +110,8 @@ class LatControlTorque(LatControl):
 
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error, speed=CS.vEgo, feedforward=ff, freeze_integrator=freeze_integrator)
-      output_torque = torque_from_lateral_accel(self.torque_from_lateral_accel, output_lataccel, self.torque_params, lane_changing)
+      output_torque = torque_from_lateral_accel(self.torque_from_lateral_accel, output_lataccel, self.torque_params,
+                                              lane_changing, lane_change_settings)
 
       # Lateral acceleration torque controller extension updates
       # Overrides pid_log.error and output_torque

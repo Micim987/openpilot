@@ -144,6 +144,11 @@ PARAM_SPECS: tuple[ParamSpec, ...] = (
   _added("NrdrSteerRatioBlendStart", ParamType.FLOAT, PB, "25.0", owner=ParamOwner.LATERAL),
   _added("NrdrSteerRatioManualCenter", ParamType.FLOAT, PB, "15.38", owner=ParamOwner.LATERAL),
   _added("NrdrSteerRatioManualFinal", ParamType.FLOAT, PB, "10.93", owner=ParamOwner.LATERAL),
+  _added("NrdrLaneChangeMinTime", ParamType.FLOAT, PB, "0.5", owner=ParamOwner.LATERAL),
+  _added("NrdrLaneChangeEntrySrReduction", ParamType.FLOAT, PB, "0.0", owner=ParamOwner.LATERAL),
+  _added("NrdrLaneChangeEntryReturnTime", ParamType.FLOAT, PB, "1.0", owner=ParamOwner.LATERAL),
+  _added("NrdrLaneChangeTorqueFactor", ParamType.FLOAT, PB, "2.0", owner=ParamOwner.LATERAL),
+  _added("NrdrLaneChangeFrictionPercent", ParamType.INT, PB, "0", owner=ParamOwner.LATERAL),
   # Retained so startup can perform a one-time migration and older builds can
   # still boot after a downgrade. Runtime and UI code must not consume these.
   _added("NrdrLearnSteerRatio", ParamType.BOOL, PB, "0", ParamLifecycle.TOMBSTONE, ParamOwner.LATERAL),
