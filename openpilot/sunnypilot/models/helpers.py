@@ -7,22 +7,19 @@ See the LICENSE.md file in the root directory for more details.
 
 import hashlib
 import os
-import pickle
-from pathlib import Path
 import numpy as np
 
 from openpilot.cereal import custom
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
-from openpilot.sunnypilot.models.constants import Meta, MetaSimPose, MetaTombRaider
 from openpilot.common.hardware.hw import Paths
 from openpilot.selfdrive.modeld.helpers import chestnut_present
+from openpilot.sunnypilot import accelerators
 
 # SET ME TO THE EXACT JSON VERSION WE SET IN SUNNYPILOT_MODELS REPO
 REQUIRED_JSON_VERSION = 19
 
 CUSTOM_MODEL_PATH = Paths.model_root()
-METADATA_PATH = Path(__file__).parent / '../models/supercombo_metadata.pkl'
 ModelManager = custom.ModelManagerSP
 
 ACTIVE_BUNDLE_KEYS = {
@@ -126,6 +123,13 @@ def get_selected_bundle(params: Params | None = None, source: str = "qcom") -> "
   return _parse_active_bundle(params.get(ACTIVE_BUNDLE_KEYS[source]))
 
 
+def effective_small_bundle(params: Params | None = None) -> "custom.ModelManagerSP.ModelBundle | None":
+  # under the accelerator override stock modeld runs the default small model, not the stored qcom bundle
+  if accelerators.uses_stock_runner():
+    return None
+  return get_selected_bundle(params, "qcom")
+
+
 def get_active_source(chestnut: bool | None = None, chestnut_active: bool | None = None,
                       chestnut_loading: bool | None = None, offroad: bool | None = None) -> str:
   if chestnut is None:
@@ -139,6 +143,10 @@ def get_active_bundle(params: Params | None = None, *, chestnut: bool | None = N
   # no cross-slot fallback: an empty active slot means the hardware default, which
   # only stock modeld can run - modeld_v2 requires a real bundle
   params = params or Params()
+  # the accelerator override ignores every stored bundle; an explicit chestnut is the
+  # manager describing its slots, which still resolve
+  if chestnut is None and accelerators.uses_stock_runner():
+    return None
   return get_selected_bundle(params, get_active_source(chestnut=chestnut))
 
 
@@ -199,33 +207,6 @@ def _get_model():
     drive_model = next(model for model in bundle.models if model.type == ModelManager.Model.Type.supercombo)
     return drive_model
   return None
-
-
-def load_metadata():
-  metadata_path = METADATA_PATH
-
-  with open(metadata_path, 'rb') as f:
-    return pickle.load(f)
-
-
-def prepare_inputs(model_metadata: dict) -> dict[str, np.ndarray]:
-  return {
-    key: np.zeros(shape, dtype=np.float32).flatten()
-    for key, shape in model_metadata['input_shapes'].items()
-    if 'img' not in key
-  }
-
-
-def load_meta_constants(model_metadata: dict):
-  """ Loads the appropriate meta model class based on key shapes"""
-  if 'sim_pose' in model_metadata['input_shapes']:
-    return MetaSimPose
-
-  meta_slice = model_metadata['output_slices']['meta']
-  if (meta_slice.start, meta_slice.stop, meta_slice.step) == (5868, 5921, None):
-    return MetaTombRaider
-
-  return Meta
 
 
 # The following method(s) are modeld helper methods
