@@ -473,12 +473,12 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
   # A late-loading big model is connected and waiting for disengagement.
   # This is availability, not proof of inference; modelV2.big reports execution.
   # Startup-only runners and older logs leave this false.
-  bigModelAvailable @3 :Bool;
+  bigModelAvailable @5 :Bool;
 
   # Runtime state of an off-board accelerator (sunnypilot/accelerators). Offroad
   # progress stays in the AcceleratorProgress param; telemetry waits for a customReserved slot.
-  acceleratorState @4 :AcceleratorState;
-  acceleratorName @5 :Text;
+  acceleratorState @6 :AcceleratorState;
+  acceleratorName @7 :Text;
 
   enum AcceleratorState {
     none @0;
