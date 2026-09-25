@@ -48,7 +48,8 @@ sound_list: dict[int, tuple[str, int | None, float]] = {
   AudibleAlert.disengage: ("disengage.wav", 1, MAX_VOLUME),
   AudibleAlert.refuse: ("refuse.wav", 1, MAX_VOLUME),
 
-  AudibleAlert.prompt: ("warning.wav", 1, MAX_VOLUME),
+  # Restore the legacy one-shot chime used by green-light/lead-departure reminders.
+  AudibleAlert.prompt: ("prompt.wav", 1, MAX_VOLUME),
   AudibleAlert.promptRepeat: ("warning.wav", None, MAX_VOLUME),
   AudibleAlert.promptDistracted: ("dm_warning.wav", None, MAX_VOLUME),
 
