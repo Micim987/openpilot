@@ -218,7 +218,11 @@ class TestSunnylinkdMethods(OpenpilotTestCase):
       assert allow_param_write(key, onroad=False, honda_tuning_available=True)
 
   def test_honda_tuning_cohort_is_fail_closed_for_every_remote_write(self):
-    assert len(HONDA_TUNING_WRITE_KEYS) == 54
+    assert len(HONDA_TUNING_WRITE_KEYS) == 58
+    assert {
+      "NrdrLaneChangeEntrySrReduction", "NrdrLaneChangeEntryReturnTime",
+      "NrdrLaneChangeTorqueFactor", "NrdrLaneChangeFrictionPercent",
+    } <= HONDA_TUNING_WRITE_KEYS
     for key in HONDA_TUNING_WRITE_KEYS:
       assert allow_param_write(key, onroad=False, honda_tuning_available=True)
       assert allow_param_write(key, onroad=True, honda_tuning_available=True)
@@ -241,7 +245,12 @@ class TestSunnylinkdMethods(OpenpilotTestCase):
     assert ONROAD_WRITE_BLOCKLIST == frozenset((
       "LongitudinalPersonality",
       "NrdrHandcraftedLateralTune",
+      "NrdrStandstillGapExtra",
     ))
+
+  def test_stopped_gap_requires_offroad_write(self):
+    assert allow_param_write("NrdrStandstillGapExtra", onroad=False)
+    assert not allow_param_write("NrdrStandstillGapExtra", onroad=True)
 
   def test_handcrafted_apply_command_is_server_enforced_by_road_and_vehicle(self):
     key = "NrdrHandcraftedLateralTune"
