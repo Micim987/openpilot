@@ -20,3 +20,6 @@
 	path = opendbc_repo
 	url = https://github.com/nrdr/opendbc.git
 	branch = nrdr-architecture-development
+[submodule "jetlink"]
+  path = jetlink_repo
+  url = https://github.com/zoompilot/jetlink.git

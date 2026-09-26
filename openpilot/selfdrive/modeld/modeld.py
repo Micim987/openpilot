@@ -35,6 +35,7 @@ from openpilot.common.hardware.usb import CHESTNUT_USB_IDS
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 from openpilot.selfdrive.modeld.helpers import chestnut_present, chestnut_compiled, chestnut_ready, modeld_pkl_path, load_oob
 
+from openpilot.sunnypilot import accelerators
 from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
 from openpilot.sunnypilot.selfdrive.controls.lib.relc import RoadEdgeLaneChangeController
@@ -270,6 +271,8 @@ def main(demo=False):
     params.put_bool("ChestnutActive", False)
   else:
     params.remove("ChestnutActive")
+  # before going realtime: prepare() starts tinygrad's device thread, which would inherit FIFO 54 on core 7
+  JETLINK = not CHESTNUT and accelerators.enabled() and accelerators.prepare()
 
   config_realtime_process(7, 54)
 
@@ -318,8 +321,16 @@ def main(demo=False):
     params.put_bool("ChestnutActive", model is not None)
     if model is not None:
       params.remove("ChestnutModelError")
+  elif JETLINK:
+    small_model = ModelState(vipc_client_main.width, vipc_client_main.height, False)
+    try:
+      model = accelerators.make_model_state(vipc_client_main.width, vipc_client_main.height, small_model)
+    except Exception:
+      cloudlog.exception("jetlink load failed")
+      model = None
 
-  small_model = ModelState(vipc_client_main.width, vipc_client_main.height, False) if model is None or CHESTNUT else None
+  if not JETLINK:
+    small_model = ModelState(vipc_client_main.width, vipc_client_main.height, False) if model is None or CHESTNUT else None
   if model is None:
     model = small_model
   params.put_bool("ChestnutLoading", False)
@@ -334,6 +345,8 @@ def main(demo=False):
   publish_state = PublishState()
   params = Params()
   chestnut_state = ChestnutState(pm, model.chestnut) if CHESTNUT else None
+  if JETLINK:
+    chestnut_state = accelerators.make_status_publisher(pm, model)
 
   # setup filter to track dropped frames
   frame_dropped_filter = FirstOrderFilter(0., 10., 1. / ModelConstants.MODEL_RUN_FREQ)
@@ -449,6 +462,9 @@ def main(demo=False):
                        run_count % round(ModelConstants.MODEL_RUN_FREQ / SERVICE_LIST['chestnutState'].frequency) == 0)
       model_output = model.run(bufs, transforms, inputs, chestnut_state.send if send_chestnut else None)
     except Exception:
+      # the joining state does its own fallback; the handler below would orphan its threads and link
+      if JETLINK:
+        raise
       if not params.get_bool("ChestnutActive"):
         raise
       # fallback to small model
@@ -482,6 +498,9 @@ def main(demo=False):
       lane_change_prob = l_lane_change_prob + r_lane_change_prob
       mdv2sp_send = messaging.new_message('modelDataV2SP')
       set_lateral_action_timing(modelv2_send, mdv2sp_send, lat_action_t)
+      mdv2sp_send.modelDataV2SP.bigModelAvailable = getattr(model, 'big_model_available', False)
+      mdv2sp_send.modelDataV2SP.acceleratorState = getattr(model, 'big_model_state', 'none')
+      mdv2sp_send.modelDataV2SP.acceleratorName = 'jetlink' if JETLINK else ''
       left_edge, right_edge = RELC.update_and_fill(modelv2_send.modelV2, mdv2sp_send.modelDataV2SP, v_ego)
       DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, left_edge, right_edge)
       modelv2_send.modelV2.meta.laneChangeState = DH.lane_change_state

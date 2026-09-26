@@ -5,10 +5,12 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from enum import Enum
+from typing import NamedTuple
 
 from openpilot.cereal import messaging, log, custom
 from opendbc.car.structs import car
 from openpilot.common.params import Params
+from openpilot.sunnypilot import accelerators
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.display import OnroadBrightness
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_active_source
 from openpilot.sunnypilot.sunnylink.sunnylink_state import SunnylinkState
@@ -27,6 +29,15 @@ class OnroadTimerStatus(Enum):
   RESUME = 2
 
 
+class AcceleratorView(NamedTuple):
+  """What the UI knows about an off-board accelerator, built on the params pass when no
+  chestnut is fitted. Presence comes from the backend: the comma is the gadget and enumerates nothing."""
+  present: bool
+  ready: bool
+  progress: dict | None
+  state: str  # modelDataV2SP.acceleratorState, by enum name
+
+
 class UIStateSP:
   def __init__(self):
     self.params = Params()
@@ -35,7 +46,8 @@ class UIStateSP:
     self.is_sp_release: bool = self.params.get_bool("IsReleaseSpBranch")
     self.sm_services_ext = [
       "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
-      "gpsLocation", "lateralTorqueParameters", "carStateSP", "laneCenteringStateSP", "liveMapDataSP", "carParamsSP", "lateralDelay"
+      "gpsLocation", "lateralTorqueParameters", "carStateSP", "laneCenteringStateSP", "liveMapDataSP", "carParamsSP", "lateralDelay",
+      "modelDataV2SP"
     ]
 
     self.sunnylink_state = SunnylinkState()
@@ -45,6 +57,9 @@ class UIStateSP:
 
     self.active_bundle = None
     self.model_runner_tinygrad: bool = False
+    self.accelerator_view: AcceleratorView | None = None
+    self.accelerator_progress: dict | None = None
+    self._accelerator_state_name: str = 'none'
     self.blindspot: bool = False
     self.chevron_metrics = None
     self.custom_interactive_timeout: int = 0
@@ -70,6 +85,38 @@ class UIStateSP:
       self.sunnylink_state.start()
     else:
       self.sunnylink_state.stop()
+    # read where sm is updated, so the params thread never touches a message
+    self._accelerator_state_name = str(self.sm['modelDataV2SP'].acceleratorState)
+
+  def _accelerator_state(self):
+    """ChestnutState for the accelerator view: progress param offroad, modelV2 and acceleratorState onroad"""
+    from openpilot.selfdrive.ui.ui_state import ChestnutState  # defined by the class that mixes this in
+    view = self.accelerator_view
+    if not self.started:
+      stage = str((view.progress or {}).get('stage', ''))
+      if not view.present:
+        return ChestnutState.DISCONNECTED
+      if stage and stage != 'ready':
+        return ChestnutState.FAILED if stage == 'failed' else ChestnutState.LOADING
+      return ChestnutState.READY if view.ready else ChestnutState.UNCOMPILED
+
+    model_seen = self.sm.recv_frame["modelV2"] > self.started_frame
+    if model_seen and self.sm.alive["modelV2"] and self.sm["modelV2"].big:
+      return ChestnutState.ACTIVE
+    if not view.present:
+      return ChestnutState.DISCONNECTED
+    # attached, a pending join is loading, not a failed model
+    if view.state in ('joining', 'retrying') or not model_seen:
+      return ChestnutState.LOADING
+    # the engine is up and only the swap window is missing, which on a MADS car
+    # is the rest of the drive unless the driver stops
+    if view.state == 'ready':
+      return ChestnutState.WAITING
+    if not view.ready:
+      return ChestnutState.UNCOMPILED
+    if view.state == 'running':
+      return ChestnutState.ACTIVE
+    return ChestnutState.FAILED
 
   def onroad_brightness_handle_alerts(self, _ui_state, alert):
     if _ui_state.sm.recv_frame["carState"] < _ui_state.started_frame:
@@ -156,9 +203,21 @@ class UIStateSP:
                                chestnut_loading=self.chestnut_loading, offroad=self.is_offroad())
     self.active_bundle = self.params.get(ACTIVE_BUNDLE_KEYS[source])
     self.model_runner_tinygrad = self.active_bundle is not None and self.active_bundle.get("runner") == "tinygrad"
-    # stock only counts the default big model's compiled pkl. a downloaded big bundle runs on the
-    # chestnut just the same, so ChestnutState has to see it as available too.
+    # read on the 5 Hz params pass, not per frame in a layout
+    self.accelerator_progress = accelerators.progress()
+    link_enabled = accelerators.enabled()
     self.chestnut_compiled = self.chestnut_compiled or self.model_runner_tinygrad
+    # a fitted chestnut owns chestnut_state; the view exists only when there is something to show
+    view = None
+    if not self.sm['deviceState'].chestnutPresent:
+      present, ready = accelerators.present(), accelerators.ready()
+      if present or ready or self.accelerator_progress is not None or link_enabled:
+        view = AcceleratorView(present, ready, self.accelerator_progress, self._accelerator_state_name)
+    self.accelerator_view = view
+    # the Jetson configures the gadget ~25 s after a cold boot, after the one-shot
+    # usb_unknown decision; recognising it late still clears "unknown"
+    if view is not None and view.present and self.usb_unknown:
+      self.usb_unknown = False
     self.blindspot = self.params.get_bool("BlindSpot")
     self.chevron_metrics = self.params.get("ChevronInfo")
     self.custom_interactive_timeout = self.params.get("InteractivityTimeout", return_default=True)
