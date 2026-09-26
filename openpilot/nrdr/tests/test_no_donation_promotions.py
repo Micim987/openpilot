@@ -28,23 +28,24 @@ def source_function(path, name, namespace, class_name=None):
 
 
 @pytest.mark.parametrize("replay", (False, True))
-def test_development_startup_restores_original_warning_and_branch(replay):
+@pytest.mark.parametrize("branch", ("nrdr-architecture-development", "nrdr-nightly", "350", "nrdr-staging-09.26.2026"))
+def test_nrdr_startup_restores_custom_message_and_branch(replay, branch):
   def startup_alert(text, branch, **kwargs):
     return SimpleNamespace(text=text, branch=branch, **kwargs)
 
   startup = source_function(EVENTS, "startup_master_alert", {
     "StartupAlert": startup_alert,
-    "AlertStatus": SimpleNamespace(userPrompt="userPrompt"),
-    "get_short_branch": lambda: "nrdr-architecture-development",
+    "AlertStatus": SimpleNamespace(normal="normal"),
+    "get_short_branch": lambda: branch,
     "os": SimpleNamespace(environ={"REPLAY": "1"} if replay else {}),
   })
   alert = startup(None, None, None, False, 0, None)
-  assert alert.text == "WARNING: This branch is not tested"
-  assert alert.branch == ("replay" if replay else "nrdr-architecture-development")
-  assert alert.alert_status == "userPrompt"
+  assert alert.text == "Openpilot is now in on-road mode."
+  assert alert.branch == ("replay" if replay else branch)
+  assert alert.alert_status == "normal"
 
 
-def test_startup_warning_is_still_registered():
+def test_startup_message_and_takeover_reminder_remain_registered():
   tree = ast.parse(EVENTS.read_text(encoding="utf-8"))
   startup_events = {}
   for node in ast.walk(tree):
