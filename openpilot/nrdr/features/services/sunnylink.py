@@ -8,6 +8,7 @@ UNREGISTERED = "UnregisteredDevice"
 ONROAD_WRITE_BLOCKLIST = frozenset((
   "LongitudinalPersonality",
   "NrdrHandcraftedLateralTune",
+  "NrdrStandstillGapExtra",
 ))
 
 # These controls are surfaced only for an exact, confirmed Honda CP. Keeping

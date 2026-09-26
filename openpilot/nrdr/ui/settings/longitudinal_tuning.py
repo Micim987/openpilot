@@ -26,6 +26,18 @@ class LongitudinalTuningLayout(Widget):
     self._scroller = Scroller([status, *self._tuning_items], line_separator=False, spacing=0)
 
   def _initialize_items(self):
+    self._standstill_gap = option_item_sp(
+      param="NrdrStandstillGapExtra",
+      title=lambda: tr("NRDR Extra Stopped Lead Gap (Default: 0 m)"),
+      min_value=0, max_value=500, value_change_step=25, use_float_scaling=True,
+      label_callback=lambda value: f"+{value / 100:.2f} m",
+      description=lambda: tr(
+        "Additional lead clearance retained through creeping and at a complete stop. " +
+        "This adds to the planner's distance floor, not the distance-bar time gap. " +
+        "0 preserves existing behavior. Measured bumper clearance can vary with lead sensing and braking. " +
+        "Configure offroad; applies on the next engagement. Requires NRDR-supported openpilot longitudinal control."
+      ),
+    )
     self._long_pid_tune_scale_aggressive = option_item_sp(
       param="LongPidTuneScaleAggressive",
       title=lambda: tr("Distance 1 / Aggressive PID Scale (Default: 200%)"),
@@ -244,6 +256,7 @@ class LongitudinalTuningLayout(Widget):
       self._long_pid_tune_scale_econ,
       self._cruise_overspeed_allowance,
       self._cruise_mismatch_correction,
+      self._standstill_gap,
       self._stopping_decel_rate,
       self._stop_accel,
       self._stopping_decel_rate_long,
@@ -258,6 +271,9 @@ class LongitudinalTuningLayout(Widget):
       if action := getattr(item, "action_item", None):
         action.set_enabled(enabled)
     self._live_learning_gas.action_item.set_enabled(enabled and ui_state.is_offroad())
+    self._standstill_gap.action_item.set_enabled(
+      enabled and ui_state.is_offroad() and bool(ui_state.CP and ui_state.CP.openpilotLongitudinalControl)
+    )
 
   def _render(self, rect):
     self._back_button.set_position(self._rect.x, self._rect.y + 20)

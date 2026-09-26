@@ -103,6 +103,20 @@ sections:
         max: 105.0
         step: 0.1
         unit: '%'
+      - key: NrdrStandstillGapExtra
+        widget: option
+        title: NRDR Extra Stopped Lead Gap
+        description: Additional lead clearance retained through creeping and at a complete stop. 0 preserves existing behavior.
+        details: Adds to the planner's distance floor, not the distance-bar time gap. Measured bumper clearance can vary with lead sensing and braking. Configure offroad; applies on the next engagement. Requires NRDR-supported openpilot longitudinal control; stock ACC and unapproved non-Honda vehicles are unchanged.
+        min: 0.0
+        max: 5.0
+        step: 0.25
+        unit: m
+        enablement:
+        - $ref: '#/macros/offroad'
+        - type: capability
+          field: has_longitudinal_control
+          equals: true
       - key: HondaStoppingDecelRate
         widget: option
         title: Stopping Decel Rate

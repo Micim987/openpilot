@@ -103,7 +103,7 @@ LIVE_LATERAL_KEYS = tuple(key for group in CONTROL_GROUPS for key in group.keys
 
 PLANNER_GROUPS = (
   ParamGroup(("HondaVEgoStopping", "NrdrCruiseMismatchCorrection", "NrdrCruiseOverspeedAllowance",
-              "NrdrRoenAccelerationLimits")),
+              "NrdrRoenAccelerationLimits", "NrdrStandstillGapExtra")),
 )
 
 

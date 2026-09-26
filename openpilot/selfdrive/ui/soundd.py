@@ -24,11 +24,13 @@ ALERT_RAMP_TIME = 4 # seconds to ramp to max volume for warningImmediate
 SELFDRIVE_STATE_TIMEOUT = 5 # 5 seconds
 FILTER_DT = 1. / (micd.SAMPLE_RATE / micd.FFT_SAMPLES)
 
-AMBIENT_DB = 24 # DB where MIN_VOLUME is applied; matches nrdr-bp-6.0 on C3/C3X
+AMBIENT_DB = 26 # Default calibration, including mici (Comma Four).
 DB_SCALE = 30 # AMBIENT_DB + DB_SCALE is where MAX_VOLUME is applied
 
 VOLUME_BASE = 20
-if HARDWARE.get_device_type() == "tizi":
+if HARDWARE.get_device_type() == "tici":  # Comma Three: legacy Ford-branch curve.
+  AMBIENT_DB = 24
+elif HARDWARE.get_device_type() == "tizi":  # Comma 3X: same calibration on Ford and Lexus.
   AMBIENT_DB = 30
   VOLUME_BASE = 10
 

@@ -520,8 +520,7 @@ class SelfdriveD(CruiseHelper):
 
     sla_state = self.sm['longitudinalPlanSP'].speedLimit.assist.state
     button_reserved = self.nrdr.reserve_distance_button(sla_state)
-    if not button_reserved:
-      CruiseHelper.update(self, CS, self.events_sp, self.experimental_mode)
+    CruiseHelper.update(self, CS, self.events_sp, self.experimental_mode, distance_button_reserved=button_reserved)
 
     # decrement personality on distance button press
     if self.nrdr.update_personality(self, CS, button_reserved):

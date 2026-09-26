@@ -46,6 +46,30 @@ PERSONALITY_T_FOLLOW = {
 CRUISE_MAX_ACCEL = 2.0
 
 
+def apply_standstill_gap(obstacles: np.ndarray, radar_state, extra_distance: float) -> np.ndarray:
+  """Increase the distance floor without falsifying logged leads or FCW inputs.
+
+  Translating only real lead obstacles toward ego adds the same clearance at
+  every horizon point, including v=0. It does not fade away during creeping,
+  alter time headway, or relax any braking/danger constraint. Zero is exact
+  legacy behavior; the caller gates this feature to NRDR-approved platforms.
+  """
+  if isinstance(extra_distance, bool):
+    return obstacles
+  try:
+    distance = float(extra_distance)
+  except (TypeError, ValueError, OverflowError):
+    return obstacles
+  if not math.isfinite(distance) or distance <= 0.0:
+    return obstacles
+  distance = min(distance, 5.0)
+  result = obstacles.copy()
+  for slot, lead in enumerate((radar_state.leadOne, radar_state.leadTwo)):
+    if lead.present:
+      result[:, slot] -= distance
+  return result
+
+
 @dataclass(frozen=True)
 class MpcPolicyResult:
   lead_0: np.ndarray

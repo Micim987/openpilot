@@ -1,6 +1,7 @@
 """LPF and host-to-Honda command handoff; no CAN, native services or Params."""
 
 import ast
+import json
 from pathlib import Path
 from types import MappingProxyType, SimpleNamespace
 
@@ -77,6 +78,38 @@ def test_lower_tau_means_less_smoothing():
   fast = HondaTorqueOutputFilter().update(0.5, True, 27.0, tuning(lpf_tau_highway=0.01), 0.01)
   slow = HondaTorqueOutputFilter().update(0.5, True, 27.0, tuning(lpf_tau_highway=0.1), 0.01)
   assert fast > slow
+
+
+@pytest.mark.parametrize("mph", (0, 5, 10, 20, 24.99, 25, 40, 50, 65))
+def test_zero_upper_bands_do_not_disable_low_speed_filter(mph):
+  live = tuning(lpf_tau_low=0.1, lpf_tau_standard=0.0, lpf_tau_highway=0.0)
+  controls = host(live)
+  cs = SimpleNamespace(vEgo=mph * MPH_TO_MS, steeringPressed=False)
+  assert finalize_lateral_torque(controls, 0.8, cs, True, 0.01) == pytest.approx(0.8 / 11 if mph < 25 else 0.8)
+  live.torque_lpf_enabled = False
+  assert finalize_lateral_torque(controls, 0.8, cs, True, 0.01) == 0.8
+
+
+def test_lpf_audit_records_consumed_snapshot_only_when_configuration_changes():
+  live = tuning(generation=7, lpf_tau_low=0.1, lpf_tau_standard=0.0, lpf_tau_highway=0.0)
+  controls = host(live)
+  records = []
+  controls.nrdr_live_params = SimpleNamespace(record_applied_settings=lambda *args, **kwargs: records.append((args, kwargs)))
+  cs = SimpleNamespace(vEgo=10 * MPH_TO_MS, steeringPressed=False)
+  result = finalize_lateral_torque(controls, 0.8, cs, True, 0.01)
+  assert records == [(('honda_torque_lpf', 7), {
+    "enabled": True, "tau_low": 0.1, "tau_standard": 0.0, "tau_highway": 0.0, "selected_tau": 0.1,
+    "active": True, "speed_ms": cs.vEgo, "input_torque": 0.8, "output_torque": result,
+  })]
+  for _ in range(100):
+    finalize_lateral_torque(controls, 0.8, cs, True, 0.01)
+  assert len(records) == 1
+  live.generation = 8
+  live.torque_lpf_enabled = False
+  assert finalize_lateral_torque(controls, 0.8, cs, True, 0.01) == 0.8
+  assert records[-1][0] == ("honda_torque_lpf", 8)
+  assert records[-1][1]["selected_tau"] == 0.0
+  assert records[-1][1]["enabled"] is False
 
 
 def test_toggle_and_tau_change_are_live_without_stale_state():
@@ -164,3 +197,25 @@ def test_controlsd_publishes_finalized_torque_and_keeps_limiting_detection():
   source = (root / "selfdrive/controls/controlsd.py").read_text(encoding="utf-8")
   assert source.index("steer = finalize_lateral_torque(") < source.index("actuators.torque = float(steer)")
   assert "abs(CC.actuators.torque - CO.actuatorsOutput.torque) > 1e-2" in source
+
+
+def test_sunnylink_lpf_bands_require_explicit_master_switch():
+  root = Path(__file__).resolve().parents[3]
+  schema = json.loads((root / "openpilot/sunnypilot/sunnylink/settings_ui.json").read_text(encoding="utf-8"))
+
+  def walk(node):
+    if isinstance(node, dict):
+      yield node
+      for value in node.values():
+        yield from walk(value)
+    elif isinstance(node, list):
+      for value in node:
+        yield from walk(value)
+
+  items = {item["key"]: item for item in walk(schema) if "key" in item and "widget" in item}
+  master = items["HondaTorqueLowPassFilter"]
+  assert "OFF bypasses" in master["description"]
+  assert "does not turn the filter on" in master["details"]
+  for key in ("HondaLpfTauLowSpeed", "HondaLpfTauStandard", "HondaLpfTauHighway"):
+    assert {"type": "param", "key": "HondaTorqueLowPassFilter", "equals": True} in items[key]["enablement"]
+    assert "Requires the master switch ON" in items[key]["description"]

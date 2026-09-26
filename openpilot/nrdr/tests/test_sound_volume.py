@@ -49,11 +49,11 @@ def update_microphone(namespace, loop, db, updated=True):
   run_loop_block(namespace, loop, "sm.updated['soundPressure']")
 
 
-@pytest.mark.parametrize(("device_type", "ambient_db", "volume_base"), (("tici", 24, 20), ("tizi", 30, 10)))
+@pytest.mark.parametrize(("device_type", "ambient_db", "volume_base"), (("tici", 24, 20), ("tizi", 30, 10), ("mici", 26, 20)))
 @pytest.mark.parametrize("db", (-20, 0, 24, 26, 30, 39, 45, 54, 56, 60, 100))
 def test_volume_matches_ford_curve_and_preserves_c4(device_type, ambient_db, volume_base, db):
   namespace, _ = volume_logic(device_type)
-  # Constants/formula from Ford's 01747aa soundd.py; C4 keeps its distinct calibration.
+  # tici=C3 and tizi=C3X match Ford's 01747aa; mici=C4 keeps its pre-change calibration.
   scaled = min(1.0, max(0.1, (db - ambient_db) / 30 * 0.9 + 0.1))
   assert namespace["self"].calculate_volume(db) == pytest.approx(volume_base ** (scaled - 1))
 

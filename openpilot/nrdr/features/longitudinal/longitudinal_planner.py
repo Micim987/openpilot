@@ -84,6 +84,7 @@ class NrdrLongitudinalPlanner:
     self.v_ego_stopping = CP.deprecated.vEgoStopping
     self.cruise_scale = 1.0
     self.cruise_overspeed_allowance = 0.0
+    self.standstill_gap_extra = 0.0
     self.roen_acceleration_limits = True
     self.launch_armed = False
     self._refresh_settings()
@@ -100,7 +101,14 @@ class NrdrLongitudinalPlanner:
       snapshot, NrdrParamKey.NRDR_CRUISE_OVERSPEED_ALLOWANCE, 0.0, 0.0, 10.0,
     ) * CV.MPH_TO_MS
     self.roen_acceleration_limits = read_bool(snapshot, NrdrParamKey.NRDR_ROEN_ACCELERATION_LIMITS, True)
+    self.standstill_gap_requested = read_float(snapshot, NrdrParamKey.NRDR_STANDSTILL_GAP_EXTRA, 0.0, 0.0, 5.0)
     self.settings_generation = snapshot.generation
+
+  def stopped_gap(self, reset_state: bool) -> float:
+    # Changes apply before the next engagement, never halfway through a stop.
+    if reset_state:
+      self.standstill_gap_extra = self.standstill_gap_requested
+    return self.standstill_gap_extra
 
   @property
   def roen_enabled(self) -> bool:

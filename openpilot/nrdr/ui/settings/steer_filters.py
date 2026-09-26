@@ -22,8 +22,8 @@ class SteerFiltersLayout(Widget):
       param="HondaTorqueLowPassFilter",
       title=lambda: tr("Low Pass Filter (tau) (Default: ON)"),
       description=lambda: tr(
-        "Filter that smooths steering response at the cost of adding lag. Tune to the least amount possible before oscillations begin. " +
-        "Live tests show that going above 0.1 tau rapidly increases the possibility of lag-induced oscillations."
+        "Master switch for all three speed bands. OFF bypasses filtering even when saved tau values are nonzero. " +
+        "Changing tau does not enable the filter. Higher tau adds smoothing and delay; too much delay can cause oscillations."
       ),
     )
 
@@ -33,7 +33,7 @@ class SteerFiltersLayout(Widget):
       min_value=0,
       max_value=500,
       value_change_step=1,
-      description=lambda: tr("Low-pass filter time constant (seconds) below 25 mph."),
+      description=lambda: tr("Time constant below 25 mph, in seconds. Requires the master switch ON. 0 bypasses only this speed band."),
       label_callback=lambda value: f"{value / 100:.2f}",
       use_float_scaling=True,
     )
@@ -44,7 +44,7 @@ class SteerFiltersLayout(Widget):
       min_value=0,
       max_value=500,
       value_change_step=1,
-      description=lambda: tr("Low-pass filter time constant (seconds) between 25 and 50 mph."),
+      description=lambda: tr("Time constant from 25 to below 50 mph, in seconds. Requires the master switch ON. 0 bypasses only this speed band."),
       label_callback=lambda value: f"{value / 100:.2f}",
       use_float_scaling=True,
     )
@@ -55,7 +55,7 @@ class SteerFiltersLayout(Widget):
       min_value=0,
       max_value=500,
       value_change_step=1,
-      description=lambda: tr("Low-pass filter time constant (seconds) at or above 50 mph."),
+      description=lambda: tr("Time constant at or above 50 mph, in seconds. Requires the master switch ON. 0 bypasses only this speed band."),
       label_callback=lambda value: f"{value / 100:.2f}",
       use_float_scaling=True,
     )

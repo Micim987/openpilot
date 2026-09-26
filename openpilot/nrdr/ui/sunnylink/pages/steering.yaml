@@ -483,12 +483,12 @@ sections:
       - key: HondaTorqueLowPassFilter
         widget: toggle
         title: Low Pass Filter (tau)
-        description: Smooths steering response at the cost of adding lag; tune to the least amount before oscillation.
-        details: Filter that smooths steering response at the cost of adding lag. Tune to the least amount possible before oscillations begin. Live tests show that going above 0.1 tau rapidly increases the possibility of lag-induced oscillations.
+        description: Master switch. OFF bypasses all three speed bands, regardless of saved tau values.
+        details: Changing tau does not turn the filter on. With the master switch ON, 0 bypasses only that speed band; higher tau adds smoothing and delay. Too much delay can cause oscillations. After a remote edit, refresh and verify the device-reported switch and values; editable sliders alone do not prove filtering is active.
       - key: HondaLpfTauLowSpeed
         widget: option
         title: Low Pass Filter Tau (Below 25mph)
-        description: Low-pass filter time constant (seconds) below 25 mph.
+        description: Time constant below 25 mph, in seconds. Requires the master switch ON. 0 bypasses only this speed band.
         min: 0.0
         max: 5.0
         step: 0.01
@@ -499,7 +499,7 @@ sections:
       - key: HondaLpfTauStandard
         widget: option
         title: Standard Tau (25-50mph)
-        description: Low-pass filter time constant (seconds) between 25 and 50 mph.
+        description: Time constant from 25 to below 50 mph, in seconds. Requires the master switch ON. 0 bypasses only this speed band.
         min: 0.0
         max: 5.0
         step: 0.01
@@ -510,7 +510,7 @@ sections:
       - key: HondaLpfTauHighway
         widget: option
         title: Highway Tau (50mph+)
-        description: Low-pass filter time constant (seconds) at or above 50 mph.
+        description: Time constant at or above 50 mph, in seconds. Requires the master switch ON. 0 bypasses only this speed band.
         min: 0.0
         max: 5.0
         step: 0.01

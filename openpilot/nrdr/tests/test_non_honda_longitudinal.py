@@ -23,6 +23,7 @@ from openpilot.common.pid import PIDController
 from openpilot.selfdrive.modeld.constants import ModelConstants, index_function
 from openpilot.nrdr.features.driver_policy.dec import enforce_mode_dwell, slow_down_threshold
 from openpilot.nrdr.features.longitudinal import policy
+from openpilot.nrdr.features.longitudinal.longitudinal_mpc import apply_standstill_gap
 from openpilot.sunnypilot.selfdrive.controls.lib.dec.constants import WMACConstants
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -63,6 +64,7 @@ def environment(**overrides):
     "nrdr_longitudinal_enabled": policy.nrdr_longitudinal_enabled,
     "longitudinal_personality": policy.longitudinal_personality,
     "NrdrLongControl": forbidden, "NrdrLongitudinalPlanner": forbidden, "NrdrLongitudinalMpc": forbidden,
+    "apply_standstill_gap": apply_standstill_gap,
     "is_honda_bosch_a_radar": lambda _: False, "_LEAD_ACCEL_TAU": 1.5,
     "V_CRUISE_MAX": 145, "V_CRUISE_UNSET": 255,
   }
@@ -379,9 +381,10 @@ def test_native_tuning_controls_follow_vehicle_policy(brand, enabled):
   layout = object.__new__(module['LongitudinalTuningLayout'])
   values = []
   layout._live_learning_gas = NS(action_item=NS(set_enabled=lambda value: values.append(('gas', value))))
+  layout._standstill_gap = NS(action_item=NS(set_enabled=lambda value: values.append(('gap', value))))
   layout._tuning_items = [layout._live_learning_gas, NS(), NS(action_item=NS(set_enabled=lambda value: values.append(('tune', value))))]
   layout._update_state()
-  assert values == [('gas', enabled), ('tune', enabled), ('gas', enabled)]
+  assert values == [('gas', enabled), ('tune', enabled), ('gas', enabled), ('gap', enabled)]
 
 
 def test_generated_sunnylink_schema_gates_nrdr_panel_and_econ():

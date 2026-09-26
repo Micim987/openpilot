@@ -9,7 +9,7 @@ from openpilot.common.swaglog import cloudlog
 # WARNING: imports outside of constants will not trigger a rebuild
 from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
-from openpilot.nrdr.features.longitudinal.longitudinal_mpc import NrdrLongitudinalMpc
+from openpilot.nrdr.features.longitudinal.longitudinal_mpc import NrdrLongitudinalMpc, apply_standstill_gap
 from openpilot.nrdr.features.longitudinal.policy import longitudinal_personality
 
 if __name__ == '__main__':  # generating code
@@ -327,7 +327,8 @@ class LongitudinalMpc:
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
     return lead_xv
 
-  def update(self, radarstate, personality=log.LongitudinalPersonality.standard, *, model=None, v_cruise=None):
+  def update(self, radarstate, personality=log.LongitudinalPersonality.standard, *, model=None, v_cruise=None,
+             extra_stop_distance=0.0):
     personality = longitudinal_personality(personality, self.nrdr is not None)
     t_follow = get_T_FOLLOW(personality)
     v_ego = self.x0[1]
@@ -356,6 +357,9 @@ class LongitudinalMpc:
       # Keep the tuned NRDR lead trajectories while retaining that newer split.
       x_obstacles = result.obstacles[:, :2]
       lead_probability = result.lead_probability
+
+    if self.nrdr is not None:
+      x_obstacles = apply_standstill_gap(x_obstacles, radarstate, extra_stop_distance)
 
     self.lead_xv_0, self.lead_xv_1 = lead_xv_0, lead_xv_1
     self.source = MPC_SOURCES[np.argmin(x_obstacles[0])]

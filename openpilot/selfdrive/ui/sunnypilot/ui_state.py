@@ -10,7 +10,6 @@ from openpilot.cereal import messaging, log, custom
 from opendbc.car.structs import car
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.display import OnroadBrightness
-from openpilot.nrdr.ui import UI_CONSTRAINT_PARAMS, restore_params, snapshot_params
 from openpilot.sunnypilot.models.helpers import ACTIVE_BUNDLE_KEYS, get_active_source
 from openpilot.sunnypilot.sunnylink.sunnylink_state import SunnylinkState
 from openpilot.system.ui.lib.application import gui_app
@@ -190,7 +189,6 @@ class UIStateSP:
       self.reset_onroad_sleep_timer()
 
   def _enforce_constraints(self) -> None:
-    pending_preferences = snapshot_params(self.params, UI_CONSTRAINT_PARAMS)
     has_long = self.has_longitudinal_control
     CP = self.CP
 
@@ -223,10 +221,10 @@ class UIStateSP:
       self.params.remove("LateralJerkTorqueController")
       self.params.remove("AlphaLongitudinalEnabled")
 
-    # No longitudinal control: no experimental mode or DEC
-    if not has_long:
-      self.params.remove("ExperimentalMode")
-      self.params.remove("DynamicExperimentalControl")
+    # Preserve cruise preferences without deleting/restoring them. A queued
+    # restore can overwrite a newer distance-button or remote-settings write.
+    # Consumers still gate these preferences on vehicle capabilities (e.g.
+    # selfdrived requires CP.openpilotLongitudinalControl for ExperimentalMode).
 
     # ICBM: clear if not available or if full longitudinal control is active
     if self.CP_SP is not None:
@@ -236,14 +234,6 @@ class UIStateSP:
     else:
       self.params.remove("IntelligentCruiseButtonManagement")
       self.has_icbm = False
-
-    # Cruise features requiring longitudinal or ICBM
-    if not (has_long or self.has_icbm):
-      self.params.remove("CustomAccIncrementsEnabled")
-      self.params.remove("SmartCruiseControlVision")
-      self.params.remove("SmartCruiseControlMap")
-
-    restore_params(self.params, pending_preferences)
 
 
 class DeviceSP:

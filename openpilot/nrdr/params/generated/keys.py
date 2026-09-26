@@ -33,6 +33,7 @@ class NrdrParamKey(StrEnum):
   NRDR_PERSONALITY_ACCEL_PROFILES = "NrdrPersonalityAccelProfiles"
   NRDR_CRUISE_MISMATCH_CORRECTION = "NrdrCruiseMismatchCorrection"
   NRDR_CRUISE_OVERSPEED_ALLOWANCE = "NrdrCruiseOverspeedAllowance"
+  NRDR_STANDSTILL_GAP_EXTRA = "NrdrStandstillGapExtra"
   HONDA_CENTER_SCALE = "HondaCenterScale"
   HONDA_PID_FRICTION = "HondaPidFriction"
   NRDR_INTERPOLATED_TORQUE_PIF_BLEND = "NrdrInterpolatedTorquePifBlend"
@@ -176,6 +177,7 @@ ADDED_KEYS: frozenset[NrdrParamKey] = frozenset((
   NrdrParamKey.NRDR_PERSONALITY_ACCEL_PROFILES,
   NrdrParamKey.NRDR_CRUISE_MISMATCH_CORRECTION,
   NrdrParamKey.NRDR_CRUISE_OVERSPEED_ALLOWANCE,
+  NrdrParamKey.NRDR_STANDSTILL_GAP_EXTRA,
   NrdrParamKey.HONDA_CENTER_SCALE,
   NrdrParamKey.HONDA_PID_FRICTION,
   NrdrParamKey.NRDR_INTERPOLATED_TORQUE_PIF_BLEND,

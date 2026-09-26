@@ -14,7 +14,6 @@ V_CRUISE_MIN = 0
 V_CRUISE_MAX = 169
 V_CRUISE_UNSET = 255
 V_CRUISE_INITIAL = 0
-V_CRUISE_INITIAL_EXPERIMENTAL_MODE = 105
 IMPERIAL_INCREMENT = round(CV.MPH_TO_KPH, 1)  # round here to avoid rounding errors incrementing set speed
 
 ButtonEvent = car.CarState.ButtonEvent
@@ -149,13 +148,13 @@ class VCruiseHelper(VCruiseHelperSP):
     if self.CP.pcmCruise:
       return
 
-    initial_experimental_mode = experimental_mode and not dynamic_experimental_control
-    initial = V_CRUISE_INITIAL_EXPERIMENTAL_MODE if initial_experimental_mode else V_CRUISE_INITIAL
 
     if any(b.type in (ButtonType.accelCruise, ButtonType.resumeCruise) for b in CS.buttonEvents) and self.v_cruise_initialized:
       self.v_cruise_kph = self.v_cruise_kph_last
     else:
-      initial_speed = np.clip(CS.vEgo * CV.MS_TO_KPH, initial, V_CRUISE_MAX)
+      # SET uses current speed in every driving mode. Experimental Mode must
+      # not silently select a highway target on a residential street.
+      initial_speed = np.clip(CS.vEgo * CV.MS_TO_KPH, V_CRUISE_INITIAL, V_CRUISE_MAX)
       self.v_cruise_kph = self.nrdr.initial_speed(initial_speed)
 
     self.v_cruise_cluster_kph = self.v_cruise_kph

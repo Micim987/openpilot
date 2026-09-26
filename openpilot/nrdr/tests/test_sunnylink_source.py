@@ -104,7 +104,7 @@ class TestSunnylinkSourceOwnership(unittest.TestCase):
 
     canonical_keys = set(canonical_references) & catalog_keys
     generated_nrdr_keys = set(generated_references) & catalog_keys
-    self.assertEqual(len(canonical_keys), 97)
+    self.assertEqual(len(canonical_keys), 98)
     self.assertEqual(canonical_keys, generated_nrdr_keys)
     self.assertEqual(set(canonical_references) - catalog_keys, INHERITED_LANE_CENTERING_KEYS)
     retired_setting_keys = {

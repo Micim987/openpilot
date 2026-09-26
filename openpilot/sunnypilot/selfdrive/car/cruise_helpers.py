@@ -24,14 +24,25 @@ class CruiseHelper:
     self.button_frame_counts = {ButtonType.gapAdjustCruise: 0}
     self._experimental_mode = False
     self.experimental_mode_switched = False
+    self.distance_button_consumed = False
 
-  def update(self, CS, events, experimental_mode) -> None:
-    if self.CP.openpilotLongitudinalControl:
-      if CS.cruiseState.available:
-        self.update_button_frame_counts(CS)
+  def update(self, CS, events, experimental_mode, distance_button_reserved=False) -> None:
+    # Always observe releases, including while SLA owns the button or cruise
+    # is unavailable. Suppressing actions must not suppress button bookkeeping.
+    if self.button_frame_counts[ButtonType.gapAdjustCruise] == 0 and any(
+      b.pressed and b.type == ButtonType.gapAdjustCruise for b in CS.buttonEvents
+    ):
+      self.distance_button_consumed = False
+    self.update_button_frame_counts(CS)
+    held = self.button_frame_counts[ButtonType.gapAdjustCruise] > 0
+    available = self.CP.openpilotLongitudinalControl and CS.cruiseState.available
+    if held and (distance_button_reserved or not available):
+      # Do not reinterpret the tail of an SLA confirmation as an experimental
+      # hold when the reservation expires. Require a fresh press after release.
+      self.distance_button_consumed = True
 
-        # toggle experimental mode once on distance button hold
-        self.update_experimental_mode(events, experimental_mode)
+    if available and not distance_button_reserved and not self.distance_button_consumed:
+      self.update_experimental_mode(events, experimental_mode)
 
   def update_button_frame_counts(self, CS) -> None:
     for button in self.button_frame_counts:

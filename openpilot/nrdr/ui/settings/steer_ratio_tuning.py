@@ -28,8 +28,9 @@ class SteerRatioTuningLayout(Widget):
     )
     self._source_a = self._source_item("NrdrSteerRatioMode", "Ratio A — Near Center / Single Source")
     self._blend_start = option_item_sp(
-      title=lambda: tr("Blend Starts At"), param="NrdrSteerRatioBlendStart", min_value=0, max_value=180,
-      value_change_step=1, label_callback=lambda value: f"{value}–{value + 5}°",
+      title=lambda: tr("Blend Starts At"), param="NrdrSteerRatioBlendStart", min_value=0, max_value=18000,
+      value_change_step=100, use_float_scaling=True,
+      label_callback=lambda value: f"{value / 100:g}–{value / 100 + 5:g}°",
       description=lambda: tr("Angle from straight ahead, in either direction. Source B takes over fully 5 degrees later. " +
                              "The same transition is followed in reverse when unwinding."),
     )

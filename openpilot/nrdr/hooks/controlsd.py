@@ -3,7 +3,7 @@ import math
 from openpilot.nrdr.params import get_live_params
 from openpilot.nrdr.params.snapshots import _bool_value
 from openpilot.nrdr.features.lateral.live_tuning import LiveTorqueTransition
-from openpilot.nrdr.features.lateral.torque_output_filter import HondaTorqueOutputFilter
+from openpilot.nrdr.features.lateral.torque_output_filter import HondaTorqueOutputFilter, torque_lpf_tau
 from openpilot.nrdr.features.lateral.lane_change_tuning import LaneChangeEntry, shape_lane_change_curvature
 from openpilot.nrdr.features.lateral.steer_ratio_tuning import (
   SteerRatioModeLatch,
@@ -38,7 +38,21 @@ def finalize_lateral_torque(controls, torque: float, CS, active: bool, dt: float
     # Reuse the typed, background-refreshed Honda settings and their existing
     # defaults; no Params reads or second set of LPF controls in this loop.
     live = controls.CI.interface_config.honda.provider.get_live_tuning(refresh_if_uninitialized=False)
+    unfiltered = torque
     torque = controls.nrdr_torque_output_filter.update(torque, active, CS.vEgo, live, dt)
+    signature = (bool(live.torque_lpf_enabled), live.lpf_tau_low, live.lpf_tau_standard, live.lpf_tau_highway)
+    if signature != getattr(controls, "nrdr_lpf_report_signature", None):
+      controls.nrdr_lpf_report_signature = signature
+      # Report the exact Honda snapshot consumed here, not requested UI values.
+      # Configuration changes only; the worker performs all logging off-thread.
+      reporter = getattr(controls, "nrdr_live_params", None)
+      if reporter is not None:
+        reporter.record_applied_settings(
+          "honda_torque_lpf", live.generation, enabled=signature[0],
+          tau_low=signature[1], tau_standard=signature[2], tau_highway=signature[3],
+          selected_tau=torque_lpf_tau(CS.vEgo, *signature[1:]) if signature[0] else 0.0,
+          active=bool(active), speed_ms=float(CS.vEgo), input_torque=float(unfiltered), output_torque=float(torque),
+        )
   return torque
 
 
