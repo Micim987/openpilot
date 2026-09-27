@@ -200,7 +200,7 @@ class ModelFetcher:
       json_data = response.json()
       if source == "chestnut":
         from openpilot.sunnypilot import accelerators
-        json_data = accelerators.big_catalog(json_data, model_url)
+        json_data = accelerators.big_catalog(json_data)
       parsed = self.model_parser.parse_models(json_data)
       if parsed:
         self.model_caches[source].set(json_data)

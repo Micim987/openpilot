@@ -3,22 +3,20 @@
 #
 # Only when the user has turned the link on: a gadget presented by default
 # turns link_configured() true and routed manager away from the user's bundle.
-# Read through openpilot.common.params so the key type and prefix match; a
-# params library not built yet, or without the key, reads as off.
+# The param file is read directly, by gadget.params_dir()'s rule, not through
+# openpilot.common.params: this runs before build.py, and on the first boot
+# after an update the params library is not built yet (the updater's git clean
+# removes it). Python here also cost every boot, link on or off, 1.2 to 1.7 s.
 set -u
 [ -f /AGNOS ] || exit 0
 BASEDIR="$(cd "$(dirname "$0")/../../../.." && pwd)"
 STATUS=/dev/shm/jetlink-gadget
 
-enabled=$(PYTHONPATH="$BASEDIR" python3 - <<'PY' 2>/dev/null || echo 0
-try:
-  from openpilot.common.params import Params
-  print(1 if Params().get_bool("JetlinkEnabled") else 0)
-except Exception:
-  print(0)
-PY
-)
-[ "$enabled" = "1" ] || exit 0
+# put_bool writes 1; gadget.param_bool also takes true
+case "$(cat "${PARAMS_ROOT:-/data/params}/${OPENPILOT_PREFIX:-d}/JetlinkEnabled" 2>/dev/null)" in
+  1|true|True) ;;
+  *) exit 0 ;;
+esac
 
 REPO="$BASEDIR/jetlink_repo"
 if [ ! -d "$REPO/jetlink" ]; then

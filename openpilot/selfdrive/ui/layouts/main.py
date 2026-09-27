@@ -13,6 +13,9 @@ from openpilot.selfdrive.ui.body.layouts.onroad import BodyLayout
 
 if gui_app.sunnypilot_ui():
   from openpilot.selfdrive.ui.sunnypilot.layouts.settings.settings import SettingsLayoutSP as SettingsLayout
+  # Importing the sunnypilot settings layout extends the base module's PanelType.
+  # Refresh this local binding so callbacks can use the added NRDR panel.
+  from openpilot.selfdrive.ui.layouts.settings.settings import PanelType as PanelType
   from openpilot.selfdrive.ui.sunnypilot.layouts.home import HomeLayoutSP as HomeLayout
 
 

@@ -9,6 +9,7 @@ MICI_SETTINGS = REPOSITORY_ROOT / "openpilot/selfdrive/ui/mici/layouts/settings/
 MICI_TOGGLES = REPOSITORY_ROOT / "openpilot/selfdrive/ui/mici/layouts/settings/toggles.py"
 MICI_SETTINGS_SP = REPOSITORY_ROOT / "openpilot/selfdrive/ui/sunnypilot/mici/layouts/settings.py"
 TICI_SETTINGS_SP = REPOSITORY_ROOT / "openpilot/selfdrive/ui/sunnypilot/layouts/settings/settings.py"
+MAIN_LAYOUT = REPOSITORY_ROOT / "openpilot/selfdrive/ui/layouts/main.py"
 NRDR_LATERAL = REPOSITORY_ROOT / "openpilot/nrdr/ui/settings/lateral_tuning.py"
 NRDR_LAYOUT = REPOSITORY_ROOT / "openpilot/nrdr/ui/settings/layout.py"
 LANE_CENTERING_LAYOUT = REPOSITORY_ROOT / "openpilot/selfdrive/ui/sunnypilot/layouts/settings/lane_centering.py"
@@ -95,6 +96,14 @@ class _LifecycleSpy:
 
 
 class TestSettingsNavigation(unittest.TestCase):
+  def test_main_refreshes_extended_panel_type_for_sunnypilot(self) -> None:
+    source = MAIN_LAYOUT.read_text(encoding="utf-8")
+    settings_import = "from openpilot.selfdrive.ui.sunnypilot.layouts.settings.settings import SettingsLayoutSP as SettingsLayout"
+    panel_import = "from openpilot.selfdrive.ui.layouts.settings.settings import PanelType as PanelType"
+    self.assertIn(settings_import, source)
+    self.assertIn(panel_import, source)
+    self.assertLess(source.index(settings_import), source.index(panel_import))
+
   def test_mici_root_buttons_keep_named_network_and_device_routes(self) -> None:
     init = _method(_tree(MICI_SETTINGS), "SettingsLayout", "__init__")
     self.assertEqual(

@@ -92,9 +92,7 @@ class JetlinkModelState(ModelStateBase):
     # compile_modeld.make_input_queues' packed_npy_inputs, minus the GPU queues
     # the server owns; for a stateful graph, minus prev_feat too
     self.packed = np.zeros(spec.packed_nelem, dtype=np.float32)
-    views = np.split(self.packed, np.cumsum(spec.packed_sizes[:-1]))
-    self.npy.update({k: v.reshape(s) for (k, s), v in
-                     zip(spec.packed_shapes.items(), views, strict=True)})
+    self.npy.update({k: self.packed[at].reshape(shape) for k, (at, shape) in spec.packed_layout.items()})
 
     # read once: it must be the device the cached JIT was compiled against
     self.warp_dev = Device.DEFAULT
@@ -175,8 +173,7 @@ class JetlinkModelState(ModelStateBase):
     # the non-finite check runs on the server (Status.NOT_FINITE -> LinkError),
     # so modeld's big->small failover fires as it does for a chestnut
     outputs_dict = self.parser.parse_outputs(self.slice_outputs(model_output, self.output_slices))
-    if 'prev_feat' in self.npy:
-      self.npy['prev_feat'][:] = model_output[self.output_slices['hidden_state']]
+    self.spec.feed_back(self.packed, model_output)
     if SEND_RAW_PRED:
       outputs_dict['raw_pred'] = model_output.copy()
     return outputs_dict
