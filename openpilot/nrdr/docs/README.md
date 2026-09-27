@@ -11,6 +11,8 @@ code:
   stiction overlay.
 - [Honda Bosch-A radar](RADAR_EXPERIMENTAL.md) documents the experimental
   factory-radar decoder and its operating limits.
+- [JetLink porting](jetlink/README.md) records the accelerator architecture,
+  NRDR-specific merge rules, forward-port procedure, and hardware validation.
 - [Radar reverse engineering](../tools/radar_re/README.md) documents the
   offline Bosch radar analysis tools.
 
